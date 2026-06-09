@@ -1,6 +1,0 @@
-Django==5.0.4
-psycopg[binary]==3.1.18
-python-dotenv==1.0.1
-split-settings==1.0.0
-uwsgi==2.0.20
-django-cors-headers>=4.3.0
