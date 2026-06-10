@@ -107,6 +107,14 @@
             white-space: nowrap;
         }
 
+        .score {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #6c63ff;
+            white-space: nowrap;
+            margin-left: 10px;
+        }
+
         .genres {
             display: flex;
             flex-wrap: wrap;
@@ -169,9 +177,14 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">{{ movie.title }}</span>
-                    {% if movie.imdb_rating %}
-                        <span class="rating">★ {{ movie.imdb_rating }}</span>
-                    {% endif %}
+                    <span>
+                        {% if movie.imdb_rating %}
+                            <span class="rating">★ {{ movie.imdb_rating }}</span>
+                        {% endif %}
+                        {% if movie.score %}
+                            <span class="score">relevance: {{ movie.score|floatformat:2 }}</span>
+                        {% endif %}
+                    </span>
                 </div>
 
                 {% if movie.genres %}

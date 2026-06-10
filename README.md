@@ -4,11 +4,10 @@
 
 ## Структура репозитория
 
-- `admin_panel/` — панель администратора на Django (модели фильмов, API, поиск, конфигурация nginx в `admin_panel/nginx/`, спецификация API в `admin_panel/docs/openapi.yaml`).
-- `async_api/` — асинхронное API для онлайн-кинотеатра.
-- `fulltext_search/` — сервис полнотекстового поиска и ETL переноса данных из PostgreSQL в Elasticsearch (`etl/` — python-скрипты ETL, `docs/` — задание и схема индекса).
-- `docker-compose.yml` — единый docker-compose для всех сервисов.
-- `.env` / `.env.example` — единый файл переменных окружения для всех сервисов.
+- `admin_panel` — панель администратора на Django (модели фильмов, API, поиск, конфигурация nginx в `admin_panel/nginx`, спецификация API в `admin_panel/docs/openapi.yaml`).
+- `database` — скрипты для наполнения базы данных (структура формируется миграциями django из admin_panel).
+- `fulltext_search` — сервис для полнотекстового поиска (ETL переноса данных из PostgreSQL в Elasticsearch).
+- `async_api` — асинхронное API для онлайн-кинотеатра.
 
 ## Запуск
 
@@ -20,6 +19,19 @@ docker compose down -v
 
 После запуска:
 
-- Панель администратора и API: http://localhost/admin, http://localhost/api/
+- admin_panel:
+  - Панель администратора (http://localhost/admin)
+  - API (http://localhost/api/v1)
+  - Swagger (http://localhost:8080)
+  - Тестирование полнотекстового поиска (http://localhost/search)
 - Elasticsearch: http://localhost:9200
-- Swagger UI: http://localhost:8080
+
+## Разработка
+
+Требуется Python 3.12.
+
+Установка зависимостей разработчика (для `.venv`, линтинга и работы с кодом сервисов локально):
+
+```bash
+pip install -r requirements.txt
+```

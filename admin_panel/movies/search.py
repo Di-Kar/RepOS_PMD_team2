@@ -57,5 +57,5 @@ class SearchView(View):
 
         hits = data.get('hits', {})
         total = hits.get('total', {}).get('value', 0)
-        results = [h['_source'] for h in hits.get('hits', [])]
+        results = [{**h['_source'], 'score': h.get('_score')} for h in hits.get('hits', [])]
         return results, total
