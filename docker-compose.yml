@@ -1,82 +1,112 @@
+volumes:
+  static_volume:
+  postgres_data:
+  es_data:
+  etl_state:
+
+networks:
+  frontend:
+  backend:
+
 services:
-  theatre-db:
-    image: postgres:16
-    container_name: theatre-db
+  movie_db:
+    image: postgres:15
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
-      - ./database_dump.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./database/database_dump.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
     networks:
-      - movies_net
+      - backend
 
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
+  admin_panel:
+    build:
+      context: ./admin_panel
+      dockerfile: Dockerfile
+    expose:
+      - "8000"
+    env_file:
+      - ./.env
     volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      - static_volume:/opt/app/static
+    depends_on:
+      movie_db:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
-      - movies_net
+      - frontend
+      - backend
+
+  admin_panel_nginx:
+    image: nginx:latest
+    volumes:
+      - ./admin_panel/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./admin_panel/nginx/conf.d:/etc/nginx/conf.d:ro
+      - static_volume:/var/www/static:ro
+    depends_on:
+      - admin_panel
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - frontend
+
+  admin_panel_swagger:
+    image: swaggerapi/swagger-ui
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./admin_panel/docs/openapi.yaml:/swagger.yaml:ro
+    environment:
+      SWAGGER_JSON: /swagger.yaml
+    depends_on:
+      - admin_panel
+    restart: unless-stopped
+    networks:
+      - frontend
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.1
-    container_name: elasticsearch
+    image: elasticsearch:8.6.2
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
-    volumes:
-      - esdata:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 20
+    restart: unless-stopped
     networks:
-      - movies_net
+      - backend
 
-  api:
+  etl:
     build:
-      context: .
+      context: ./fulltext_search
       dockerfile: Dockerfile
-    container_name: api
     env_file:
-      - .env
-    expose:
-      - "8000"
+      - ./.env
+    volumes:
+      - etl_state:/app/state
+    environment:
+      - ETL_STATE_FILE=/app/state/state.json
     depends_on:
-      redis:
+      movie_db:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
+    restart: unless-stopped
     networks:
-      - movies_net
-
-networks:
-  movies_net:
-    driver: bridge
-
-volumes:
-  pg_data:
-  redis_data:
-  esdata:
-  etl_state:
-  static_volume:
+      - backend
