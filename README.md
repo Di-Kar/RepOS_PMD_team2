@@ -12,7 +12,7 @@
 ## Запуск
 
 ```bash
-cp .env.example .env  # заполнить значения
+cp .env.example .env  # заполнить значения (но проще взять готовый в чате команды и подложить)
 docker compose up -d --build
 docker compose down -v
 ```
