@@ -73,6 +73,21 @@ services:
     networks:
       - frontend
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - backend
+
   elasticsearch:
     image: elasticsearch:8.6.2
     environment:
@@ -110,3 +125,20 @@ services:
     restart: unless-stopped
     networks:
       - backend
+
+  api:
+    build:
+      context: ./async_api
+      dockerfile: Dockerfile
+    container_name: api
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - backend 
