@@ -1,7 +1,0 @@
-# .gitignore
-.env
-__pycache__/
-*.pyc
-*.pyo
-state_data/
-.venv/
