@@ -18,7 +18,6 @@ docker compose down -v
 ```
 
 После запуска доступны следующие эндпоинты:
-кга
 - admin_panel:
   - Панель администратора (http://localhost/admin)
   - API (http://localhost/api/v1)
