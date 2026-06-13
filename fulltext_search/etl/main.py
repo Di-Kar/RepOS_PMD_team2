@@ -49,6 +49,52 @@ def run_etl(
             logger.info('Прогресс %s → %s / %s', table, new_modified, new_id)
 
 
+def run_genres_etl(
+    extractor: PostgresExtractor,
+    transformer: DataTransformer,
+    loader: ElasticsearchLoader,
+    state: State,
+) -> None:
+    cursor_modified = state.get_state('cursor_modified_genres_index') or _MIN_DATETIME
+    cursor_id = state.get_state('cursor_id_genres_index') or _MIN_UUID
+    logger.info('Проверка изменений в genres с курсора %s / %s', cursor_modified, cursor_id)
+
+    for rows, new_modified, new_id in extractor.fetch_genres_batches(
+        cursor_modified, cursor_id, etl_settings.batch_size
+    ):
+        if rows:
+            genres = transformer.transform_genres(rows)
+            loader.bulk_upsert_genres(genres)
+
+        state.set_state('cursor_modified_genres_index', new_modified)
+        state.set_state('cursor_id_genres_index', new_id)
+        logger.info('Прогресс genres → %s / %s', new_modified, new_id)
+
+
+def run_persons_etl(
+    extractor: PostgresExtractor,
+    transformer: DataTransformer,
+    loader: ElasticsearchLoader,
+    state: State,
+) -> None:
+    cursor_modified = state.get_state('cursor_modified_persons_index') or _MIN_DATETIME
+    cursor_id = state.get_state('cursor_id_persons_index') or _MIN_UUID
+    logger.info('Проверка изменений в persons с курсора %s / %s', cursor_modified, cursor_id)
+
+    for rows, new_modified, new_id in extractor.fetch_persons_batches(
+        cursor_modified, cursor_id, etl_settings.batch_size
+    ):
+        if rows:
+            person_ids = [row['id'] for row in rows]
+            film_roles = extractor.fetch_person_film_roles(person_ids)
+            persons = transformer.transform_persons(rows, film_roles)
+            loader.bulk_upsert_persons(persons)
+
+        state.set_state('cursor_modified_persons_index', new_modified)
+        state.set_state('cursor_id_persons_index', new_id)
+        logger.info('Прогресс persons → %s / %s', new_modified, new_id)
+
+
 if __name__ == '__main__':
     backoff_utils.configure(
         start_sleep_time=etl_settings.backoff_start_sleep_time,
@@ -62,11 +108,27 @@ if __name__ == '__main__':
     transformer = DataTransformer()
     loader = ElasticsearchLoader(es_settings)
 
-    loader.ensure_index()
+    loader.ensure_movies_index()
+    loader.ensure_genres_index()
+    loader.ensure_persons_index()
 
     scheduler = BlockingScheduler()
     scheduler.add_job(
         run_etl,
+        trigger='interval',
+        seconds=etl_settings.sleep_interval,
+        args=[extractor, transformer, loader, state],
+        next_run_time=datetime.now(),
+    )
+    scheduler.add_job(
+        run_genres_etl,
+        trigger='interval',
+        seconds=etl_settings.sleep_interval,
+        args=[extractor, transformer, loader, state],
+        next_run_time=datetime.now(),
+    )
+    scheduler.add_job(
+        run_persons_etl,
         trigger='interval',
         seconds=etl_settings.sleep_interval,
         args=[extractor, transformer, loader, state],

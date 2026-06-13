@@ -1,4 +1,5 @@
 # Объединённые зависимости всех сервисов проекта (для локальной разработки и .venv).
 -r admin_panel/requirements.txt
 -r fulltext_search/requirements.txt
+-r async_api/requirements.txt
 ruff

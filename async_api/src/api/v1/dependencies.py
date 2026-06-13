@@ -14,7 +14,7 @@ class PaginationParams:
                 description='Количество элементов на странице',
                 example=50,
             ),
-        ],
+        ] = 50,
         page_number: Annotated[
             int,
             Query(
@@ -22,7 +22,7 @@ class PaginationParams:
                 description='Номер страницы',
                 example=1,
             ),
-        ],
+        ] = 1,
     ) -> None:
         self.page_size = page_size
         self.page_number = page_number

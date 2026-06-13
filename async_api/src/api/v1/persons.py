@@ -1,5 +1,4 @@
 from http import HTTPStatus
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query

@@ -17,14 +17,17 @@ docker compose up -d --build
 docker compose down -v
 ```
 
-После запуска:
-
+После запуска доступны следующие эндпоинты:
+кга
 - admin_panel:
   - Панель администратора (http://localhost/admin)
   - API (http://localhost/api/v1)
   - Swagger (http://localhost:8080)
   - Тестирование полнотекстового поиска (http://localhost/search)
 - Elasticsearch: http://localhost:9200
+- async_api:
+  - Swagger (http://localhost:8000/api/openapi)
+  - OpenAPI-схема (http://localhost:8000/api/openapi.json)
 
 ## Разработка
 

@@ -50,9 +50,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-app.include_router(films.router, prefix='/api/v1/films', tags=['films'])
-app.include_router(genres.router, prefix='/api/v1/genres', tags=['genres'])
-app.include_router(persons.router, prefix='/api/v1/persons', tags=['persons'])
+app.include_router(films.router, prefix='/api/v1/films')
+app.include_router(genres.router, prefix='/api/v1/genres')
+app.include_router(persons.router, prefix='/api/v1/persons')
 
 if __name__ == '__main__':
     # Приложение может запускаться командой

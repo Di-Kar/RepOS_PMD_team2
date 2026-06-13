@@ -8,10 +8,37 @@ class PersonShort(BaseModel):
     name: str
 
 
+class GenreShort(BaseModel):
+    id: UUID
+    name: str
+
+
+class PersonFilm(BaseModel):
+    uuid: UUID
+    roles: list[str] = []
+
+
+class Person(BaseModel):
+    id: UUID
+    full_name: str
+    films: list[PersonFilm] = []
+
+
+class Genre(BaseModel):
+    id: UUID
+    name: str
+    description: str = ''
+
+    @field_validator('description', mode='before')
+    @classmethod
+    def normalize_description(cls, v) -> str:
+        return v.strip() if v else ''
+
+
 class Movie(BaseModel):
     id: UUID
     imdb_rating: Optional[float] = None
-    genres: list[str] = []
+    genres: list[GenreShort] = []
     title: str
     description: str = ''
     directors_names: list[str] = []

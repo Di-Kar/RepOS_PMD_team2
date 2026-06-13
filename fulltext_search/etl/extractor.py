@@ -48,6 +48,28 @@ FILM_IDS_FOR_GENRES_SQL = """
     WHERE gfw.genre_id = ANY(%s)
 """
 
+GENRES_SQL = """
+    SELECT id, name, description, modified
+    FROM content.genre
+    WHERE (modified, id) > (%s::timestamptz, %s::uuid)
+    ORDER BY modified, id
+    LIMIT %s
+"""
+
+PERSONS_SQL = """
+    SELECT id, full_name, modified
+    FROM content.person
+    WHERE (modified, id) > (%s::timestamptz, %s::uuid)
+    ORDER BY modified, id
+    LIMIT %s
+"""
+
+PERSON_FILM_ROLES_SQL = """
+    SELECT person_id, film_work_id, role
+    FROM content.person_film_work
+    WHERE person_id = ANY(%s)
+"""
+
 FILM_DETAILS_SQL = """
     SELECT
         fw.id,
@@ -55,7 +77,8 @@ FILM_DETAILS_SQL = """
         fw.description,
         fw.rating AS imdb_rating,
         COALESCE(
-            JSON_AGG(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL),
+            JSON_AGG(DISTINCT jsonb_build_object('id', g.id::text, 'name', g.name))
+            FILTER (WHERE g.id IS NOT NULL),
             '[]'
         ) AS genres,
         COALESCE(
@@ -147,6 +170,50 @@ class PostgresExtractor:
 
             if len(rows) < batch_size:
                 break
+
+    def fetch_genres_batches(
+        self,
+        cursor_modified: str,
+        cursor_id: str,
+        batch_size: int,
+    ) -> Generator[Tuple[List[dict], str, str], None, None]:
+        """Генерирует тройки (genre_rows, new_cursor_modified, new_cursor_id)."""
+        while True:
+            rows = self._execute(GENRES_SQL, (cursor_modified, cursor_id, batch_size))
+            if not rows:
+                break
+
+            cursor_modified = rows[-1]['modified'].isoformat()
+            cursor_id = str(rows[-1]['id'])
+
+            yield rows, cursor_modified, cursor_id
+
+            if len(rows) < batch_size:
+                break
+
+    def fetch_persons_batches(
+        self,
+        cursor_modified: str,
+        cursor_id: str,
+        batch_size: int,
+    ) -> Generator[Tuple[List[dict], str, str], None, None]:
+        """Генерирует тройки (person_rows, new_cursor_modified, new_cursor_id)."""
+        while True:
+            rows = self._execute(PERSONS_SQL, (cursor_modified, cursor_id, batch_size))
+            if not rows:
+                break
+
+            cursor_modified = rows[-1]['modified'].isoformat()
+            cursor_id = str(rows[-1]['id'])
+
+            yield rows, cursor_modified, cursor_id
+
+            if len(rows) < batch_size:
+                break
+
+    def fetch_person_film_roles(self, person_ids: List[str]) -> List[dict]:
+        """Возвращает строки (person_id, film_work_id, role) для списка персон."""
+        return self._execute(PERSON_FILM_ROLES_SQL, (person_ids,))
 
     def fetch_film_details(self, film_ids: List[str]) -> List[dict]:
         """Возвращает полные данные фильмов по списку ID."""

@@ -15,7 +15,9 @@ class PostgresSettings(BaseSettings):
 class ElasticsearchSettings(BaseSettings):
     host: str = Field(default='localhost', alias='ES_HOST')
     port: int = Field(default=9200, alias='ES_PORT')
-    index_name: str = Field(default='movies', alias='ES_INDEX_NAME')
+    movies_index_name: str = Field(default='movies', alias='ES_MOVIES_INDEX_NAME')
+    genres_index_name: str = Field(default='genres', alias='ES_GENRES_INDEX_NAME')
+    persons_index_name: str = Field(default='persons', alias='ES_PERSONS_INDEX_NAME')
 
     @property
     def url(self) -> str:
