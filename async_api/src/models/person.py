@@ -32,3 +32,8 @@ class PersonResponse(BaseModel):
     uuid: UUID
     full_name: str
     films: list[PersonFilmResponse] = []
+
+
+class PersonSearchResponse(BaseModel):
+    uuid: UUID
+    full_name: str

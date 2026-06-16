@@ -108,12 +108,6 @@ class PersonService(BaseService[PersonES]):
                 logger.warning(f"Failed to parse ES hit for person: {e}")
                 continue
 
-            try:
-                person.films = await self._get_person_films(str(person.id))
-            except Exception as e:
-                logger.warning(f"Elasticsearch search failed for person films: {e}")
-                person.films = []
-
             persons.append(person)
 
         if persons:

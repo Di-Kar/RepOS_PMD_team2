@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.v1.dependencies import PaginationParams
 from models.film import FilmShort
-from models.person import PersonFilmResponse, PersonResponse
+from models.person import PersonFilmResponse, PersonResponse, PersonSearchResponse
 from services.person import PersonService, get_person_service
 
 router = APIRouter()
@@ -13,23 +13,23 @@ router = APIRouter()
 
 @router.get(
     '/search',
-    response_model=list[PersonResponse],
+    response_model=list[PersonSearchResponse],
     summary="Полнотекстовый поиск персон",
-    description="Ищет персон (актёров, режиссёров, сценаристов) по имени. Поддерживает пагинацию.",
-    response_description="Список персон с именем и списком фильмов",
+    description="Ищет персон (актёров, режиссёров, сценаристов) по имени. Поддерживает пагинацию. "
+                "⚠️ Фильмография в этом запросе не включена. Для получения полной информации используйте `/persons/{id}`.",
+    response_description="Список персон с именем и UUID (без фильмографии)",
     tags=["Персоны"],
 )
 async def persons_search(
     query: str = Query(..., description='Поисковый запрос'),
     pagination: PaginationParams = Depends(PaginationParams),
     person_service: PersonService = Depends(get_person_service),
-) -> list[PersonResponse]:
+) -> list[PersonSearchResponse]:
     persons = await person_service.search(query, pagination.page_number, pagination.page_size)
     return [
-        PersonResponse(
+        PersonSearchResponse(
             uuid=p.id,
             full_name=p.full_name,
-            films=[PersonFilmResponse(uuid=pf.uuid, roles=pf.roles) for pf in p.films],
         )
         for p in persons
     ]
