@@ -1,6 +1,6 @@
 from uuid import UUID
 from typing import Optional, Any
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class FilmShort(BaseModel):
@@ -24,10 +24,10 @@ class FilmDetail(BaseModel):
     title: str
     imdb_rating: Optional[float] = None
     description: Optional[str] = None
-    genre: list[FilmGenre] = []
-    actors: list[FilmPerson] = []
-    writers: list[FilmPerson] = []
-    directors: list[FilmPerson] = []
+    genre: list[FilmGenre] = Field(default_factory=list)
+    actors: list[FilmPerson] = Field(default_factory=list)
+    writers: list[FilmPerson] = Field(default_factory=list)
+    directors: list[FilmPerson] = Field(default_factory=list)
 
 
 class Genre(BaseModel):
@@ -55,10 +55,10 @@ class Film(BaseModel):
     rating: Optional[float] = None
     imdb_rating: Optional[float] = None
     type: str = ''
-    genres: list[Genre] = []
-    actors: list[FilmActorES] = []
-    writers: list[FilmActorES] = []
-    directors: list[FilmActorES] = []
+    genres: list[Genre] = Field(default_factory=list)
+    actors: list[FilmActorES] = Field(default_factory=list)
+    writers: list[FilmActorES] = Field(default_factory=list)
+    directors: list[FilmActorES] = Field(default_factory=list)
 
     @model_validator(mode='before')
     @classmethod

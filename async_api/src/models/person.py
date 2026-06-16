@@ -1,18 +1,18 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class PersonFilmES(BaseModel):
     uuid: UUID
-    roles: list[str] = []
+    roles: list[str] = Field(default_factory=list)
 
 
 class PersonES(BaseModel):
     id: UUID
     full_name: str
-    films: list[PersonFilmES] = []
+    films: list[PersonFilmES] = Field(default_factory=list)
 
     @model_validator(mode='before')
     @classmethod
@@ -25,13 +25,13 @@ class PersonES(BaseModel):
 
 class PersonFilmResponse(BaseModel):
     uuid: UUID
-    roles: list[str] = []
+    roles: list[str] = Field(default_factory=list)
 
 
 class PersonResponse(BaseModel):
     uuid: UUID
     full_name: str
-    films: list[PersonFilmResponse] = []
+    films: list[PersonFilmResponse] = Field(default_factory=list)
 
 
 class PersonSearchResponse(BaseModel):
