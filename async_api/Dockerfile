@@ -15,4 +15,8 @@ COPY src ./src
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "src", "--workers", "8"]
+# Gunicorn управляет процессами Uvicorn, Uvicorn обрабатывает асинхронные запросы
+CMD ["gunicorn", "src.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8000" ]
