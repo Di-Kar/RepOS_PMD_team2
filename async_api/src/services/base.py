@@ -4,6 +4,9 @@ from typing import Generic, Optional, TypeVar
 from elasticsearch import AsyncElasticsearch, NotFoundError
 from pydantic import BaseModel
 from redis.asyncio import Redis
+import logging
+
+logger = logging.getLogger(__name__)
 
 ModelType = TypeVar('ModelType', bound=BaseModel)
 
@@ -34,26 +37,63 @@ class BaseService(Generic[ModelType]):
             doc = await self.elastic.get(index=self.index, id=entity_id)
         except NotFoundError:
             return None
-        return self.model(**doc['_source'])
+        except Exception as e:
+            logger.warning(f"Elasticsearch GET failed for id='{entity_id}': {e}")
+            return None
+        try:
+            return self.model(**doc['_source'])
+        except Exception as e:
+            logger.warning(f"Failed to parse ES source for id='{entity_id}': {e}")
+            return None
 
     async def _get_from_cache(self, key: str) -> Optional[ModelType]:
-        data = await self.redis.get(key)
+        if not self.redis:
+            return None
+        try:
+            data = await self.redis.get(key)
+        except Exception as e:
+            logger.warning(f"Redis GET failed for key='{key}': {e}")
+            return None
         if not data:
             return None
-        return self.model.model_validate_json(data)
+        try:
+            return self.model.model_validate_json(data)
+        except Exception as e:
+            logger.warning(f"Failed to parse Redis JSON for key='{key}': {e}")
+            return None
 
     async def _put_to_cache(self, key: str, obj: ModelType) -> None:
-        await self.redis.set(key, obj.model_dump_json(), CACHE_EXPIRE_IN_SECONDS)
+        if not self.redis:
+            return
+        try:
+            await self.redis.set(key, obj.model_dump_json(), CACHE_EXPIRE_IN_SECONDS)
+        except Exception as e:
+            logger.warning(f"Redis SET failed for key='{key}': {e}")
 
     async def _get_list_from_cache(self, key: str) -> Optional[list[ModelType]]:
-        cached = await self.redis.get(key)
+        if not self.redis:
+            return None
+        try:
+            cached = await self.redis.get(key)
+        except Exception as e:
+            logger.warning(f"Redis GET failed for key='{key}': {e}")
+            return None
         if not cached:
             return None
-        return [self.model.model_validate(item) for item in json.loads(cached)]
+        try:
+            return [self.model.model_validate(item) for item in json.loads(cached)]
+        except Exception as e:
+            logger.warning(f"Failed to parse cached list JSON for key='{key}': {e}")
+            return None
 
     async def _put_list_to_cache(self, key: str, items: list[ModelType]) -> None:
-        await self.redis.set(
-            key,
-            json.dumps([item.model_dump(mode='json') for item in items]),
-            CACHE_EXPIRE_IN_SECONDS,
-        )
+        if not self.redis:
+            return
+        try:
+            await self.redis.set(
+                key,
+                json.dumps([item.model_dump(mode='json') for item in items]),
+                CACHE_EXPIRE_IN_SECONDS,
+            )
+        except Exception as e:
+            logger.warning(f"Redis SET failed for key='{key}': {e}")

@@ -9,6 +9,9 @@ from db.elastic_db import get_elastic
 from db.redis_db import get_redis
 from models.film import Genre
 from services.base import BaseService
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class GenreService(BaseService[Genre]):
@@ -22,13 +25,18 @@ class GenreService(BaseService[Genre]):
         if cached is not None:
             return cached
 
-        result = await self.elastic.search(
-            index=self.index,
-            body={'query': {'match_all': {}}, 'size': 1000},
-        )
-        genres = [Genre(**hit['_source']) for hit in result['hits']['hits']]
+        try:
+            result = await self.elastic.search(
+                index=self.index,
+                body={'query': {'match_all': {}}, 'size': 1000},
+            )
+        except Exception as e:
+            logger.warning(f"Elasticsearch search failed for genres list: {e}")
+            return []
 
-        await self._put_list_to_cache(cache_key, genres)
+        genres = [Genre(**hit['_source']) for hit in result.get('hits', {}).get('hits', [])]
+        if genres:
+            await self._put_list_to_cache(cache_key, genres)
         return genres
 
 
