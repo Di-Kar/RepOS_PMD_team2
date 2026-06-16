@@ -1,10 +1,8 @@
 from typing import Optional
 
 from redis.asyncio import Redis
+from fastapi import Request
 
-redis: Optional[Redis] = None
 
-
-# Функция понадобится при внедрении зависимостей
-def get_redis() -> Redis:
-    return redis
+def get_redis(request: Request) -> Redis:
+    return request.app.state.redis

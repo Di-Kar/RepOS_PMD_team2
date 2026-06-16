@@ -14,7 +14,7 @@ from db import redis_db
 
 
 @asynccontextmanager
-async def lifespan(_app_instance: FastAPI):
+async def lifespan(app: FastAPI):
     # Подключаемся к базам при старте сервера
     # Подключиться можем при работающем event-loop
     # Поэтому логика подключения происходит в асинхронной функции
@@ -23,16 +23,16 @@ async def lifespan(_app_instance: FastAPI):
         port=config.settings.redis_port,
         max_connections=500,
     )
-    redis_db.redis = Redis(connection_pool=redis_pool)
-    elastic_db.es = AsyncElasticsearch(
+    app.state.redis = Redis(connection_pool=redis_pool)
+    app.state.elastic = AsyncElasticsearch(
         hosts=[f'{config.settings.elastic_schema}{config.settings.elastic_host}:{config.settings.elastic_port}'],
         max_retries=3,
         connections_per_node=32,
     )
     yield
     # Отключаемся от баз при выключении сервера
-    await redis_db.redis.close()
-    await elastic_db.es.close()
+    await app.state.redis.close()
+    await app.state.elastic.close()
 
 
 app = FastAPI(
