@@ -20,50 +20,46 @@ class PersonService(BaseService[PersonES]):
     cache_prefix = 'person'
     model = PersonES
 
+    def _build_search_query(self, query: str) -> dict:
+        return {'multi_match': {'query': query, 'fields': ['full_name']}}
+
     async def get_by_id(self, entity_id: str) -> Optional[PersonES]:
-        key = f'{self.cache_prefix}:{entity_id}'
+        key = self._build_cache_key(entity_id)
         entity = await self._get_from_cache(key)
         if entity:
             return entity
 
-        try:
-            entity = await self._get_from_elastic(entity_id)
-        except Exception as e:
-            logger.warning(f"Elasticsearch GET failed for person id='{entity_id}': {e}")
-            return None
-
+        entity = await self._get_from_elastic(entity_id)
         if not entity:
             return None
 
         try:
             entity.films = await self._get_person_films(entity_id)
         except Exception as e:
-            logger.warning(f"Elasticsearch search failed for person films: {e}")
+            logger.warning(f"Failed to fetch films for person id='{entity_id}': {e}")
             entity.films = []
 
         await self._put_to_cache(key, entity)
         return entity
 
     async def _get_person_films(self, person_id: str) -> list[PersonFilmES]:
-        body = {
-            'query': {
-                'bool': {
-                    'should': [
-                        {'nested': {'path': 'actors', 'query': {'term': {'actors.id': person_id}}}},
-                        {'nested': {'path': 'directors', 'query': {'term': {'directors.id': person_id}}}},
-                        {'nested': {'path': 'writers', 'query': {'term': {'writers.id': person_id}}}},
-                    ],
-                    'minimum_should_match': 1,
-                }
-            },
-            'size': 1000,
-            '_source': ['id', 'actors', 'directors', 'writers'],
+        query = {
+            'bool': {
+                'should': [
+                    {'nested': {'path': 'actors', 'query': {'term': {'actors.id': person_id}}}},
+                    {'nested': {'path': 'directors', 'query': {'term': {'directors.id': person_id}}}},
+                    {'nested': {'path': 'writers', 'query': {'term': {'writers.id': person_id}}}},
+                ],
+                'minimum_should_match': 1,
+            }
         }
-
         try:
-            result = await self.elastic.search(index=settings.es_movies_index, body=body)
+            result = await self.elastic.search(
+                index=settings.es_movies_index,
+                body={'query': query, 'size': 1000, '_source': ['id', 'actors', 'directors', 'writers']},
+            )
         except Exception as e:
-            logger.warning(f"Elasticsearch search failed for person films: {e}")
+            logger.warning(f"Elasticsearch search failed for person films id='{person_id}': {e}")
             return []
 
         films = []
@@ -83,66 +79,41 @@ class PersonService(BaseService[PersonES]):
         return films
 
     async def search(self, query: str, page_number: int, page_size: int) -> list[PersonES]:
-        cache_key = f'persons:search:{query}:{page_number}:{page_size}'
-        cached = await self._get_list_from_cache(cache_key)
+        key = self._build_cache_key('search', query, str(page_number), str(page_size))
+        cached = await self._get_list_from_cache(key)
         if cached is not None:
             return cached
-
-        body = {
-            'query': {'multi_match': {'query': query, 'fields': ['full_name']}},
-            'from': (page_number - 1) * page_size,
-            'size': page_size,
-        }
-
-        try:
-            result = await self.elastic.search(index=self.index, body=body)
-        except Exception as e:
-            logger.warning(f"Elasticsearch search failed for persons query '{query}': {e}")
-            return []
-
-        persons = []
-        for hit in result.get('hits', {}).get('hits', []):
-            try:
-                person = PersonES(**hit.get('_source', {}))
-            except Exception as e:
-                logger.warning(f"Failed to parse ES hit for person: {e}")
-                continue
-
-            persons.append(person)
-
+        persons = await self._execute_elastic_search(
+            self._build_search_query(query),
+            page_number=page_number,
+            page_size=page_size,
+        )
         if persons:
-            await self._put_list_to_cache(cache_key, persons)
+            await self._put_list_to_cache(key, persons)
         return persons
 
     async def get_films_by_person(self, person_id: str) -> list[dict] | None:
-        try:
-            person = await self._get_from_elastic(person_id)
-        except Exception as e:
-            logger.warning(f"Elasticsearch GET failed for person id='{person_id}': {e}")
-            return None
-
+        person = await self._get_from_elastic(person_id)
         if not person:
             return None
 
-        body = {
-            'query': {
-                'bool': {
-                    'should': [
-                        {'nested': {'path': 'actors', 'query': {'term': {'actors.id': person_id}}}},
-                        {'nested': {'path': 'directors', 'query': {'term': {'directors.id': person_id}}}},
-                        {'nested': {'path': 'writers', 'query': {'term': {'writers.id': person_id}}}},
-                    ],
-                    'minimum_should_match': 1,
-                }
-            },
-            'size': 1000,
-            '_source': ['id', 'title', 'imdb_rating'],
+        query = {
+            'bool': {
+                'should': [
+                    {'nested': {'path': 'actors', 'query': {'term': {'actors.id': person_id}}}},
+                    {'nested': {'path': 'directors', 'query': {'term': {'directors.id': person_id}}}},
+                    {'nested': {'path': 'writers', 'query': {'term': {'writers.id': person_id}}}},
+                ],
+                'minimum_should_match': 1,
+            }
         }
-
         try:
-            result = await self.elastic.search(index=settings.es_movies_index, body=body)
+            result = await self.elastic.search(
+                index=settings.es_movies_index,
+                body={'query': query, 'size': 1000, '_source': ['id', 'title', 'imdb_rating']},
+            )
         except Exception as e:
-            logger.warning(f"Elasticsearch search failed for person films: {e}")
+            logger.warning(f"Elasticsearch search failed for person films id='{person_id}': {e}")
             return []
 
         return [
