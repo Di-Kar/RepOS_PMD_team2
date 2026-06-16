@@ -32,12 +32,12 @@ async def films_search(
     '',
     response_model=list[FilmShort],
     summary="Список фильмов",
-    description="Возвращает список фильмов с сортировкой и фильтрацией по жанру. Сортировка: `-imdb_rating` (убывание), `imdb_rating` (возрастание).",
+    description="Возвращает список фильмов с сортировкой и фильтрацией по жанру. Допустимые поля сортировки: `imdb_rating`, `title`; префикс `-` для убывания.",
     response_description="Список фильмов с названием и рейтингом",
     tags=["Фильмы"],
 )
 async def films_list(
-    sort: Optional[str] = Query(None, description='Поле сортировки, например -imdb_rating'),
+    sort: str = Query('-imdb_rating', pattern=r'^-?(imdb_rating|title)$', description='Поле сортировки: imdb_rating или title, префикс - для убывания'),
     genre: Optional[UUID] = Query(None, description='Фильтр по UUID жанра'),
     pagination: PaginationParams = Depends(PaginationParams),
     film_service: FilmService = Depends(get_film_service),
