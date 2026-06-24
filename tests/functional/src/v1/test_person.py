@@ -3,13 +3,10 @@ import pytest
 
 from tests.functional.settings import test_settings
 
-# ✅ Фиксированные UUID для стабильных тестов
 TEST_PERSON_UUID = '3a6ed55e-6aef-4cd2-932c-808495182425'
 TEST_PERSON_UUID_2 = '4a6ed55e-6aef-4cd2-932c-808495182426'
 
-
 # === Тесты получения персоны по ID ===
-
 @pytest.mark.asyncio
 async def test_person_by_id(es_write_data, es_data_persons, make_get_request):
     """Получение персоны по существующему UUID."""
@@ -67,9 +64,7 @@ async def test_person_films(es_write_data, es_data_persons, make_get_request):
         assert 'roles' in film
         assert all(isinstance(r, str) for r in film['roles'])
 
-
 # === Тесты валидации UUID ===
-
 @pytest.mark.parametrize(
     'endpoint, expected_status',
     [
@@ -133,9 +128,7 @@ async def test_person_cache_invalidation(
     assert response1['body']['uuid'] != response2['body']['uuid']
     assert response1['body']['full_name'] != response2['body']['full_name']
 
-
 # === Тесты с реальными данными (из ETL) ===
-
 @pytest.mark.asyncio
 async def test_person_real_data(make_get_request, es_client, redis_client):
     """Получение персоны из реальных данных (после работы ETL)."""
@@ -171,9 +164,7 @@ async def test_person_real_data(make_get_request, es_client, redis_client):
     
     assert response['status'] == 200
 
-
 # === Тесты поиска персон ===
-
 @pytest.mark.asyncio
 async def test_persons_search(es_write_data, es_data_persons, make_get_request):
     """Поиск персон по имени (GET /api/v1/persons/search?query=...)."""
