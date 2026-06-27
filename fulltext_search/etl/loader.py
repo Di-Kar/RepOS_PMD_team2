@@ -3,9 +3,9 @@ from typing import List
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError as ESConnectionError, TransportError, ConnectionTimeout
 from elasticsearch.helpers import bulk
+from pydantic import BaseModel
 from backoff_utils import backoff
 from config import ElasticsearchSettings
-from models import Genre, Movie, Person
 
 logger = logging.getLogger(__name__)
 
@@ -192,142 +192,48 @@ class ElasticsearchLoader:
         return self._client
 
     @backoff(exceptions=_ES_EXCEPTIONS)
-    def ensure_movies_index(self) -> None:
-        """Создаёт индекс фильмов, если он не существует."""
+    def ensure_index(self, index_name: str, index_settings: dict) -> None:
+        """Создаёт индекс, если он не существует."""
         client = self._get_client()
-        if not client.indices.exists(index=self.movies_index_name):
+        if not client.indices.exists(index=index_name):
             client.indices.create(
-                index=self.movies_index_name,
-                settings=MOVIES_INDEX_SETTINGS['settings'],
-                mappings=MOVIES_INDEX_SETTINGS['mappings'],
+                index=index_name,
+                settings=index_settings['settings'],
+                mappings=index_settings['mappings'],
             )
-            logger.info('Создан индекс %s', self.movies_index_name)
+            logger.info('Создан индекс %s', index_name)
         else:
-            logger.debug('Индекс %s уже существует', self.movies_index_name)
+            logger.debug('Индекс %s уже существует', index_name)
 
     @backoff(exceptions=_ES_EXCEPTIONS)
-    def ensure_genres_index(self) -> None:
-        """Создаёт индекс жанров, если он не существует."""
-        client = self._get_client()
-        if not client.indices.exists(index=self.genres_index_name):
-            client.indices.create(
-                index=self.genres_index_name,
-                settings=GENRES_INDEX_SETTINGS['settings'],
-                mappings=GENRES_INDEX_SETTINGS['mappings'],
-            )
-            logger.info('Создан индекс %s', self.genres_index_name)
-        else:
-            logger.debug('Индекс %s уже существует', self.genres_index_name)
-
-    @backoff(exceptions=_ES_EXCEPTIONS)
-    def bulk_upsert_genres(self, genres: List[Genre]) -> None:
-        """Отправляет жанры в ES через bulk API.
+    def bulk_upsert(self, docs: List[BaseModel], index_name: str) -> None:
+        """Отправляет документы в ES через bulk API.
 
         Выбрасывает RuntimeError, если хотя бы один документ не был принят —
         это не позволит ETL продвинуть курсор состояния.
         """
-        if not genres:
+        if not docs:
             return
 
         client = self._get_client()
         actions = [
             {
-                '_index': self.genres_index_name,
-                '_id': str(genre.id),
-                '_source': genre.model_dump(mode='json'),
+                '_index': index_name,
+                '_id': str(doc.id),
+                '_source': doc.model_dump(mode='json'),
             }
-            for genre in genres
+            for doc in docs
         ]
 
         success, errors = bulk(client, actions, raise_on_error=False, stats_only=False)
 
         if errors:
             logger.error(
-                'Ошибки при bulk-загрузке жанров: %d из %d документов не приняты. Первые 3: %s',
-                len(errors), len(genres), errors[:3],
+                'Ошибки при bulk-загрузке в %s: %d из %d документов не приняты. Первые 3: %s',
+                index_name, len(errors), len(docs), errors[:3],
             )
             raise RuntimeError(
-                f'Bulk-загрузка жанров завершилась с {len(errors)} ошибками из {len(genres)} документов'
+                f'Bulk-загрузка в {index_name} завершилась с {len(errors)} ошибками из {len(docs)} документов'
             )
 
-        logger.info('Проиндексировано %d жанров', success)
-
-    @backoff(exceptions=_ES_EXCEPTIONS)
-    def ensure_persons_index(self) -> None:
-        """Создаёт индекс персон, если он не существует."""
-        client = self._get_client()
-        if not client.indices.exists(index=self.persons_index_name):
-            client.indices.create(
-                index=self.persons_index_name,
-                settings=PERSONS_INDEX_SETTINGS['settings'],
-                mappings=PERSONS_INDEX_SETTINGS['mappings'],
-            )
-            logger.info('Создан индекс %s', self.persons_index_name)
-        else:
-            logger.debug('Индекс %s уже существует', self.persons_index_name)
-
-    @backoff(exceptions=_ES_EXCEPTIONS)
-    def bulk_upsert_persons(self, persons: List[Person]) -> None:
-        """Отправляет персон в ES через bulk API.
-
-        Выбрасывает RuntimeError, если хотя бы один документ не был принят —
-        это не позволит ETL продвинуть курсор состояния.
-        """
-        if not persons:
-            return
-
-        client = self._get_client()
-        actions = [
-            {
-                '_index': self.persons_index_name,
-                '_id': str(person.id),
-                '_source': person.model_dump(mode='json'),
-            }
-            for person in persons
-        ]
-
-        success, errors = bulk(client, actions, raise_on_error=False, stats_only=False)
-
-        if errors:
-            logger.error(
-                'Ошибки при bulk-загрузке персон: %d из %d документов не приняты. Первые 3: %s',
-                len(errors), len(persons), errors[:3],
-            )
-            raise RuntimeError(
-                f'Bulk-загрузка персон завершилась с {len(errors)} ошибками из {len(persons)} документов'
-            )
-
-        logger.info('Проиндексировано %d персон', success)
-
-    @backoff(exceptions=_ES_EXCEPTIONS)
-    def bulk_upsert(self, movies: List[Movie]) -> None:
-        """Отправляет фильмы в ES через bulk API.
-
-        Выбрасывает RuntimeError, если хотя бы один документ не был принят —
-        это не позволит ETL продвинуть курсор состояния.
-        """
-        if not movies:
-            return
-
-        client = self._get_client()
-        actions = [
-            {
-                '_index': self.movies_index_name,
-                '_id': str(movie.id),
-                '_source': movie.model_dump(mode='json'),
-            }
-            for movie in movies
-        ]
-
-        success, errors = bulk(client, actions, raise_on_error=False, stats_only=False)
-
-        if errors:
-            logger.error(
-                'Ошибки при bulk-загрузке: %d из %d документов не приняты. Первые 3: %s',
-                len(errors), len(movies), errors[:3],
-            )
-            raise RuntimeError(
-                f'Bulk-загрузка завершилась с {len(errors)} ошибками из {len(movies)} документов'
-            )
-
-        logger.info('Проиндексировано %d фильмов', success)
+        logger.info('Проиндексировано %d документов в %s', success, index_name)

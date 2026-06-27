@@ -4,7 +4,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 import backoff_utils
 from config import etl_settings, postgres_settings, es_settings
 from extractor import PostgresExtractor
-from loader import ElasticsearchLoader
+from loader import ElasticsearchLoader, MOVIES_INDEX_SETTINGS, GENRES_INDEX_SETTINGS, PERSONS_INDEX_SETTINGS
 from state import JsonFileStorage, State
 from transformer import DataTransformer
 
@@ -39,7 +39,7 @@ def run_etl(
             if film_ids:
                 raw_rows = extractor.fetch_film_details(film_ids)
                 movies = transformer.transform(raw_rows)
-                loader.bulk_upsert(movies)
+                loader.bulk_upsert(movies, loader.movies_index_name)
 
             # Курсор обновляется после успешной загрузки каждого батча,
             # а не после обработки всей таблицы — чтобы не пропустить
@@ -64,7 +64,7 @@ def run_genres_etl(
     ):
         if rows:
             genres = transformer.transform_genres(rows)
-            loader.bulk_upsert_genres(genres)
+            loader.bulk_upsert(genres, loader.genres_index_name)
 
         state.set_state('cursor_modified_genres_index', new_modified)
         state.set_state('cursor_id_genres_index', new_id)
@@ -88,7 +88,7 @@ def run_persons_etl(
             person_ids = [row['id'] for row in rows]
             film_roles = extractor.fetch_person_film_roles(person_ids)
             persons = transformer.transform_persons(rows, film_roles)
-            loader.bulk_upsert_persons(persons)
+            loader.bulk_upsert(persons, loader.persons_index_name)
 
         state.set_state('cursor_modified_persons_index', new_modified)
         state.set_state('cursor_id_persons_index', new_id)
@@ -108,9 +108,9 @@ if __name__ == '__main__':
     transformer = DataTransformer()
     loader = ElasticsearchLoader(es_settings)
 
-    loader.ensure_movies_index()
-    loader.ensure_genres_index()
-    loader.ensure_persons_index()
+    loader.ensure_index(loader.movies_index_name, MOVIES_INDEX_SETTINGS)
+    loader.ensure_index(loader.genres_index_name, GENRES_INDEX_SETTINGS)
+    loader.ensure_index(loader.persons_index_name, PERSONS_INDEX_SETTINGS)
 
     scheduler = BlockingScheduler()
     scheduler.add_job(

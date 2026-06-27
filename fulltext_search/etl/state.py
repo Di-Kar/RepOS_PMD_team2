@@ -2,12 +2,25 @@ import json
 import logging
 import os
 import tempfile
+from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
-class JsonFileStorage:
+class BaseStorage(ABC):
+    """Абстрактное хранилище состояния ETL-процесса."""
+
+    @abstractmethod
+    def save_state(self, state: dict) -> None:
+        """Сохранить состояние."""
+
+    @abstractmethod
+    def retrieve_state(self) -> dict:
+        """Загрузить состояние."""
+
+
+class JsonFileStorage(BaseStorage):
     def __init__(self, file_path: str):
         self.file_path = file_path
 
@@ -42,7 +55,7 @@ class JsonFileStorage:
 
 
 class State:
-    def __init__(self, storage: JsonFileStorage):
+    def __init__(self, storage: BaseStorage):
         self.storage = storage
         self._state = storage.retrieve_state()
 
