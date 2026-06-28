@@ -154,6 +154,8 @@ services:
       && pytest /tests/functional"
     volumes:
       - ./tests:/tests
+    environment:
+      - PYTHONPATH=/
     env_file:
       - ./.env
     depends_on:

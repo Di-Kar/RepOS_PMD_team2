@@ -1,13 +1,12 @@
 from functools import lru_cache
 from typing import Optional
 
-from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from redis.asyncio import Redis
 
 from core.config import settings
-from db.elastic_db import get_elastic
 from db.redis_db import get_redis
+from db.storage import AbstractStorage, get_storage
 from models.film import Film
 from services.base import BaseService
 
@@ -48,7 +47,7 @@ class FilmService(BaseService[Film]):
         cached = await self._get_list_from_cache(key)
         if cached is not None:
             return cached
-        films = await self._execute_elastic_search(
+        films = await self._execute_search(
             self._build_list_query(genre=genre),
             sort=self._parse_sort(sort),
             page_number=page_number,
@@ -63,7 +62,7 @@ class FilmService(BaseService[Film]):
         cached = await self._get_list_from_cache(key)
         if cached is not None:
             return cached
-        films = await self._execute_elastic_search(
+        films = await self._execute_search(
             self._build_search_query(query),
             page_number=page_number,
             page_size=page_size,
@@ -75,7 +74,7 @@ class FilmService(BaseService[Film]):
 
 @lru_cache()
 def get_film_service(
+        storage: AbstractStorage = Depends(get_storage),
         redis: Redis = Depends(get_redis),
-        elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> FilmService:
-    return FilmService(redis, elastic)
+    return FilmService(storage, redis)
