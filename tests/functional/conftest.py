@@ -199,13 +199,14 @@ async def es_data_movies():
 async def es_data_genres():
     """Тестовые данные для жанров."""
     es_data = [
-        {'uuid': str(uuid.uuid4()), 'name': 'Action'},
-        {'uuid': str(uuid.uuid4()), 'name': 'Sci-Fi'},
-        {'uuid': '2fec4f4f-7f84-475c-ad28-791ce135bd2e', 'name': 'TestGenre'},
+        {'id': str(uuid.uuid4()), 'name': 'Action'},
+        {'id': str(uuid.uuid4()), 'name': 'Sci-Fi'},
+        {'id': '2fec4f4f-7f84-475c-ad28-791ce135bd2e', 'name': 'TestGenre'},
+        {'id': '2fec4f4f-7f84-475c-ad28-791ce135bd2f', 'name': 'TestGenre2'},
     ]
     bulk_query = []
     for row in es_data:
-        data = {'_index': 'genres', '_id': row['uuid']}
+        data = {'_index': 'genres', '_id': row['id']}
         data.update({'_source': row})
         bulk_query.append(data)
     return bulk_query
