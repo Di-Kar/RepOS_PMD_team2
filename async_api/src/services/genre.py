@@ -1,13 +1,12 @@
 from functools import lru_cache
 
-from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from redis.asyncio import Redis
 
 from cache.redis_cache import RedisCache
 from core.config import settings
-from db.elastic_db import get_elastic
 from db.redis_db import get_redis
+from db.storage import AbstractStorage, get_storage
 from models.film import Genre
 from services.base import BaseService
 
@@ -22,7 +21,7 @@ class GenreService(BaseService[Genre]):
         cached = await self._get_list_from_cache(key)
         if cached is not None:
             return cached
-        genres = await self._execute_elastic_search({'match_all': {}}, page_size=1000)
+        genres = await self._execute_search({'match_all': {}}, page_size=1000)
         if genres:
             await self._put_list_to_cache(key, genres)
         return genres
@@ -30,8 +29,8 @@ class GenreService(BaseService[Genre]):
 
 @lru_cache()
 def get_genre_service(
+        storage: AbstractStorage = Depends(get_storage),
         redis: Redis = Depends(get_redis),
-        elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> GenreService:
     cache = RedisCache(redis, Genre)
-    return GenreService(elastic, cache)
+    return GenreService(storage, cache)
