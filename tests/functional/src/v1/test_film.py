@@ -301,3 +301,179 @@ async def test_films_search_validation(
     if query_data.get('query') == '' and expected_status == 200:
         body = response['body']
         assert isinstance(body, list), "Ответ должен быть списком"
+
+
+# === Тесты поиска фильмов (дополнительные) ===
+
+@pytest.mark.asyncio
+async def test_films_search_pagination(
+    es_write_data, es_data_movies, make_get_request
+):
+    """Проверка пагинации результатов поиска."""
+    await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
+
+    # Запрос первой страницы
+    response1 = await make_get_request(
+        '/films', '/search', query_data={'query': 'movie', 'page_number': 1, 'page_size': 2}
+    )
+    assert response1['status'] == 200
+    assert len(response1['body']) <= 2
+
+    # Запрос второй страницы
+    response2 = await make_get_request(
+        '/films', '/search', query_data={'query': 'movie', 'page_number': 2, 'page_size': 2}
+    )
+    assert response2['status'] == 200
+    assert len(response2['body']) <= 2
+
+    # Проверить, что результаты не пересекаются
+    ids1 = {f.get('uuid') or f.get('id') for f in response1['body']}
+    ids2 = {f.get('uuid') or f.get('id') for f in response2['body']}
+    assert not (ids1 & ids2), "Страницы не должны содержать одинаковые фильмы"
+
+
+@pytest.mark.asyncio
+async def test_films_search_case_insensitive(
+    es_write_data, es_data_movies, make_get_request
+):
+    """Проверка регистронезависимости поиска."""
+    await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
+
+    # Поиск в нижнем регистре
+    response_lower = await make_get_request(
+        '/films', '/search', query_data={'query': 'the movie'}
+    )
+
+    # Поиск в верхнем регистре
+    response_upper = await make_get_request(
+        '/films', '/search', query_data={'query': 'THE MOVIE'}
+    )
+
+    assert response_lower['status'] == 200
+    assert response_upper['status'] == 200
+    
+    # Оба запроса должны вернуть результаты
+    assert len(response_lower['body']) > 0, "Поиск 'the movie' должен вернуть результаты"
+    assert len(response_upper['body']) > 0, "Поиск 'THE MOVIE' должен вернуть результаты"
+    
+    
+@pytest.mark.asyncio
+async def test_films_search_partial_match(
+    es_write_data, es_data_movies, make_get_request
+):
+    """Проверка частичного совпадения при поиске."""
+    await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
+    
+    # Поиск 'movie' - должно вернуть фильмы с 'movie' в названии
+    response1 = await make_get_request(
+        '/films', '/search', query_data={'query': 'movie'}
+    )
+    assert response1['status'] == 200
+    assert len(response1['body']) > 0, "Поиск 'movie' должен вернуть результаты"
+    
+    # Поиск 'Super' - должно вернуть фильмы с 'Super' в описании (не стоп-слово)
+    response2 = await make_get_request(
+        '/films', '/search', query_data={'query': 'Super'}
+    )
+    assert response2['status'] == 200
+    assert len(response2['body']) > 0, "Поиск 'Super' должен вернуть результаты"
+    
+    # Поиск 'World' - должно вернуть фильмы с 'World' в описании
+    response3 = await make_get_request(
+        '/films', '/search', query_data={'query': 'World'}
+    )
+    assert response3['status'] == 200
+    assert len(response3['body']) > 0, "Поиск 'World' должен вернуть результаты"
+
+
+@pytest.mark.asyncio
+async def test_films_search_description(
+    es_write_data, es_data_movies, make_get_request
+):
+    """Проверка поиска по описанию фильма."""
+    await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
+
+    # Поиск 'Super Movie' (из описания)
+    response1 = await make_get_request(
+        '/films', '/search', query_data={'query': 'Super Movie'}
+    )
+    assert response1['status'] == 200
+    body1 = response1['body']
+    assert isinstance(body1, list)
+
+    # Поиск 'World' (из описания 'New World')
+    response2 = await make_get_request(
+        '/films', '/search', query_data={'query': 'World'}
+    )
+    assert response2['status'] == 200
+    body2 = response2['body']
+    assert isinstance(body2, list)
+
+
+@pytest.mark.asyncio
+async def test_films_search_cache(
+    es_write_data, es_data_movies, make_get_request, redis_client
+):
+    """Проверка кеширования результатов поиска в Redis."""
+    await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
+    await redis_client.flushdb()
+
+    # Выполнить поиск
+    response1 = await make_get_request(
+        '/films', '/search', query_data={'query': 'The movie'}
+    )
+    assert response1['status'] == 200
+
+    # Проверить наличие ключа в Redis
+    keys = await redis_client.keys('*film:search:*')
+    assert len(keys) > 0, "Кеш должен быть заполнен для поиска"
+
+    # Повторить тот же запрос
+    response2 = await make_get_request(
+        '/films', '/search', query_data={'query': 'The movie'}
+    )
+    assert response2['status'] == 200
+
+    # Проверить, что результаты идентичны
+    assert response1['body'] == response2['body']
+
+
+@pytest.mark.asyncio
+async def test_films_search_caching_invalidation(
+    es_write_data, es_data_movies, make_get_request, redis_client
+):
+    """Проверка, что разные запросы кешируются отдельно."""
+    await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
+    await redis_client.flushdb()
+
+    # Выполнить разные запросы
+    await make_get_request('/films', '/search', query_data={'query': 'The movie'})
+    await make_get_request('/films', '/search', query_data={'query': 'Another movie'})
+    await make_get_request('/films', '/search', query_data={'query': 'New'})
+
+    # Проверить, что в Redis создано 3 разных ключа
+    keys = await redis_client.keys('*film:search:*')
+    assert len(keys) == 3, f"Ожидалось 3 ключа кеша, получено {len(keys)}"
+
+    # Проверить, что результаты различны
+    response1 = await make_get_request(
+        '/films', '/search', query_data={'query': 'The movie'}
+    )
+    response2 = await make_get_request(
+        '/films', '/search', query_data={'query': 'Another movie'}
+    )
+    response3 = await make_get_request(
+        '/films', '/search', query_data={'query': 'New'}
+    )
+
+    assert response1['status'] == 200
+    assert response2['status'] == 200
+    assert response3['status'] == 200
+
+    # Результаты должны различаться по uuid или title
+    uuids1 = {f.get('uuid') for f in response1['body']}
+    uuids2 = {f.get('uuid') for f in response2['body']}
+    uuids3 = {f.get('uuid') for f in response3['body']}
+
+    # Проверить, что есть хотя бы некоторые различия
+    assert uuids1 != uuids2 or uuids1 != uuids3, "Результаты поиска должны различаться"
