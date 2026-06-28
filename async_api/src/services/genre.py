@@ -4,15 +4,12 @@ from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from redis.asyncio import Redis
 
+from cache.redis_cache import RedisCache
 from core.config import settings
 from db.elastic_db import get_elastic
 from db.redis_db import get_redis
 from models.film import Genre
 from services.base import BaseService
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class GenreService(BaseService[Genre]):
@@ -36,4 +33,5 @@ def get_genre_service(
         redis: Redis = Depends(get_redis),
         elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> GenreService:
-    return GenreService(redis, elastic)
+    cache = RedisCache(redis, Genre)
+    return GenreService(elastic, cache)

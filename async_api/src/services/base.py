@@ -1,10 +1,10 @@
-import json
 import logging
 from typing import Generic, Optional, TypeVar
 
 from elasticsearch import AsyncElasticsearch, NotFoundError
 from pydantic import BaseModel
-from redis.asyncio import Redis
+
+from cache.interface import CacheInterface
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,15 @@ class BaseService(Generic[ModelType]):
     index: str
     cache_prefix: str
     model: type[ModelType]
+    cache: CacheInterface[ModelType]
 
-    def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
-        self.redis = redis
+    def __init__(
+        self,
+        elastic: AsyncElasticsearch,
+        cache: CacheInterface[ModelType],
+    ):
         self.elastic = elastic
+        self.cache = cache
 
     # --- Формирование ключа кэша ---
 
@@ -31,12 +36,12 @@ class BaseService(Generic[ModelType]):
 
     async def get_by_id(self, entity_id: str) -> Optional[ModelType]:
         key = self._build_cache_key(entity_id)
-        entity = await self._get_from_cache(key)
+        entity = await self.cache.get(key)
         if not entity:
             entity = await self._get_from_elastic(entity_id)
             if not entity:
                 return None
-            await self._put_to_cache(key, entity)
+            await self.cache.set(key, entity, CACHE_EXPIRE_IN_SECONDS)
         return entity
 
     async def _get_from_elastic(self, entity_id: str) -> Optional[ModelType]:
@@ -90,58 +95,10 @@ class BaseService(Generic[ModelType]):
                 logger.warning(f"Failed to parse ES hit in {self.__class__.__name__}: {e}")
         return items
 
-    # --- Кэш: одиночный объект ---
-
-    async def _get_from_cache(self, key: str) -> Optional[ModelType]:
-        if not self.redis:
-            return None
-        try:
-            data = await self.redis.get(key)
-        except Exception as e:
-            logger.warning(f"Redis GET failed for key='{key}': {e}")
-            return None
-        if not data:
-            return None
-        try:
-            return self.model.model_validate_json(data)
-        except Exception as e:
-            logger.warning(f"Failed to parse Redis JSON for key='{key}': {e}")
-            return None
-
-    async def _put_to_cache(self, key: str, obj: ModelType) -> None:
-        if not self.redis:
-            return
-        try:
-            await self.redis.set(key, obj.model_dump_json(), ex=CACHE_EXPIRE_IN_SECONDS)
-        except Exception as e:
-            logger.warning(f"Redis SET failed for key='{key}': {e}")
-
-    # --- Кэш: список объектов ---
+    # --- Списки объектов через cache_service ---
 
     async def _get_list_from_cache(self, key: str) -> Optional[list[ModelType]]:
-        if not self.redis:
-            return None
-        try:
-            cached = await self.redis.get(key)
-        except Exception as e:
-            logger.warning(f"Redis GET failed for key='{key}': {e}")
-            return None
-        if not cached:
-            return None
-        try:
-            return [self.model.model_validate(item) for item in json.loads(cached)]
-        except Exception as e:
-            logger.warning(f"Failed to parse cached list JSON for key='{key}': {e}")
-            return None
+        return await self.cache.get_list(key)
 
     async def _put_list_to_cache(self, key: str, items: list[ModelType]) -> None:
-        if not self.redis:
-            return
-        try:
-            await self.redis.set(
-                key,
-                json.dumps([item.model_dump(mode='json') for item in items]),
-                ex=CACHE_EXPIRE_IN_SECONDS,
-            )
-        except Exception as e:
-            logger.warning(f"Redis SET failed for key='{key}': {e}")
+        await self.cache.set_list(key, items, CACHE_EXPIRE_IN_SECONDS)

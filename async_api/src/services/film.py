@@ -5,15 +5,12 @@ from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from redis.asyncio import Redis
 
+from cache.redis_cache import RedisCache
 from core.config import settings
 from db.elastic_db import get_elastic
 from db.redis_db import get_redis
 from models.film import Film
 from services.base import BaseService
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class FilmService(BaseService[Film]):
@@ -78,4 +75,5 @@ def get_film_service(
         redis: Redis = Depends(get_redis),
         elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> FilmService:
-    return FilmService(redis, elastic)
+    cache = RedisCache(redis, Film)
+    return FilmService(elastic, cache)
