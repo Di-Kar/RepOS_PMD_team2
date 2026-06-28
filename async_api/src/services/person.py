@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import Depends
 from redis.asyncio import Redis
 
+from cache.redis_cache import RedisCache
 from core.config import settings
 from db.redis_db import get_redis
 from db.storage import AbstractStorage, get_storage
@@ -24,7 +25,7 @@ class PersonService(BaseService[PersonES]):
 
     async def get_by_id(self, entity_id: str) -> Optional[PersonES]:
         key = self._build_cache_key(entity_id)
-        entity = await self._get_from_cache(key)
+        entity = await self.cache.get(key)
         if entity:
             return entity
 
@@ -38,7 +39,7 @@ class PersonService(BaseService[PersonES]):
             logger.warning(f"Failed to fetch films for person id='{entity_id}': {e}")
             entity.films = []
 
-        await self._put_to_cache(key, entity)
+        await self.cache.set(key, entity, 60 * 5)
         return entity
 
     async def _get_person_films(self, person_id: str) -> list[PersonFilmES]:
@@ -121,4 +122,5 @@ def get_person_service(
         storage: AbstractStorage = Depends(get_storage),
         redis: Redis = Depends(get_redis),
 ) -> PersonService:
-    return PersonService(storage, redis)
+    cache = RedisCache(redis, PersonES)
+    return PersonService(storage, cache)

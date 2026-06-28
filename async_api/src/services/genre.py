@@ -3,15 +3,12 @@ from functools import lru_cache
 from fastapi import Depends
 from redis.asyncio import Redis
 
+from cache.redis_cache import RedisCache
 from core.config import settings
 from db.redis_db import get_redis
 from db.storage import AbstractStorage, get_storage
 from models.film import Genre
 from services.base import BaseService
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class GenreService(BaseService[Genre]):
@@ -35,4 +32,5 @@ def get_genre_service(
         storage: AbstractStorage = Depends(get_storage),
         redis: Redis = Depends(get_redis),
 ) -> GenreService:
-    return GenreService(storage, redis)
+    cache = RedisCache(redis, Genre)
+    return GenreService(storage, cache)

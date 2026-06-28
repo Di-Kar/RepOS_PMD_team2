@@ -4,15 +4,12 @@ from typing import Optional
 from fastapi import Depends
 from redis.asyncio import Redis
 
+from cache.redis_cache import RedisCache
 from core.config import settings
 from db.redis_db import get_redis
 from db.storage import AbstractStorage, get_storage
 from models.film import Film
 from services.base import BaseService
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class FilmService(BaseService[Film]):
@@ -77,4 +74,5 @@ def get_film_service(
         storage: AbstractStorage = Depends(get_storage),
         redis: Redis = Depends(get_redis),
 ) -> FilmService:
-    return FilmService(storage, redis)
+    cache = RedisCache(redis, Film)
+    return FilmService(storage, cache)
