@@ -2,9 +2,10 @@ import json
 import logging
 from typing import Generic, Optional, TypeVar
 
-from elasticsearch import AsyncElasticsearch, NotFoundError
 from pydantic import BaseModel
 from redis.asyncio import Redis
+
+from db.storage import AbstractStorage
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +19,10 @@ class BaseService(Generic[ModelType]):
     cache_prefix: str
     model: type[ModelType]
 
-    def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
+    def __init__(self, storage: AbstractStorage, redis: Redis):
+        # storage — абстракция хранилища (DIP), redis — кэш
+        self.storage = storage
         self.redis = redis
-        self.elastic = elastic
 
     # --- Формирование ключа кэша ---
 
@@ -33,24 +35,22 @@ class BaseService(Generic[ModelType]):
         key = self._build_cache_key(entity_id)
         entity = await self._get_from_cache(key)
         if not entity:
-            entity = await self._get_from_elastic(entity_id)
+            entity = await self._get_from_storage(entity_id)
             if not entity:
                 return None
             await self._put_to_cache(key, entity)
         return entity
 
-    async def _get_from_elastic(self, entity_id: str) -> Optional[ModelType]:
-        try:
-            doc = await self.elastic.get(index=self.index, id=entity_id)
-        except NotFoundError:
-            return None
-        except Exception as e:
-            logger.warning(f"Elasticsearch GET failed for id='{entity_id}': {e}")
+    async def _get_from_storage(self, entity_id: str) -> Optional[ModelType]:
+        # Получение тела документа делегируется хранилищу,
+        # сервис отвечает только за разбор в модель
+        source = await self.storage.get(self.index, entity_id)
+        if source is None:
             return None
         try:
-            return self.model(**doc['_source'])
+            return self.model(**source)
         except Exception as e:
-            logger.warning(f"Failed to parse ES source for id='{entity_id}': {e}")
+            logger.warning(f"Failed to parse source for id='{entity_id}': {e}")
             return None
 
     # --- Построение запросов (переопределяются в наследниках) ---
@@ -63,7 +63,7 @@ class BaseService(Generic[ModelType]):
 
     # --- Выполнение поиска в Elasticsearch ---
 
-    async def _execute_elastic_search(
+    async def _execute_search(
         self,
         query: dict,
         sort: Optional[list] = None,
@@ -77,17 +77,15 @@ class BaseService(Generic[ModelType]):
         }
         if sort:
             body['sort'] = sort
-        try:
-            result = await self.elastic.search(index=self.index, body=body)
-        except Exception as e:
-            logger.warning(f"Elasticsearch search failed in {self.__class__.__name__}: {e}")
-            return []
+        # Выполнение запроса делегируется хранилищу,
+        # сервис лишь формирует запрос и разбирает результат
+        sources = await self.storage.search(self.index, body)
         items = []
-        for hit in result['hits']['hits']:
+        for source in sources:
             try:
-                items.append(self.model(**hit['_source']))
+                items.append(self.model(**source))
             except Exception as e:
-                logger.warning(f"Failed to parse ES hit in {self.__class__.__name__}: {e}")
+                logger.warning(f"Failed to parse hit in {self.__class__.__name__}: {e}")
         return items
 
     # --- Кэш: одиночный объект ---
