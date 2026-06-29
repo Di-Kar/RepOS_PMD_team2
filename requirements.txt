@@ -2,4 +2,5 @@
 -r admin_panel/requirements.txt
 -r fulltext_search/requirements.txt
 -r async_api/requirements.txt
+-r tests/functional/requirements.txt
 ruff
