@@ -22,7 +22,7 @@ class BaseService(Generic[ModelType]):
 
     def __init__(
         self,
-        storage: AbstractStorage
+        storage: AbstractStorage,
         cache: CacheInterface[ModelType],
     ):
         # storage — абстракция хранилища (DIP), cache — кэш

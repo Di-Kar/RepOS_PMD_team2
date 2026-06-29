@@ -2,12 +2,21 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from elasticsearch import AsyncElasticsearch, NotFoundError
+from elasticsearch import AsyncElasticsearch, ConnectionError as ESConnectionError
+from elasticsearch import ConnectionTimeout as ESConnectionTimeout, NotFoundError
 from fastapi import Depends
 
+from core.backoff import ExponentialBackoffRetryPolicy, RetryPolicy
 from db.elastic_db import get_elastic
 
 logger = logging.getLogger(__name__)
+
+_ES_RETRY_POLICY = ExponentialBackoffRetryPolicy(
+    retryable_exceptions=(ESConnectionError, ESConnectionTimeout),
+    attempts=3,
+    min_wait=0.5,
+    max_wait=8.0,
+)
 
 
 class AbstractStorage(ABC):
@@ -32,14 +41,16 @@ class ElasticStorage(AbstractStorage):
 
     Инкапсулирует работу с клиентом ES и обработку ошибок,
     наружу отдаёт только сырые данные документов.
+    Политика повторных попыток инжектируется через конструктор (DIP).
     """
 
-    def __init__(self, elastic: AsyncElasticsearch):
+    def __init__(self, elastic: AsyncElasticsearch, retry_policy: RetryPolicy = _ES_RETRY_POLICY):
         self._elastic = elastic
+        self._retry = retry_policy
 
     async def get(self, index: str, doc_id: str) -> Optional[dict]:
         try:
-            doc = await self._elastic.get(index=index, id=doc_id)
+            doc = await self._retry.call(self._elastic.get, index=index, id=doc_id)
         except NotFoundError:
             return None
         except Exception as e:
@@ -49,7 +60,7 @@ class ElasticStorage(AbstractStorage):
 
     async def search(self, index: str, body: dict) -> list[dict]:
         try:
-            result = await self._elastic.search(index=index, body=body)
+            result = await self._retry.call(self._elastic.search, index=index, body=body)
         except Exception as e:
             logger.warning(f"Elasticsearch search failed for index='{index}': {e}")
             return []
