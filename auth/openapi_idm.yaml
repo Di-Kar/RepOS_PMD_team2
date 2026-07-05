@@ -1,0 +1,385 @@
+openapi: 3.0.3
+info:
+  title: IdM API
+  description: Управление ролями и разрешениями (IdM - Role-Based Access Control)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api/v1/idm
+
+tags:
+  - name: Roles
+    description: Управление ролями
+  - name: Permissions
+    description: Назначение/снятие ролей и проверка прав
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RoleCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "subscriber"
+        permissions:
+          type: array
+          items:
+            type: string
+          example:
+            - "video:watch"
+
+    RoleResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 5
+        name:
+          type: string
+          example: "subscriber"
+        permissions:
+          type: array
+          items:
+            type: string
+          example:
+            - "video:watch"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-06-15T10:20:30Z"
+
+    UserRoleRequest:
+      type: object
+      required:
+        - role_id
+      properties:
+        role_id:
+          type: integer
+          example: 5
+
+    PermissionCheckRequest:
+      type: object
+      required:
+        - permission
+      properties:
+        permission:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: "video:delete"
+
+    PermissionCheckResponse:
+      type: object
+      properties:
+        has_permission:
+          type: boolean
+          example: true
+        granted_permissions:
+          type: array
+          items:
+            type: string
+          example: ["video:watch", "user:ban"]
+        missing_permissions:
+          type: array
+          items:
+            type: string
+          example: ["admin:delete"]
+
+    # ——— Валидационные ошибки (400) ———
+    ValidationErrorCodes:
+      type: string
+      enum:
+        - invalid_email
+        - invalid_password
+        - missing_email
+        - missing_password
+        - too_short_password
+        - too_long_full_name
+        - invalid_full_name
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - field
+      properties:
+        error:
+          $ref: "#/components/schemas/ValidationErrorCodes"
+        message:
+          type: string
+          example: "Email is required"
+        field:
+          type: string
+          enum: [email, password, full_name]
+          example: "email"
+
+    # ——— Ошибки конфликта (409) ———
+    ConflictErrorCodes:
+      type: string
+      enum:
+        - email_taken
+        - login_taken
+        - user_not_found
+
+    ConflictErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          $ref: "#/components/schemas/ConflictErrorCodes"
+        message:
+          type: string
+          example: "Email already registered"
+
+    # ——— Ошибки авторизации (401) ———
+    UnauthorizedResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_token
+            - token_expired
+            - token_revoked
+            - required_scope_missing
+          example: "invalid_token"
+        message:
+          type: string
+          example: "Token signature is invalid"
+
+
+security:
+  - bearerAuth: []
+
+paths:
+  /roles:
+    post:
+      tags: [Roles]
+      summary: Создать роль
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleCreateRequest"
+      responses:
+        "201":
+          description: Роль создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "400":
+          description: Роль с таким именем уже существует
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: Неверный или истёкший токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedResponse"
+
+
+    get:
+      tags: [Roles]
+      summary: Получить список всех ролей
+      responses:
+        "200":
+          description: Список ролей
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RoleResponse"
+                  total:
+                    type: integer
+        "401":
+          description: Неверный или истёкший токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedResponse"
+
+
+  /roles/{role_id}:
+    put:
+      tags: [Roles]
+      summary: Изменить роль
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleCreateRequest"
+      responses:
+        "200":
+          description: Роль обновлена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "404":
+          description: Роль не найдена
+        "401":
+          description: Неверный или истёкший токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedResponse"
+
+
+    delete:
+      tags: [Roles]
+      summary: Удалить роль
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Роль удалена
+        "404":
+          description: Роль не найдена
+        "401":
+          description: Неверный или истёкший токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedResponse"
+
+  /users/{user_id}/roles:
+    post:
+      tags: [Permissions]
+      summary: Назначить роль пользователю
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRoleRequest"
+      responses:
+        "200":
+          description: Роль назначена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "404":
+          description: Пользователь или роль не найдены
+        "409":
+          description: Роль уже назначена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictErrorResponse"
+        "401":
+          description: Неверный или истёкший токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedResponse"
+
+  /users/{user_id}/roles/{role_id}:
+    delete:
+      tags: [Permissions]
+      summary: Снять роль у пользователя
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Роль снята
+        "404":
+          description: Пользователь/роль не найдены или роль не была снята
+        "401":
+          description: Неверный или истёкший токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedResponse"
+  
+  /users/{user_id}/permissions/check:
+    post:
+      tags: [Permissions]
+      summary: Проверить конкретное право пользователя
+      description: |
+        Проверяет, имеет ли пользователь `user_id` заданное право (например, `video:delete`).
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PermissionCheckRequest"
+      responses:
+        "200":
+          description: Результат проверки
+          content:аа
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionCheckResponse"
+        "401":
+          description: Неверный или истёкший токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedResponse"
+        "403":
+          description: Недостаточно прав для проверки чужих прав (не суперпользователь)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedResponse"
+        "404":
+          description: Пользователь не найден

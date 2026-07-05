@@ -1,0 +1,458 @@
+openapi: 3.0.3
+info:
+  title: Auth API
+  description: Сервис авторизации пользователей с JWT, Redis и PostgreSQL. В качестве логина используется электронная почта.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api/v1/auth
+
+tags:
+  - name: Authentication
+    description: Регистрация и аутентификация
+  - name: Tokens
+    description: Управление JWT-токенами
+  - name: Profile
+    description: Профиль пользователя и история входов
+  - name: Admin
+    description: Управление администратором (dev-only)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    UserRegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 5
+          maxLength: 255
+          example: john.doe@example.com
+        password:
+          type: string
+          minLength: 8
+          format: password
+          example: "SecurePass123!"
+        full_name:
+          type: string
+          maxLength: 100
+          example: "John Doe"
+
+    UserRegisterResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        email:
+          type: string
+          example: john.doe@example.com
+        full_name:
+          type: string
+          example: "John Doe"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-06-15T10:20:30Z"
+
+    UserLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        password:
+          type: string
+          format: password
+          example: "SecurePass123!"
+
+    TokenPair:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+      properties:
+        access_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          maxLength: 100
+          example: "John Q. Doe"
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        email:
+          type: string
+          example: john.doe@example.com
+        full_name:
+          type: string
+          example: "John Doe"
+
+    LoginHistoryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 101
+        user_agent:
+          type: string
+          example: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+        ip_address:
+          type: string
+          format: ipv4
+          example: "192.168.1.100"
+        fingerprint:
+          type: string
+          example: "abc123def456..."
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-06-15T10:20:30Z"
+        success:
+          type: boolean
+          example: true
+
+    # ——— Валидационные ошибки (400) ———
+    ValidationErrorCodes:
+      type: string
+      enum:
+        - invalid_email
+        - invalid_password
+        - missing_email
+        - missing_password
+        - too_short_password
+        - too_long_full_name
+        - invalid_full_name
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - field
+      properties:
+        error:
+          $ref: "#/components/schemas/ValidationErrorCodes"
+        message:
+          type: string
+          example: "Email is required"
+        field:
+          type: string
+          enum: [email, password, full_name]
+          example: "email"
+
+    # ——— Ошибки конфликта (409) ———
+    ConflictErrorCodes:
+      type: string
+      enum:
+        - email_taken
+        - login_taken
+        - user_not_found
+
+    ConflictErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          $ref: "#/components/schemas/ConflictErrorCodes"
+        message:
+          type: string
+          example: "Email already registered"
+
+    ErrorResponse:
+      oneOf:
+        - $ref: "#/components/schemas/ValidationErrorResponse"
+        - $ref: "#/components/schemas/ConflictErrorResponse"
+
+
+security:
+  - bearerAuth: []
+
+paths:
+  /register:
+    post:
+      tags: [Authentication]
+      summary: Регистрация пользователя
+      description: Использует email в качестве логина.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRegisterRequest"
+      responses:
+        "201":
+          description: Пользователь успешно зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserRegisterResponse"
+        "400":
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "409":
+          description: Email уже занят
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictErrorResponse"
+
+  /login:
+    post:
+      tags: [Authentication]
+      summary: Вход в аккаунт
+      description: В качестве логина используется email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserLoginRequest"
+      responses:
+        "200":
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "400":
+          description: Ошибка валидации (например, пустой email или пароль)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: Неверный email или пароль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /refresh:
+    post:
+      tags: [Tokens]
+      summary: Обновление access-токена
+      description: |
+        Требует **refresh-токен**, полученный при логине.
+        Возвращает **новую пару токенов** (access + refresh) с ротацией refresh-токена.
+        Не требует авторизации (security: []).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        "200":
+          description: Обновлённая пара токенов
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          description: Неверный или истёкший refresh-токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /logout:
+    post:
+      tags: [Tokens]
+      summary: Выход из текущего сеанса
+      description: Удаляет refresh-токен из Redis.
+      responses:
+        "204":
+          description: Успешный выход
+        "401":
+          description: Неверный или истёкший refresh-токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /logout-all:
+    post:
+      tags: [Tokens]
+      summary: Выйти из всех аккаунтов
+      description: >
+        Валидирует текущий refresh-токен и инвалидирует все остальные сессии.
+        Использует `session_id` внутри токена.
+      responses:
+        "204":
+          description: Все сессии, кроме текущей, аннулированы
+        "401":
+          description: Неверный или истёкший refresh-токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /profile:
+    get:
+      tags: [Profile]
+      summary: Получение информации о себе
+      responses:
+        "200":
+          description: Данные пользователя
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          description: Неверный или истёкший access-токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags: [Profile]
+      summary: Обновление данных пользователя
+      description: |
+        Доступно только изменение `full_name`.  
+        **Email не может быть изменён** после регистрации.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdateRequest"
+      responses:
+        "200":
+          description: Обновлённые данные
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: Ошибка валидации (например, пустое имя)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: Неверный или истёкший access-токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /history:
+    get:
+      tags: [Profile]
+      summary: История входов в аккаунт
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Список входов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LoginHistoryItem"
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  size:
+                    type: integer
+        "401":
+          description: Неверный или истёкший access-токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /change-password:
+    post:
+      tags: [Profile]
+      summary: Изменение пароля
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - current_password
+                - new_password
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                  example: "OldPass123!"
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "NewPass123!"
+      responses:
+        "200":
+          description: Пароль успешно изменён
+        "400":
+          description: Неверный текущий пароль или ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: Неверный или истёкший access-токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
