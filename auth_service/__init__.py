@@ -1,1 +1,1 @@
-
+"""Auth Service - Main package."""
