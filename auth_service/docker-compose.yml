@@ -1,23 +1,25 @@
 services:
+  # 1. PostgreSQL
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: auth_postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-auth_db}
-      POSTGRES_USER: ${POSTGRES_USER:-auth_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-auth_password}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-auth_user}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - auth-network
+      - auth_network
 
+  # 2. Redis
   redis:
     image: redis:7-alpine
     container_name: auth_redis
@@ -27,36 +29,53 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - auth-network
+      - auth_network
 
-  auth-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: auth_service
+  # 3. Миграции (отдельный сервис, запускается один раз)
+  migrations:
+    build: .
+    container_name: auth_migrations
+    command: alembic upgrade head
     env_file:
       - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - auth_network
+
+  # 4. Auth Service (FastAPI)
+  app:
+    build: .
+    container_name: auth_app
     ports:
       - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+      migrations:
+        condition: service_completed_successfully
     networks:
-      - auth-network
+      - auth_network
 
 volumes:
   postgres_data:
   redis_data:
 
 networks:
-  auth-network:
+  auth_network:
     driver: bridge
