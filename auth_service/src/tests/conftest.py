@@ -1,0 +1,101 @@
+import asyncio
+import uuid
+from typing import AsyncGenerator
+
+import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from redis.asyncio import Redis
+
+from src.core.config import settings
+from src.db.postgres import Base
+from src.models.entity import User, Role, UserRole, LoginHistory
+
+
+@pytest.fixture(scope="function")
+def event_loop():
+    """Создаём event loop для каждого теста"""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Создаёт отдельную сессию БД для каждого теста.
+    После теста откатывает все изменения (через транзакцию).
+    """
+    engine = create_async_engine(
+        settings.postgres_dsn,
+        echo=False,
+    )
+    
+    async with engine.begin() as conn:
+        # Создаём все таблицы (если их нет)
+        await conn.run_sync(Base.metadata.create_all)
+    
+    async_session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    
+    async with async_session_factory() as session:
+        yield session
+    
+    # Очистка после теста
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def redis_client() -> AsyncGenerator[Redis, None]:
+    """Создаёт Redis клиент для тестов и очищает БД после"""
+    client = Redis(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        db=15,  # Используем отдельную БД для тестов (15)
+        decode_responses=True,
+    )
+    
+    # Очищаем тестовую БД перед тестом
+    await client.flushdb()
+    
+    yield client
+    
+    # Очищаем после теста
+    await client.flushdb()
+    await client.close()
+
+
+@pytest_asyncio.fixture
+async def sample_user(db_session: AsyncSession) -> User:
+    """Создаёт тестового пользователя"""
+    user = User(
+        id=uuid.uuid4(),
+        login=f"test_user_{uuid.uuid4().hex[:8]}",
+        password="hashed_password_123",
+        first_name="Test",
+        last_name="User",
+        is_active=True,
+        is_superuser=False,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def sample_role(db_session: AsyncSession) -> Role:
+    """Создаёт тестовую роль"""
+    role = Role(
+        id=uuid.uuid4(),
+        name=f"test_role_{uuid.uuid4().hex[:8]}",
+        description="Test role description",
+    )
+    db_session.add(role)
+    await db_session.commit()
+    await db_session.refresh(role)
+    return role

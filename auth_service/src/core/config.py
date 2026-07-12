@@ -44,7 +44,6 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-
     # JWT (опциональные для миграций)
     secret_key: Optional[str] = None
     algorithm: str = "HS256"
@@ -52,7 +51,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
 
     @property
-    def database_dsn(self) -> str:
+    def postgres_dsn(self) -> str:
         """Construct async PostgreSQL database DSN."""
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
@@ -60,7 +59,7 @@ class Settings(BaseSettings):
         )
 
     @property
-    def database_dsn_sync(self) -> str:
+    def postgres_dsn_sync(self) -> str:
         """Construct sync PostgreSQL database DSN for Alembic."""
         return (
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
@@ -79,7 +78,5 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
-
-
 # Global settings instance
 settings = get_settings()

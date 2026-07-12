@@ -51,12 +51,13 @@ services:
     networks:
       - auth_network
 
-  # 4. Auth Service (FastAPI)
-  app:
+  # 4. Тесты (запускаются после миграций)
+  test:
     build: .
-    container_name: auth_app
-    ports:
-      - "8000:8000"
+    container_name: auth_test
+    entrypoint: sh -c "
+      pip install -r src/tests/requirements.txt
+      &&  pytest src/tests"
     env_file:
       - .env
     environment:
@@ -71,6 +72,8 @@ services:
         condition: service_completed_successfully
     networks:
       - auth_network
+
+  # 5. Auth Service (FastAPI)
 
 volumes:
   postgres_data:
