@@ -4,11 +4,13 @@ from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from redis.asyncio import Redis
 
 from src.core.config import settings
-from src.db.postgres import Base
+from src.db.postgres import Base, get_session
+from src.db.redis_db import get_redis
 from src.models.entity import User, Role, UserRole, LoginHistory
 
 
@@ -94,8 +96,50 @@ async def sample_role(db_session: AsyncSession) -> Role:
         id=uuid.uuid4(),
         name=f"test_role_{uuid.uuid4().hex[:8]}",
         description="Test role description",
+        permissions=["video:watch"],
     )
     db_session.add(role)
     await db_session.commit()
     await db_session.refresh(role)
     return role
+
+
+@pytest_asyncio.fixture
+async def sample_superuser(db_session: AsyncSession) -> User:
+    """Создаёт тестового суперпользователя"""
+    user = User(
+        id=uuid.uuid4(),
+        login=f"test_superuser_{uuid.uuid4().hex[:8]}",
+        password="hashed_password_123",
+        first_name="Super",
+        last_name="User",
+        is_active=True,
+        is_superuser=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def client(
+    db_session: AsyncSession, redis_client: Redis
+) -> AsyncGenerator[AsyncClient, None]:
+    """HTTP-клиент для роутов, с подменой БД/Redis-зависимостей на тестовые фикстуры."""
+    from src.main import app
+
+    async def _get_session_override() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    async def _get_redis_override() -> Redis:
+        return redis_client
+
+    app.dependency_overrides[get_session] = _get_session_override
+    app.dependency_overrides[get_redis] = _get_redis_override
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()

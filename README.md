@@ -9,7 +9,7 @@
 - `fulltext_search` — сервис для полнотекстового поиска (ETL переноса данных из PostgreSQL в Elasticsearch).
 - `async_api` — асинхронное API для онлайн-кинотеатра.
 
-## Запуск
+## Запуск основной части проекта
 
 ```bash
 cp .env.example .env  # заполнить значения (но проще взять готовый в чате команды и подложить)
@@ -27,6 +27,20 @@ docker compose down -v
 - async_api:
   - Swagger (http://localhost:8000/api/openapi)
   - OpenAPI-схема (http://localhost:8000/api/openapi.json)
+
+## Запуск части из 6 спринта 
+
+```bash
+docker compose -f docker-compose-auth-service-test.yml up -d --build postgres redis
+docker compose -f docker-compose-auth-service-test.yml run --build --rm migrations
+docker compose -f docker-compose-auth-service-test.yml up -d --build auth_service
+
+docker compose -f docker-compose-auth-service-test.yml down -v
+```
+
+После запуска доступны следующие эндпоинты:
+- auth_api:
+  - Swagger (http://localhost:8001/docs)
 
 ## Разработка
 
