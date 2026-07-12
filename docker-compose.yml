@@ -131,6 +131,7 @@ services:
     build:
       context: ./async_api
       dockerfile: Dockerfile
+    image: api-image
     container_name: api
     env_file:
       - .env
@@ -143,3 +144,26 @@ services:
         condition: service_healthy
     networks:
       - backend 
+
+  tests:
+    image: api-image
+    entrypoint: sh -c "
+      pip install -r /tests/functional/requirements.txt
+      && python /tests/functional/utils/wait_for_es.py
+      && python /tests/functional/utils/wait_for_redis.py
+      && pytest /tests/functional"
+    volumes:
+      - ./tests:/tests
+    environment:
+      - PYTHONPATH=/
+    env_file:
+      - ./.env
+    depends_on:
+      movie_db:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend

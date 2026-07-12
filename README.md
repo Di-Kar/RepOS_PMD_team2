@@ -9,19 +9,12 @@
 - `fulltext_search` — сервис для полнотекстового поиска (ETL переноса данных из PostgreSQL в Elasticsearch).
 - `async_api` — асинхронное API для онлайн-кинотеатра.
 
-## Запуск (без тестов)
+## Запуск
 
 ```bash
 cp .env.example .env  # заполнить значения (но проще взять готовый в чате команды и подложить)
 docker compose up -d --build
 docker compose down -v
-```
-
-## Запуск (с тестами)
-
-```bash
-docker-compose -f docker-compose.test.yml up --build
-docker-compose -f docker-compose.test.yml down -v
 ```
 
 После запуска доступны следующие эндпоинты:
