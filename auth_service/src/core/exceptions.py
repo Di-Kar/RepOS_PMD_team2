@@ -19,3 +19,19 @@ class RoleAlreadyAssignedError(Exception):
 
 class RoleNotAssignedError(Exception):
     """Роль не была назначена пользователю."""
+
+
+class UserAlreadyExistsError(Exception):
+    """Пользователь с таким email уже зарегистрирован."""
+
+
+class InvalidCredentialsError(Exception):
+    """Неверный email или пароль."""
+
+
+class InvalidTokenError(Exception):
+    """Токен невалиден, истёк или его сессия завершена."""
+
+
+class InvalidPasswordError(Exception):
+    """Текущий пароль не совпадает (смена пароля)."""

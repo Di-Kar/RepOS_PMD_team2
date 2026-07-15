@@ -1,11 +1,8 @@
 """Application configuration."""
-import json
-from typing import Optional
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Get the project root directory
@@ -26,7 +23,6 @@ class Settings(BaseSettings):
     # Application Settings
     app_name: str = Field(default="Auth Service", alias="APP_NAME")
     debug: bool = Field(default=False, alias="DEBUG")
-    secret_key: str = Field(..., alias="SECRET_KEY", min_length=32)
 
     # PostgreSQL Configuration
     postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
@@ -44,11 +40,12 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    # JWT (опциональные для миграций)
-    secret_key: Optional[str] = None
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 7
+    # JWT
+    # Дефолт нужен, чтобы миграции/тесты работали без .env; в бою ключ задаётся через SECRET_KEY.
+    secret_key: str = Field(default="insecure-dev-secret-key-change-me-32ch", alias="SECRET_KEY")
+    algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
     @property
     def postgres_dsn(self) -> str:

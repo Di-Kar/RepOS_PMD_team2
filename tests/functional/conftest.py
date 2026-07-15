@@ -1,10 +1,8 @@
 """Общие фикстуры для функциональных тестов."""
-import asyncio
 import uuid
 
 import aiohttp
 from elasticsearch import AsyncElasticsearch
-import pytest
 import pytest_asyncio
 from elasticsearch.helpers import async_bulk
 from redis.asyncio import Redis

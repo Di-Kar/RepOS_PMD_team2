@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Generic, List, Optional, TypeVar
+from typing import List, Optional, TypeVar
 
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError, TimeoutError as RedisTimeoutError

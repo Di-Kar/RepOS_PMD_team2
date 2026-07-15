@@ -1,4 +1,5 @@
 """Настройки функциональных тестов с вложенной структурой."""
+import os
 from typing import Any, Dict
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
@@ -10,9 +11,6 @@ from tests.functional.testdata.es_mapping import (
 )
 
 """Настройки тестов с автоопределением окружения."""
-import os
-from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
 
 
 def is_docker() -> bool:

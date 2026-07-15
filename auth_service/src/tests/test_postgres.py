@@ -1,11 +1,10 @@
-import uuid
 from datetime import datetime
 
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
 
 from src.models.entity import User, Role, UserRole, LoginHistory
 

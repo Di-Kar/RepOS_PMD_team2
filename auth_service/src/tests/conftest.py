@@ -9,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from redis.asyncio import Redis
 
 from src.core.config import settings
+from src.core.security import hash_password
 from src.db.postgres import Base, get_session
 from src.db.redis_db import get_redis
-from src.models.entity import User, Role, UserRole, LoginHistory
+from src.models.entity import User, Role
+from src.services.token_service import TokenService
 
 
 @pytest.fixture(scope="function")
@@ -115,6 +117,35 @@ async def sample_superuser(db_session: AsyncSession) -> User:
         last_name="User",
         is_active=True,
         is_superuser=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def auth_headers(redis_client: Redis):
+    """Фабрика заголовков Authorization: выпускает настоящий access-токен для пользователя."""
+
+    async def _make(user: User) -> dict:
+        access_token, _ = await TokenService(redis_client).create_token_pair(user, [])
+        return {"Authorization": f"Bearer {access_token}"}
+
+    return _make
+
+
+@pytest_asyncio.fixture
+async def registered_user(db_session) -> User:
+    """Пользователь с настоящим bcrypt-хэшем пароля (для логина через API)."""
+    user = User(
+        id=uuid.uuid4(),
+        login=f"user_{uuid.uuid4().hex[:8]}@example.com",
+        password=hash_password("SecurePass123!"),
+        first_name="John",
+        last_name="Doe",
+        is_active=True,
+        is_superuser=False,
     )
     db_session.add(user)
     await db_session.commit()

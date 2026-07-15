@@ -1,4 +1,3 @@
-from typing import Optional
 
 from redis.asyncio import Redis
 from fastapi import Request

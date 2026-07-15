@@ -1,4 +1,3 @@
-from typing import Optional
 
 from elasticsearch import AsyncElasticsearch
 from fastapi import Request

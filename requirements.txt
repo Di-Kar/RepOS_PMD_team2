@@ -3,4 +3,5 @@
 -r fulltext_search/requirements.txt
 -r async_api/requirements.txt
 -r tests/functional/requirements.txt
+-r auth_service/requirements.txt
 ruff

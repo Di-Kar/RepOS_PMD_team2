@@ -1,11 +1,54 @@
 """Точка входа FastAPI-приложения auth_service."""
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
 
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from src.api.v1.auth import router as auth_router
 from src.api.v1.idm import router as idm_router
 from src.core.config import settings
+from src.db.postgres import close_db
+from src.db.redis_db import close_redis, init_redis
 
-app = FastAPI(title=settings.app_name)
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await init_redis()
+    yield
+    await close_redis()
+    await close_db()
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+app.include_router(auth_router)
 app.include_router(idm_router)
 
-# TODO: подключить роутер /api/v1/auth, когда будет готова аутентификация.
+
+# Коды ошибок валидации из openapi_auth.yaml: (поле, тип pydantic-ошибки) -> код.
+_VALIDATION_ERROR_CODES = {
+    ("email", "missing"): "missing_email",
+    ("password", "missing"): "missing_password",
+    ("password", "string_too_short"): "too_short_password",
+    ("full_name", "string_too_long"): "too_long_full_name",
+    ("full_name", "string_too_short"): "invalid_full_name",
+}
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+    """Спека требует 400 с {error, message, field} вместо стандартного 422 FastAPI."""
+    first = exc.errors()[0]
+    # loc = ("body", "<имя поля>", ...); для ошибок всего тела поля может не быть.
+    field = next((str(part) for part in first["loc"][1:]), None)
+    error_type = first["type"]
+
+    error_code = _VALIDATION_ERROR_CODES.get((field, error_type))
+    if error_code is None:
+        error_code = f"invalid_{field}" if field else "validation_error"
+
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"error": error_code, "message": first["msg"], "field": field},
+    )

@@ -1,4 +1,3 @@
-import logging
 from functools import wraps
 import random
 import time

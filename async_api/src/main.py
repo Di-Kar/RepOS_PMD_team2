@@ -9,8 +9,6 @@ from redis.asyncio import Redis, ConnectionPool
 from api.v1 import films, genres, persons
 from core import config
 from core.logger import LOGGING
-from db import elastic_db
-from db import redis_db
 
 
 @asynccontextmanager

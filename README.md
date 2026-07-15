@@ -34,6 +34,7 @@ docker compose down -v
 docker compose -f docker-compose-auth-service-test.yml up -d --build postgres redis
 docker compose -f docker-compose-auth-service-test.yml run --build --rm migrations
 docker compose -f docker-compose-auth-service-test.yml up -d --build auth_service
+docker compose -f docker-compose-auth-service-test.yml run --build --rm test
 
 docker compose -f docker-compose-auth-service-test.yml down -v
 ```
@@ -50,4 +51,10 @@ docker compose -f docker-compose-auth-service-test.yml down -v
 
 ```bash
 pip install -r requirements.txt
+```
+
+Запуск линтера:
+
+```bash
+ruff check . --fix
 ```

@@ -4,7 +4,6 @@ Provides async Redis client and token/cache management utilities.
 """
 
 from typing import Optional
-import json
 
 from redis.asyncio import Redis, ConnectionPool
 from src.core.config import settings
