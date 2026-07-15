@@ -20,32 +20,33 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Application Settings
-    app_name: str = Field(default="Auth Service", alias="APP_NAME")
-    debug: bool = Field(default=False, alias="DEBUG")
+    # Все переменные с префиксом AUTH_: .env общий на весь проект,
+    # и без префикса auth перехватывал бы POSTGRES_*/SECRET_KEY других сервисов.
+    app_name: str = Field(default="Auth Service", alias="AUTH_APP_NAME")
+    debug: bool = Field(default=False, alias="AUTH_DEBUG")
 
     # PostgreSQL Configuration
-    postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
-    postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
-    postgres_db: str = Field(default="auth_db", alias="POSTGRES_DB")
-    postgres_user: str = Field(default="auth_user", alias="POSTGRES_USER")
-    postgres_password: str = Field(default="auth_password", alias="POSTGRES_PASSWORD")
+    postgres_host: str = Field(default="localhost", alias="AUTH_POSTGRES_HOST")
+    postgres_port: int = Field(default=5432, alias="AUTH_POSTGRES_PORT")
+    postgres_db: str = Field(default="auth_db", alias="AUTH_POSTGRES_DB")
+    postgres_user: str = Field(default="auth_user", alias="AUTH_POSTGRES_USER")
+    postgres_password: str = Field(default="auth_password", alias="AUTH_POSTGRES_PASSWORD")
 
     # Redis Configuration
-    redis_host: str = Field(default="localhost", alias="REDIS_HOST")
-    redis_port: int = Field(default=6379, alias="REDIS_PORT")
-    redis_db: int = Field(default=0, alias="REDIS_DB")
-    redis_password: str = Field(default="", alias="REDIS_PASSWORD")
+    redis_host: str = Field(default="localhost", alias="AUTH_REDIS_HOST")
+    redis_port: int = Field(default=6379, alias="AUTH_REDIS_PORT")
+    redis_db: int = Field(default=0, alias="AUTH_REDIS_DB")
+    redis_password: str = Field(default="", alias="AUTH_REDIS_PASSWORD")
 
     # Logging
-    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_level: str = Field(default="INFO", alias="AUTH_LOG_LEVEL")
 
     # JWT
-    # Дефолт нужен, чтобы миграции/тесты работали без .env; в бою ключ задаётся через SECRET_KEY.
-    secret_key: str = Field(default="insecure-dev-secret-key-change-me-32ch", alias="SECRET_KEY")
-    algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
-    access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
-    refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
+    # Дефолт нужен, чтобы миграции/тесты работали без .env; в бою ключ задаётся через AUTH_SECRET_KEY.
+    secret_key: str = Field(default="insecure-dev-secret-key-change-me-32ch", alias="AUTH_SECRET_KEY")
+    algorithm: str = Field(default="HS256", alias="AUTH_JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=30, alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(default=7, alias="AUTH_REFRESH_TOKEN_EXPIRE_DAYS")
 
     @property
     def postgres_dsn(self) -> str:

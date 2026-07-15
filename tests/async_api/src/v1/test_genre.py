@@ -1,7 +1,7 @@
 """Функциональные тесты для эндпоинта /genres."""
 import pytest
 
-from tests.functional.settings import test_settings
+from tests.async_api.settings import test_settings
 
 TEST_GENRE_UUID = '2fec4f4f-7f84-475c-ad28-791ce135bd2e'
 
@@ -140,43 +140,27 @@ async def test_genre_cache_invalidation(
 
 @pytest.mark.asyncio
 async def test_genre_real_data(make_get_request, es_client, redis_client):
-    """Получение жанра из реальных данных (после работы ETL)."""
+    """Жанр из индекса (данные ETL или синтетика) доступен через API по своему id."""
     await redis_client.flushdb()
-    
+
     count = await es_client.count(index=test_settings.elastic_settings.es_index_genres)
     if count['count'] == 0:
         pytest.skip("В индексе genres нет данных. Запустите ETL.")
 
     result = await es_client.search(
         index=test_settings.elastic_settings.es_index_genres,
-        body={"size": 20, "query": {"match_all": {}}}
+        body={"size": 1, "query": {"match_all": {}}}
     )
-    if not result['hits']['hits']:
-        pytest.skip("Не удалось получить документы из genres")
 
-    genre_uuid = None
-    for hit in result['hits']['hits']:
-        source = hit['_source']
-        if 'uuid' in source:
-            genre_uuid = source['uuid']
-            break
+    # Публичный идентификатор жанра — поле id (оно же _id документа);
+    # API отдаёт его в ответе под именем uuid.
+    genre_id = result['hits']['hits'][0]['_source']['id']
 
-    if genre_uuid is None:
-        pytest.skip("В реальных данных ETL отсутствует поле 'uuid'.")
+    response = await make_get_request('/genres', f'/{genre_id}')
 
-    response = await make_get_request('/genres', f'/{genre_uuid}')
-    
-    # Если API возвращает 404 — пропускаем тест с понятным сообщением
-    if response['status'] == 404:
-        pytest.skip(
-            f"API не нашёл жанр {genre_uuid}. "
-            f"Возможно, Pydantic не может распарсить документ "
-            f"(отсутствуют обязательные поля или несовпадение типов)."
-        )
-    
     assert response['status'] == 200
     body = response['body']
-    assert 'uuid' in body
+    assert body['uuid'] == genre_id
     assert 'name' in body
 
 

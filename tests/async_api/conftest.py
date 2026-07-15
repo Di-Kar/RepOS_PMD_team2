@@ -149,11 +149,17 @@ async def es_data_movies():
                 {'id': str(uuid.uuid4()), 'uuid': str(uuid.uuid4()), 'name': 'Sci-Fi'},
                 {'id': '2fec4f4f-7f84-475c-ad28-791ce135bd2e', 'uuid': '2fec4f4f-7f84-475c-ad28-791ce135bd2e', 'name': 'TestGenre'}
             ],
-            'directors': [{'id': str(uuid.uuid4()), 'uuid': str(uuid.uuid4()), 'full_name': 'Stan'}],
+            'directors': [
+                {'id': str(uuid.uuid4()), 'uuid': str(uuid.uuid4()), 'full_name': 'Stan'},
+                # Фиксированная персона James: API агрегирует films персоны по индексу movies,
+                # на эту связь опирается test_person_films
+                {'id': '3a6ed55e-6aef-4cd2-932c-808495182425', 'uuid': '3a6ed55e-6aef-4cd2-932c-808495182425', 'full_name': 'James'}
+            ],
             'actors': [
                 {'id': str(uuid.uuid4()), 'uuid': str(uuid.uuid4()), 'full_name': 'Ann'},
                 {'id': str(uuid.uuid4()), 'uuid': str(uuid.uuid4()), 'full_name': 'Bob'},
-                {'id': '88c78458-54c8-455f-846e-82734dc1967f', 'uuid': '88c78458-54c8-455f-846e-82734dc1967f', 'full_name': 'Maxim'}
+                {'id': '88c78458-54c8-455f-846e-82734dc1967f', 'uuid': '88c78458-54c8-455f-846e-82734dc1967f', 'full_name': 'Maxim'},
+                {'id': '3a6ed55e-6aef-4cd2-932c-808495182425', 'uuid': '3a6ed55e-6aef-4cd2-932c-808495182425', 'full_name': 'James'}
             ],
             'writers': [
                 {'id': str(uuid.uuid4()), 'uuid': str(uuid.uuid4()), 'full_name': 'Ben'},

@@ -1,7 +1,7 @@
 """Функциональные тесты для эндпоинта /films."""
 import pytest
 
-from tests.functional.settings import test_settings
+from tests.async_api.settings import test_settings
 
 TEST_FILM_UUID = '608c4567-0b8a-49a0-88fb-82770c5b2f61'
 TEST_FILM_UUID_2 = '708c4567-0b8a-49a0-88fb-82770c5b2f62'
@@ -155,45 +155,26 @@ async def test_film_cache_invalidation(
 # === Тесты с реальными данными (из ETL) ===
 @pytest.mark.asyncio
 async def test_film_real_data(make_get_request, es_client, redis_client):
-    """Получение фильма из реальных данных (после работы ETL)."""
+    """Фильм из индекса (данные ETL или синтетика) доступен через API по своему id."""
     await redis_client.flushdb()
-    
+
     count = await es_client.count(index=test_settings.elastic_settings.es_index_movies)
     if count['count'] == 0:
         pytest.skip("В индексе movies нет данных. Запустите ETL.")
 
     result = await es_client.search(
         index=test_settings.elastic_settings.es_index_movies,
-        body={"size": 20, "query": {"match_all": {}}}
+        body={"size": 1, "query": {"match_all": {}}}
     )
-    if not result['hits']['hits']:
-        pytest.skip("Не удалось получить документы из movies")
 
-    film_uuid = None
-    for hit in result['hits']['hits']:
-        source = hit['_source']
-        if 'id' in source and 'uuid' in source:
-            film_uuid = source['uuid']
-            break
+    # Публичный идентификатор фильма — поле id (оно же _id документа);
+    # API отдаёт его в ответе под именем uuid.
+    film_id = result['hits']['hits'][0]['_source']['id']
 
-    if film_uuid is None:
-        pytest.skip(
-            "В реальных данных ETL отсутствует поле 'id'. "
-            "API использует модель Film, которая требует 'id'. "
-            "Обновите ETL, чтобы он добавлял поле 'id'."
-        )
+    response = await make_get_request('/films', f'/{film_id}')
 
-    response = await make_get_request('/films', f'/{film_uuid}')
-    
-    # ✅ Если API возвращает 404 — пропускаем тест с понятным сообщением
-    if response['status'] == 404:
-        pytest.skip(
-            f"API не нашёл фильм {film_uuid}. "
-            f"Возможно, Pydantic не может распарсить документ "
-            f"(отсутствуют обязательные поля или несовпадение типов)."
-        )
-    
     assert response['status'] == 200
+    assert response['body']['uuid'] == film_id
 
 
 # === Тесты списка фильмов ===

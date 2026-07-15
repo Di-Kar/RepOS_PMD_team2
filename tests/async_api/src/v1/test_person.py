@@ -1,7 +1,7 @@
 """Функциональные тесты для эндпоинта /persons."""
 import pytest
 
-from tests.functional.settings import test_settings
+from tests.async_api.settings import test_settings
 
 TEST_PERSON_UUID = '3a6ed55e-6aef-4cd2-932c-808495182425'
 TEST_PERSON_UUID_2 = '4a6ed55e-6aef-4cd2-932c-808495182426'
@@ -44,20 +44,27 @@ async def test_person_structure(es_write_data, es_data_persons, make_get_request
 
 
 @pytest.mark.asyncio
-async def test_person_films(es_write_data, es_data_persons, make_get_request):
-    """Проверка вложенных фильмов (films) — если API их возвращает."""
+async def test_person_films(
+    es_write_data, es_data_persons, es_data_movies, make_get_request, redis_client
+):
+    """Проверка вложенных фильмов (films) персоны.
+
+    API строит films не из документа персоны, а агрегацией по индексу movies
+    (nested-запросы по actors/directors/writers.id), поэтому заполняем оба
+    индекса: в movies фильм 608c... ссылается на James как актёра и режиссёра.
+    """
+    # Сбрасываем кэш: предыдущие тесты могли закэшировать персону без films
+    await redis_client.flushdb()
+    await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
     await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
 
     response = await make_get_request('/persons', f'/{TEST_PERSON_UUID}')
     assert response['status'] == 200
     body = response['body']
 
-    # ✅ Если films нет или пустой — пропускаем тест
-    if 'films' not in body or len(body.get('films', [])) == 0:
-        pytest.skip(
-            "API не возвращает films для персоны. "
-            "Возможно, эндпоинт не агрегирует фильмы из индекса movies."
-        )
+    assert body.get('films'), "API должен агрегировать films персоны из индекса movies"
+    film_uuids = [film['uuid'] for film in body['films']]
+    assert '608c4567-0b8a-49a0-88fb-82770c5b2f61' in film_uuids
 
     for film in body['films']:
         assert 'uuid' in film
@@ -131,38 +138,26 @@ async def test_person_cache_invalidation(
 # === Тесты с реальными данными (из ETL) ===
 @pytest.mark.asyncio
 async def test_person_real_data(make_get_request, es_client, redis_client):
-    """Получение персоны из реальных данных (после работы ETL)."""
+    """Персона из индекса (данные ETL или синтетика) доступна через API по своему id."""
     await redis_client.flushdb()
-    
+
     count = await es_client.count(index=test_settings.elastic_settings.es_index_persons)
     if count['count'] == 0:
         pytest.skip("В индексе persons нет данных. Запустите ETL.")
 
     result = await es_client.search(
         index=test_settings.elastic_settings.es_index_persons,
-        body={"size": 20, "query": {"match_all": {}}}
+        body={"size": 1, "query": {"match_all": {}}}
     )
-    if not result['hits']['hits']:
-        pytest.skip("Не удалось получить документы из persons")
 
-    person_uuid = None
-    for hit in result['hits']['hits']:
-        source = hit['_source']
-        if 'id' in source and 'uuid' in source:
-            person_uuid = source['uuid']
-            break
+    # Публичный идентификатор персоны — поле id (оно же _id документа);
+    # API отдаёт его в ответе под именем uuid.
+    person_id = result['hits']['hits'][0]['_source']['id']
 
-    if person_uuid is None:
-        pytest.skip(
-            "В реальных данных ETL отсутствует поле 'id'. "
-            "API требует 'id' для парсинга модели Person."
-        )
+    response = await make_get_request('/persons', f'/{person_id}')
 
-    response = await make_get_request('/persons', f'/{person_uuid}')
-    if response['status'] == 404:
-        pytest.skip(f"API не нашёл персону {person_uuid}. Проверьте совместимость ETL и API.")
-    
     assert response['status'] == 200
+    assert response['body']['uuid'] == person_id
 
 # === Тесты поиска персон ===
 @pytest.mark.asyncio

@@ -1,15 +1,18 @@
 volumes:
   static_volume:
-  postgres_data:
+  movie_db_data:
   es_data:
   etl_state:
-  redis_data:
+  async_api_redis_data:
+  auth_postgres_data:
+  auth_redis_data:
 
 networks:
   frontend:
   backend:
 
 services:
+  # PostgreSQL с контентом кинотеатра (фильмы, жанры, персоны)
   movie_db:
     image: postgres:15
     environment:
@@ -18,7 +21,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - ./database/database_dump.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - postgres_data:/var/lib/postgresql/data
+      - movie_db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -28,6 +31,7 @@ services:
     networks:
       - backend
 
+  # Django-панель администратора
   admin_panel:
     build:
       context: ./admin_panel
@@ -74,13 +78,14 @@ services:
     networks:
       - frontend
 
-  redis:
+  # Redis-кэш для async_api
+  async_api_redis:
     image: redis:7-alpine
-    container_name: redis
+    container_name: async_api_redis
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - async_api_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -89,6 +94,7 @@ services:
     networks:
       - backend
 
+  # Полнотекстовый поиск для async_api
   elasticsearch:
     image: elasticsearch:8.6.2
     environment:
@@ -108,7 +114,8 @@ services:
     networks:
       - backend
 
-  etl:
+  # ETL: перенос контента из movie_db в Elasticsearch
+  fulltext_etl:
     build:
       context: ./fulltext_search
       dockerfile: Dockerfile
@@ -127,35 +134,132 @@ services:
     networks:
       - backend
 
-  api:
+  # Асинхронное API кинотеатра (FastAPI + Elasticsearch + Redis)
+  async_api:
     build:
       context: ./async_api
       dockerfile: Dockerfile
-    image: api-image
-    container_name: api
+    image: async-api-image
+    container_name: async_api
     env_file:
       - .env
+    environment:
+      - REDIS_HOST=async_api_redis
     ports:
       - "8000:8000"
+    healthcheck:
+      # curl в slim-образе нет, проверяем готовность API стандартной библиотекой
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     depends_on:
-      redis:
+      async_api_redis:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
     networks:
-      - backend 
+      - backend
 
+  # PostgreSQL сервиса авторизации (пользователи, роли, история входов)
+  auth_postgres:
+    image: postgres:16-alpine
+    container_name: auth_postgres
+    environment:
+      POSTGRES_USER: ${AUTH_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${AUTH_POSTGRES_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Redis сервиса авторизации (refresh-сессии, кэш прав)
+  auth_redis:
+    image: redis:7-alpine
+    container_name: auth_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - auth_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  # Миграции БД авторизации (one-shot: alembic upgrade head)
+  auth_migrations:
+    build: ./auth_service
+    container_name: auth_migrations
+    command: alembic upgrade head
+    env_file:
+      - ./.env
+    environment:
+      - AUTH_POSTGRES_HOST=auth_postgres
+    depends_on:
+      auth_postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # Сервис авторизации (FastAPI: /api/v1/auth + /api/v1/idm)
+  auth_service:
+    build: ./auth_service
+    container_name: auth_service
+    env_file:
+      - ./.env
+    environment:
+      - AUTH_POSTGRES_HOST=auth_postgres
+      - AUTH_REDIS_HOST=auth_redis
+    ports:
+      - "8001:8000"
+    healthcheck:
+      # curl в slim-образе нет, проверяем готовность API стандартной библиотекой
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      auth_postgres:
+        condition: service_healthy
+      auth_redis:
+        condition: service_healthy
+      auth_migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - backend
+
+
+  # Все тесты проекта (tests/): HTTP-тесты async_api и auth_service
   tests:
-    image: api-image
+    profiles:
+      - tests
+    image: python:3.12-slim
+    container_name: tests
     entrypoint: sh -c "
-      pip install -r /tests/functional/requirements.txt
-      && python /tests/functional/utils/wait_for_es.py
-      && python /tests/functional/utils/wait_for_redis.py
-      && pytest /tests/functional"
+      pip install -r /tests/requirements.txt
+      && pytest /tests -rs"
     volumes:
       - ./tests:/tests
     environment:
       - PYTHONPATH=/
+      - REDIS_HOST=async_api_redis
+      - API_HOST=async_api
+      - AUTH_API_HOST=auth_service
     env_file:
       - ./.env
     depends_on:
@@ -163,7 +267,11 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
-      redis:
+      async_api_redis:
+        condition: service_healthy
+      async_api:
+        condition: service_healthy
+      auth_service:
         condition: service_healthy
     networks:
       - backend

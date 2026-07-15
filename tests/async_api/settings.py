@@ -4,7 +4,7 @@ from typing import Any, Dict
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
-from tests.functional.testdata.es_mapping import (
+from tests.async_api.testdata.es_mapping import (
     MOVIES_INDEX_SETTINGS,
     GENRES_INDEX_SETTINGS,
     PERSONS_INDEX_SETTINGS,
@@ -18,9 +18,11 @@ def is_docker() -> bool:
     if os.path.exists('/.dockerenv'):
         return True
 
-DEFAULT_ES_HOST = 'elasticsearch' if is_docker() else '127.0.0.1'
-DEFAULT_REDIS_HOST = 'redis' if is_docker() else '127.0.0.1'
-DEFAULT_API_HOST = 'api' if is_docker() else '127.0.0.1'
+# Вложенные BaseModel не читают переменные окружения сами (это делает только
+# BaseSettings), поэтому env-переопределения из docker-compose подхватываем здесь.
+DEFAULT_ES_HOST = os.getenv('ES_HOST', 'elasticsearch' if is_docker() else '127.0.0.1')
+DEFAULT_REDIS_HOST = os.getenv('REDIS_HOST', 'async_api_redis' if is_docker() else '127.0.0.1')
+DEFAULT_API_HOST = os.getenv('API_HOST', 'async_api' if is_docker() else '127.0.0.1')
 
 
 class ElasticSettings(BaseModel):

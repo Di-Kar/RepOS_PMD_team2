@@ -8,13 +8,20 @@
 - `database` — скрипты для наполнения базы данных (структура формируется миграциями django из admin_panel).
 - `fulltext_search` — сервис для полнотекстового поиска (ETL переноса данных из PostgreSQL в Elasticsearch).
 - `async_api` — асинхронное API для онлайн-кинотеатра.
+- `auth_service` — сервис авторизации (JWT, роли/RBAC; свои PostgreSQL и Redis, все env-переменные с префиксом `AUTH_`).
+- `tests` — все тесты проекта (HTTP-тесты async_api и auth_service, один общий контейнер).
 
-## Запуск основной части проекта
+## Запуск проекта (без тестов)
 
 ```bash
 cp .env.example .env  # заполнить значения (но проще взять готовый в чате команды и подложить)
 docker compose up -d --build
-docker compose down -v
+```
+
+## Остановка и очистка всего проекта (включая тесты)
+
+```bash
+docker compose --profile tests down -v --remove-orphans
 ```
 
 После запуска доступны следующие эндпоинты:
@@ -25,23 +32,29 @@ docker compose down -v
   - Тестирование полнотекстового поиска (http://localhost/search)
 - Elasticsearch: http://localhost:9200
 - async_api:
-  - Swagger (http://localhost:8000/api/openapi)
-  - OpenAPI-схема (http://localhost:8000/api/openapi.json)
+  - Swagger (http://localhost:8000/docs)
+- auth_service:
+  - Swagger (http://localhost:8001/docs)
 
-## Запуск части из 6 спринта 
+Миграции БД авторизации применяются автоматически (one-shot сервис `auth_migrations`).
+
+## Тесты
+
+Все тесты живут в папке `tests/` (HTTP-тесты, подпапка = тестируемый сервис: `async_api`, `auth_service`) и запускаются одним контейнером. Нужен запущенный проект:
 
 ```bash
-docker compose -f docker-compose-auth-service-test.yml up -d --build postgres redis
-docker compose -f docker-compose-auth-service-test.yml run --build --rm migrations
-docker compose -f docker-compose-auth-service-test.yml up -d --build auth_service
-docker compose -f docker-compose-auth-service-test.yml run --build --rm test
-
-docker compose -f docker-compose-auth-service-test.yml down -v
+docker compose run --rm tests
 ```
 
-После запуска доступны следующие эндпоинты:
-- auth_api:
-  - Swagger (http://localhost:8001/docs)
+Сервис `tests` вынесен в отдельный compose-профиль и при `docker compose up` не стартует — только явно, командой выше.
+
+⚠️ Тесты меняют данные работающего стека: пересоздают индексы Elasticsearch (movies/genres/persons), очищают Redis-кэш и регистрируют тестовых пользователей в auth-базе. Не запускать на данных, которые жалко; данные ES восстановит ETL в течение цикла синхронизации.
+
+Создание суперпользователя auth_service:
+
+```bash
+docker compose run --rm auth_service python -m src.cli create-superuser admin@example.com -p 'Admin12345'
+```
 
 ## Разработка
 
