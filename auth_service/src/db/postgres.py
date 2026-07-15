@@ -13,7 +13,7 @@ from src.core.config import settings
 
 # Create async engine
 engine = create_async_engine(
-    settings.database_dsn,
+    settings.postgres_dsn,
     echo=settings.debug,  # Log SQL queries in debug mode
     pool_size=10,  # Maximum number of connections in the pool
     max_overflow=20,  # Maximum overflow connections beyond pool_size

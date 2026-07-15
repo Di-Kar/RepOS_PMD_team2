@@ -77,15 +77,17 @@ class ChangePasswordRequest(BaseSchema):
 class RoleCreate(BaseSchema):
     """Schema for role creation."""
 
-    name: str = Field(..., max_length=100, description="Unique role name")
+    name: str = Field(..., min_length=3, max_length=100, description="Unique role name")
     description: Optional[str] = Field(None, description="Role description")
+    permissions: List[str] = Field(default_factory=list, description="Permission strings, e.g. video:watch")
 
 
 class RoleUpdate(BaseSchema):
     """Schema for role update."""
 
-    name: Optional[str] = Field(None, max_length=100, description="New role name")
+    name: Optional[str] = Field(None, min_length=3, max_length=100, description="New role name")
     description: Optional[str] = Field(None, description="New role description")
+    permissions: Optional[List[str]] = Field(None, description="Permission strings, e.g. video:watch")
 
 
 class RoleResponse(BaseSchema):
@@ -94,6 +96,7 @@ class RoleResponse(BaseSchema):
     id: uuid.UUID = Field(..., description="Role ID")
     name: str = Field(..., description="Role name")
     description: Optional[str] = Field(None, description="Role description")
+    permissions: List[str] = Field(default_factory=list, description="Permission strings")
     created_at: datetime = Field(..., description="Creation date")
 
 
@@ -110,12 +113,10 @@ class RolesListResponse(BaseSchema):
     total: int = Field(..., description="Total number of roles")
 
 
-class RoleAssignmentResponse(BaseSchema):
-    """Schema for role assignment response."""
+class UserRoleRequest(BaseSchema):
+    """Schema for assigning a role to a user."""
 
-    message: str = Field(..., description="Result message")
-    user_id: uuid.UUID = Field(..., description="User ID")
-    role_id: uuid.UUID = Field(..., description="Role ID")
+    role_id: uuid.UUID = Field(..., description="Role ID to assign")
 
 
 class LoginHistoryItem(BaseSchema):
@@ -139,12 +140,20 @@ class LoginHistoryResponse(BaseSchema):
     pages: int = Field(..., description="Total pages")
 
 
+class PermissionCheckRequest(BaseSchema):
+    """Schema for permission check request."""
+
+    permission: str = Field(..., min_length=3, max_length=100, description="Permission to check, e.g. video:delete")
+
+
 class PermissionCheckResponse(BaseSchema):
     """Schema for permission check response."""
 
-    has_permission: bool = Field(..., description="Permission status")
-    user_id: uuid.UUID = Field(..., description="User ID")
-    role: str = Field(..., description="Checked role")
+    has_permission: bool = Field(..., description="Whether the requested permission is granted")
+    granted_permissions: List[str] = Field(default_factory=list, description="All permissions the user has")
+    missing_permissions: List[str] = Field(
+        default_factory=list, description="Requested permissions the user lacks"
+    )
 
 
 class MessageResponse(BaseSchema):
