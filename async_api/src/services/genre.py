@@ -22,8 +22,7 @@ class GenreService(BaseService[Genre]):
         if cached is not None:
             return cached
         genres = await self._execute_search({'match_all': {}}, page_size=1000)
-        if genres:
-            await self._put_list_to_cache(key, genres)
+        await self._put_list_to_cache(key, genres)
         return genres
 
 

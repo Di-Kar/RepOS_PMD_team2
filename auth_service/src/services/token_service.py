@@ -6,8 +6,9 @@
 Активные access-токены нигде не хранятся: access валиден, пока
 жив ключ его сессии в Redis. Поэтому logout / logout-all мгновенно
 инвалидируют и access-токены (через session_id внутри токена).
-Ротация refresh: при обмене значение ключа заменяется на новый jti,
-старый refresh становится бесполезным (jti не совпадает).
+Ротация refresh: при обмене значение ключа атомарно (Lua compare-and-set)
+заменяется на новый jti, старый refresh становится бесполезным (jti не
+совпадает). Повторное использование ротированного токена убивает сессию.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -23,6 +24,24 @@ from src.models.schemas import TokenPayload
 
 SESSION_KEY = "auth:sessions:{user_id}:{session_id}"
 SESSION_KEY_PATTERN = "auth:sessions:{user_id}:*"
+
+# Атомарная ротация jti (compare-and-set): новый jti записывается, только если
+# текущее значение совпадает с jti предъявленного refresh-токена. Иначе два
+# параллельных /refresh с одним токеном оба прошли бы проверку GET-ом.
+# Несовпадение — повторное использование уже ротированного токена, признак
+# компрометации: сессия удаляется целиком.
+_ROTATE_JTI_LUA = """
+local stored = redis.call('GET', KEYS[1])
+if stored == false then
+    return 'missing'
+end
+if stored ~= ARGV[1] then
+    redis.call('DEL', KEYS[1])
+    return 'reused'
+end
+redis.call('SET', KEYS[1], ARGV[2], 'EX', tonumber(ARGV[3]))
+return 'ok'
+"""
 
 
 class TokenService:
@@ -56,11 +75,16 @@ class TokenService:
         return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
     async def create_token_pair(
-        self, user: User, roles: List[str], session_id: Optional[str] = None
+        self,
+        user: User,
+        roles: List[str],
+        session_id: Optional[str] = None,
+        rotate_from_jti: Optional[str] = None,
     ) -> Tuple[str, str]:
         """Выпускает пару токенов и регистрирует (или продлевает) сессию в Redis."""
         session_id = session_id or str(uuid.uuid4())
         refresh_jti = str(uuid.uuid4())
+        refresh_ttl = timedelta(days=settings.refresh_token_expire_days)
 
         access_token = self._encode(
             user,
@@ -76,14 +100,20 @@ class TokenService:
             "refresh",
             session_id,
             refresh_jti,
-            timedelta(days=settings.refresh_token_expire_days),
+            refresh_ttl,
         )
 
-        await self._redis.set(
-            SESSION_KEY.format(user_id=user.id, session_id=session_id),
-            refresh_jti,
-            ex=timedelta(days=settings.refresh_token_expire_days),
-        )
+        key = SESSION_KEY.format(user_id=user.id, session_id=session_id)
+        if rotate_from_jti is None:
+            await self._redis.set(key, refresh_jti, ex=refresh_ttl)
+        else:
+            result = await self._redis.eval(
+                _ROTATE_JTI_LUA, 1, key, rotate_from_jti, refresh_jti, int(refresh_ttl.total_seconds())
+            )
+            if result == "missing":
+                raise InvalidTokenError("Session has been terminated")
+            if result != "ok":
+                raise InvalidTokenError("Refresh token has already been used")
         return access_token, refresh_token
 
     # --- валидация ---
@@ -116,6 +146,8 @@ class TokenService:
         if payload.token_type != "refresh":
             raise InvalidTokenError("Refresh token expected")
 
+        # Быстрая предпроверка; авторитетная защита от гонки — атомарный
+        # compare-and-set в create_token_pair (rotate_from_jti).
         key = SESSION_KEY.format(user_id=payload.sub, session_id=payload.session_id)
         stored_jti = await self._redis.get(key)
         if stored_jti is None:
@@ -144,8 +176,12 @@ class TokenService:
             if except_session_id
             else None
         )
-        async for key in self._redis.scan_iter(match=pattern):
-            if key != keep:
-                await self._redis.delete(key)
-                revoked += 1
+        cursor = 0
+        while True:
+            cursor, keys = await self._redis.scan(cursor, match=pattern, count=100)
+            to_delete = [key for key in keys if key != keep]
+            if to_delete:
+                revoked += await self._redis.delete(*to_delete)
+            if cursor == 0:
+                break
         return revoked

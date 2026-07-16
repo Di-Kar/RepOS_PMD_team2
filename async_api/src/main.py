@@ -3,11 +3,13 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from elasticsearch import AsyncElasticsearch
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from redis.asyncio import Redis, ConnectionPool
 
 from api.v1 import films, genres, persons
 from core import config
+from core.exceptions import StorageUnavailableError
 from core.logger import LOGGING
 
 
@@ -47,6 +49,14 @@ app = FastAPI(
 app.include_router(films.router, prefix='/api/v1/films')
 app.include_router(genres.router, prefix='/api/v1/genres')
 app.include_router(persons.router, prefix='/api/v1/persons')
+
+
+@app.exception_handler(StorageUnavailableError)
+async def storage_unavailable_handler(_: Request, exc: StorageUnavailableError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={'detail': 'Storage is temporarily unavailable'},
+    )
 
 if __name__ == '__main__':
     # Приложение может запускаться командой

@@ -6,6 +6,7 @@ from redis.asyncio import Redis
 
 from cache.redis_cache import RedisCache
 from core.config import settings
+from core.exceptions import StorageUnavailableError
 from db.redis_db import get_redis
 from db.storage import AbstractStorage, get_storage
 from models.person import PersonES, PersonFilmES
@@ -35,6 +36,8 @@ class PersonService(BaseService[PersonES]):
 
         try:
             entity.films = await self._get_person_films(entity_id)
+        except StorageUnavailableError:
+            raise
         except Exception as e:
             logger.warning(f"Failed to fetch films for person id='{entity_id}': {e}")
             entity.films = []
@@ -83,8 +86,7 @@ class PersonService(BaseService[PersonES]):
             page_number=page_number,
             page_size=page_size,
         )
-        if persons:
-            await self._put_list_to_cache(key, persons)
+        await self._put_list_to_cache(key, persons)
         return persons
 
     async def get_films_by_person(self, person_id: str) -> list[dict] | None:

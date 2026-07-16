@@ -50,8 +50,7 @@ class FilmService(BaseService[Film]):
             page_number=page_number,
             page_size=page_size,
         )
-        if films:
-            await self._put_list_to_cache(key, films)
+        await self._put_list_to_cache(key, films)
         return films
 
     async def search(self, query: str, page_number: int, page_size: int) -> list[Film]:
@@ -64,8 +63,7 @@ class FilmService(BaseService[Film]):
             page_number=page_number,
             page_size=page_size,
         )
-        if films:
-            await self._put_list_to_cache(key, films)
+        await self._put_list_to_cache(key, films)
         return films
 
 

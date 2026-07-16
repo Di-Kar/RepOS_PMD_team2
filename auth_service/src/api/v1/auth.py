@@ -110,9 +110,15 @@ async def refresh(
         )
 
     roles = await AuthService(session).get_role_names(user.id)
-    access_token, refresh_token = await token_service.create_token_pair(
-        user, roles, session_id=token_payload.session_id
-    )
+    try:
+        access_token, refresh_token = await token_service.create_token_pair(
+            user, roles, session_id=token_payload.session_id, rotate_from_jti=token_payload.jti
+        )
+    except InvalidTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_token", "message": str(exc)},
+        )
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 

@@ -7,6 +7,7 @@ from elasticsearch import ConnectionTimeout as ESConnectionTimeout, NotFoundErro
 from fastapi import Depends
 
 from core.backoff import ExponentialBackoffRetryPolicy, RetryPolicy
+from core.exceptions import StorageUnavailableError
 from db.elastic_db import get_elastic
 
 logger = logging.getLogger(__name__)
@@ -53,17 +54,17 @@ class ElasticStorage(AbstractStorage):
             doc = await self._retry.call(self._elastic.get, index=index, id=doc_id)
         except NotFoundError:
             return None
-        except Exception as e:
-            logger.warning(f"Elasticsearch GET failed for index='{index}' id='{doc_id}': {e}")
-            return None
+        except (ESConnectionError, ESConnectionTimeout) as e:
+            logger.error(f"Elasticsearch unavailable on GET index='{index}' id='{doc_id}': {e}")
+            raise StorageUnavailableError('Elasticsearch is unavailable') from e
         return doc.get('_source')
 
     async def search(self, index: str, body: dict) -> list[dict]:
         try:
             result = await self._retry.call(self._elastic.search, index=index, body=body)
-        except Exception as e:
-            logger.warning(f"Elasticsearch search failed for index='{index}': {e}")
-            return []
+        except (ESConnectionError, ESConnectionTimeout) as e:
+            logger.error(f"Elasticsearch unavailable on search index='{index}': {e}")
+            raise StorageUnavailableError('Elasticsearch is unavailable') from e
         hits = result.get('hits', {}).get('hits', [])
         return [hit['_source'] for hit in hits if '_source' in hit]
 

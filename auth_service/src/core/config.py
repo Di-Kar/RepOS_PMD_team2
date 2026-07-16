@@ -42,8 +42,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="AUTH_LOG_LEVEL")
 
     # JWT
-    # Дефолт нужен, чтобы миграции/тесты работали без .env; в бою ключ задаётся через AUTH_SECRET_KEY.
-    secret_key: str = Field(default="insecure-dev-secret-key-change-me-32ch", alias="AUTH_SECRET_KEY")
+    secret_key: str = Field(alias="AUTH_SECRET_KEY")
     algorithm: str = Field(default="HS256", alias="AUTH_JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=30, alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, alias="AUTH_REFRESH_TOKEN_EXPIRE_DAYS")
