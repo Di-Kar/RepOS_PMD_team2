@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Index,
+    func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
@@ -31,8 +32,8 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     user_roles: Mapped[List["UserRole"]] = relationship(
@@ -60,8 +61,8 @@ class Role(Base):
     permissions: Mapped[List[str]] = mapped_column(
         ARRAY(String), nullable=False, default=list, server_default="{}"
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(),nullable=False)
 
     # Relationships
     user_roles: Mapped[List["UserRole"]] = relationship(
@@ -89,7 +90,7 @@ class UserRole(Base):
     role_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False
     )
-    assigned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="user_roles", lazy="joined")
@@ -100,7 +101,7 @@ class UserRole(Base):
 
 
 class LoginHistory(Base):
-	 """Login history model (partitioned by user_device_type)."""
+    """Login history model (partitioned by user_device_type)."""
 
     __tablename__ = "login_history"
     __table_args__ = (
@@ -116,7 +117,7 @@ class LoginHistory(Base):
     user_agent: Mapped[str] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
     fingerprint: Mapped[str] = mapped_column(String(255), nullable=True)
-    login_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    login_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     success: Mapped[bool] = mapped_column(Boolean, default=True)
     user_device_type: Mapped[str] = mapped_column(String(20), primary_key=True, nullable=False)
 
@@ -147,8 +148,8 @@ class SocialAccount(Base):
     access_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="social_accounts", lazy="joined")
