@@ -12,6 +12,7 @@ from src.core.exceptions import (
     UserAlreadyExistsError,
 )
 from src.core.security import hash_password, verify_password
+from src.core.utils import get_device_type
 from src.models.entity import LoginHistory, Role, User, UserRole
 
 
@@ -75,18 +76,28 @@ class AuthService:
             raise InvalidCredentialsError(email)
 
         success = verify_password(password, user.password)
+        
+        device_type = get_device_type(user_agent)
+        
+        # Опционально: можно сгенерировать простой fingerprint
+        fingerprint = f"{ip_address}_{device_type}" if ip_address else None
+
         self._session.add(
             LoginHistory(
                 user_id=user.id,
                 user_agent=user_agent,
                 ip_address=ip_address,
+                fingerprint=fingerprint,
                 success=success,
+                user_device_type=device_type,
             )
         )
+       
         await self._session.commit()
 
         if not success:
             raise InvalidCredentialsError(email)
+        
         return user
 
     async def get_role_names(self, user_id: uuid.UUID) -> List[str]:
