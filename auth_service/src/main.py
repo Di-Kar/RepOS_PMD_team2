@@ -5,11 +5,16 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
 from src.api.v1.auth import router as auth_router
 from src.api.v1.idm import router as idm_router
 from src.core.config import settings
 from src.db.postgres import close_db
 from src.db.redis_db import close_redis, init_redis
+from src.core.rate_limiter import limiter, setup_rate_limit_middleware
 
 
 @asynccontextmanager
@@ -19,8 +24,12 @@ async def lifespan(_: FastAPI):
     await close_redis()
     await close_db()
 
-
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+setup_rate_limit_middleware(app)
 
 app.include_router(auth_router)
 app.include_router(idm_router)
