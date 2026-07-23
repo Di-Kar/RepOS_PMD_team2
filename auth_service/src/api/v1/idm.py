@@ -1,11 +1,12 @@
 """Роуты управления ролями и правами (RBAC) — /api/v1/idm."""
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.v1.dependencies import get_current_user, require_superuser
+from src.core.config import settings 
 from src.core.exceptions import (
     RoleAlreadyAssignedError,
     RoleAlreadyExistsError,
@@ -13,6 +14,7 @@ from src.core.exceptions import (
     RoleNotFoundError,
     UserNotFoundError,
 )
+from src.core.rate_limiter import limiter
 from src.db.postgres import get_session
 from src.db.redis_db import get_redis
 from src.models.entity import User
@@ -37,7 +39,9 @@ router = APIRouter(prefix="/api/v1/idm")
     response_model=RoleResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit(settings.rate_limit_strict) 
 async def create_role(
+    request: Request,
     payload: RoleCreate,
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_superuser),
@@ -54,7 +58,9 @@ async def create_role(
 
 
 @router.get("/roles", tags=["Roles"], response_model=RolesListResponse)
+@limiter.limit(settings.rate_limit_relaxed) 
 async def list_roles(
+    request: Request,    
     session: AsyncSession = Depends(get_session),
     _: User = Depends(get_current_user),
 ) -> RolesListResponse:
@@ -64,7 +70,9 @@ async def list_roles(
 
 
 @router.put("/roles/{role_id}", tags=["Roles"], response_model=RoleResponse)
+@limiter.limit(settings.rate_limit_strict) 
 async def update_role(
+    request: Request,
     role_id: uuid.UUID,
     payload: RoleUpdate,
     session: AsyncSession = Depends(get_session),
@@ -84,7 +92,9 @@ async def update_role(
 
 
 @router.delete("/roles/{role_id}", tags=["Roles"], status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit(settings.rate_limit_strict)
 async def delete_role(
+    request: Request,    
     role_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_superuser),
@@ -97,7 +107,9 @@ async def delete_role(
 
 
 @router.post("/users/{user_id}/roles", tags=["Permissions"], response_model=RoleResponse)
+@limiter.limit(settings.rate_limit_moderate) 
 async def assign_role(
+    request: Request,    
     user_id: uuid.UUID,
     payload: UserRoleRequest,
     session: AsyncSession = Depends(get_session),
@@ -120,7 +132,9 @@ async def assign_role(
 @router.delete(
     "/users/{user_id}/roles/{role_id}", tags=["Permissions"], status_code=status.HTTP_204_NO_CONTENT
 )
+@limiter.limit(settings.rate_limit_moderate)
 async def revoke_role(
+    request: Request,
     user_id: uuid.UUID,
     role_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
@@ -139,7 +153,9 @@ async def revoke_role(
 @router.post(
     "/users/{user_id}/permissions/check", tags=["Permissions"], response_model=PermissionCheckResponse
 )
+@limiter.limit(settings.rate_limit_relaxed) 
 async def check_permission(
+    request: Request,
     user_id: uuid.UUID,
     payload: PermissionCheckRequest,
     session: AsyncSession = Depends(get_session),
