@@ -6,12 +6,14 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.v1.dependencies import get_current_user, get_token_payload
+from src.core.config import settings
 from src.core.exceptions import (
     InvalidCredentialsError,
     InvalidPasswordError,
     InvalidTokenError,
     UserAlreadyExistsError,
 )
+from src.core.rate_limiter import limiter
 from src.db.postgres import get_session
 from src.db.redis_db import get_redis
 from src.models.entity import User
@@ -45,8 +47,10 @@ def _user_response(user: User) -> dict:
     response_model=UserRegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit(settings.rate_limit_strict)
 async def register(
     payload: UserRegisterRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> UserRegisterResponse:
     service = AuthService(session)
@@ -61,6 +65,7 @@ async def register(
 
 
 @router.post("/login", tags=["Authentication"], response_model=TokenPair)
+@limiter.limit(settings.rate_limit_strict)
 async def login(
     payload: UserLoginRequest,
     request: Request,
@@ -87,7 +92,9 @@ async def login(
 
 
 @router.post("/refresh", tags=["Tokens"], response_model=TokenPair)
+@limiter.limit(settings.rate_limit_standard)
 async def refresh(
+    request: Request,
     payload: RefreshRequest,
     session: AsyncSession = Depends(get_session),
     redis: Redis = Depends(get_redis),
@@ -123,7 +130,9 @@ async def refresh(
 
 
 @router.post("/logout", tags=["Tokens"], status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit(settings.rate_limit_standard) 
 async def logout(
+    request: Request,
     token_payload: TokenPayload = Depends(get_token_payload),
     redis: Redis = Depends(get_redis),
 ) -> None:
@@ -132,7 +141,9 @@ async def logout(
 
 
 @router.post("/logout-all", tags=["Tokens"], status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit(settings.rate_limit_moderate) 
 async def logout_all(
+    request: Request,
     token_payload: TokenPayload = Depends(get_token_payload),
     redis: Redis = Depends(get_redis),
 ) -> None:
@@ -143,12 +154,18 @@ async def logout_all(
 
 
 @router.get("/profile", tags=["Profile"], response_model=UserResponse)
-async def get_profile(user: User = Depends(get_current_user)) -> UserResponse:
+@limiter.limit(settings.rate_limit_relaxed) 
+async def get_profile(
+    request: Request,
+    user: User = Depends(get_current_user)
+) -> UserResponse:
     return UserResponse(**_user_response(user))
 
 
 @router.put("/profile", tags=["Profile"], response_model=UserResponse)
+@limiter.limit(settings.rate_limit_moderate)
 async def update_profile(
+    request: Request,
     payload: UserUpdateRequest,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -158,7 +175,9 @@ async def update_profile(
 
 
 @router.post("/change-password", tags=["Profile"], response_model=MessageResponse)
+@limiter.limit(settings.rate_limit_strict)
 async def change_password(
+    request: Request,
     payload: ChangePasswordRequest,
     user: User = Depends(get_current_user),
     token_payload: TokenPayload = Depends(get_token_payload),
@@ -186,7 +205,9 @@ async def change_password(
 
 
 @router.get("/history", tags=["Profile"], response_model=LoginHistoryResponse)
+@limiter.limit(settings.rate_limit_relaxed) 
 async def login_history(
+    request: Request,
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
     user: User = Depends(get_current_user),
