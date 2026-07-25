@@ -32,6 +32,10 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
+    # False для пользователей, заведённых только через OAuth (пароль —
+    # случайный, никому не известный хэш) — не даёт отвязать последний
+    # соцаккаунт и остаться без единого способа войти.
+    is_password_set: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 

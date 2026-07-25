@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -12,6 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from src.api.v1.auth import router as auth_router
 from src.api.v1.idm import router as idm_router
+from src.api.v1.oauth import router as oauth_router
 from src.core.config import settings
 from src.db.postgres import close_db
 from src.db.redis_db import close_redis, init_redis
@@ -40,10 +42,13 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+# Нужен authlib: хранит state/nonce OAuth-флоу между редиректом на Google и callback.
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 setup_rate_limit_middleware(app)
 
 app.include_router(auth_router)
 app.include_router(idm_router)
+app.include_router(oauth_router)
 
 
 # Коды ошибок валидации из openapi_auth.yaml: (поле, тип pydantic-ошибки) -> код.
