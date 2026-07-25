@@ -14,6 +14,16 @@ from core.logger import LOGGING
 from db.auth_client import AuthServiceClient
 
 
+class _HealthcheckAccessLogFilter(logging.Filter):
+    """Убирает из access-лога GET /openapi.json (Docker healthcheck, опрос раз в 5с)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return '/openapi.json' not in record.getMessage()
+
+
+logging.getLogger('uvicorn.access').addFilter(_HealthcheckAccessLogFilter())
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Подключаемся к базам при старте сервера
