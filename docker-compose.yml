@@ -243,6 +243,16 @@ services:
     networks:
       - backend
 
+  # Трейсинг с помощью Jaeger для observability
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "6831:6831/udp"
+      - "16686:16686"
+    restart: unless-stopped
+    networks:
+      - backend
 
   # Все тесты проекта (tests/): HTTP-тесты async_api и auth_service
   tests:
