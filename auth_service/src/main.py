@@ -1,4 +1,5 @@
 """Точка входа FastAPI-приложения auth_service."""
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
@@ -15,6 +16,16 @@ from src.core.config import settings
 from src.db.postgres import close_db
 from src.db.redis_db import close_redis, init_redis
 from src.core.rate_limiter import limiter, setup_rate_limit_middleware
+
+
+class _HealthcheckAccessLogFilter(logging.Filter):
+    """Убирает из access-лога GET /openapi.json (Docker healthcheck, опрос раз в 5с)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/openapi.json" not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(_HealthcheckAccessLogFilter())
 
 
 @asynccontextmanager

@@ -41,6 +41,11 @@ def _user_response(user: User) -> dict:
     return {"id": user.id, "email": user.login, "full_name": join_full_name(user)}
 
 
+async def _profile_response(user: User, session: AsyncSession) -> UserResponse:
+    roles = await AuthService(session).get_role_names(user.id)
+    return UserResponse(**_user_response(user), roles=roles, is_superuser=user.is_superuser)
+
+
 @router.post(
     "/register",
     tags=["Authentication"],
@@ -154,12 +159,13 @@ async def logout_all(
 
 
 @router.get("/profile", tags=["Profile"], response_model=UserResponse)
-@limiter.limit(settings.rate_limit_relaxed) 
+@limiter.limit(settings.rate_limit_relaxed)
 async def get_profile(
     request: Request,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> UserResponse:
-    return UserResponse(**_user_response(user))
+    return await _profile_response(user, session)
 
 
 @router.put("/profile", tags=["Profile"], response_model=UserResponse)
@@ -171,7 +177,7 @@ async def update_profile(
     session: AsyncSession = Depends(get_session),
 ) -> UserResponse:
     user = await AuthService(session).update_full_name(user, payload.full_name)
-    return UserResponse(**_user_response(user))
+    return await _profile_response(user, session)
 
 
 @router.post("/change-password", tags=["Profile"], response_model=MessageResponse)

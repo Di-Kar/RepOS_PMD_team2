@@ -13,6 +13,12 @@ class Migration(migrations.Migration):
     dependencies = []
 
     operations = [
+        # Нужна для БД без сырого дампа (например, тестовой): без схемы
+        # CREATE TABLE "content"."..." ниже падает.
+        migrations.RunSQL(
+            sql='CREATE SCHEMA IF NOT EXISTS content;',
+            reverse_sql=migrations.RunSQL.noop,
+        ),
         migrations.CreateModel(
             name='FilmWork',
             fields=[

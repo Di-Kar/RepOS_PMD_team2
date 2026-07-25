@@ -21,6 +21,7 @@ PyJWT==2.8.0
 
 # CLI
 typer==0.9.0
+click==8.1.7  # несовместим с click>=8.2, см. typer==0.9.0
 rich==13.7.0
 
 # Utils

@@ -1,14 +1,17 @@
+import logging
 from http import HTTPStatus
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.v1.dependencies import PaginationParams
+from api.v1.dependencies import PaginationParams, get_optional_user
+from db.auth_client import UserContext
 from models.film import FilmShort, FilmDetail, FilmGenre, FilmPerson
 from services.film import FilmService, get_film_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get(
@@ -23,7 +26,9 @@ async def films_search(
     query: str = Query(..., description='Поисковый запрос'),
     pagination: PaginationParams = Depends(PaginationParams),
     film_service: FilmService = Depends(get_film_service),
+    user: Optional[UserContext] = Depends(get_optional_user),
 ) -> list[FilmShort]:
+    logger.debug('films_search: query=%r user_id=%s', query, user.user_id if user else None)
     films = await film_service.search(query, pagination.page_number, pagination.page_size)
     return [FilmShort(uuid=f.id, title=f.title, imdb_rating=f.rating) for f in films]
 
@@ -41,7 +46,9 @@ async def films_list(
     genre: Optional[UUID] = Query(None, description='Фильтр по UUID жанра'),
     pagination: PaginationParams = Depends(PaginationParams),
     film_service: FilmService = Depends(get_film_service),
+    user: Optional[UserContext] = Depends(get_optional_user),
 ) -> list[FilmShort]:
+    logger.debug('films_list: user_id=%s', user.user_id if user else None)
     films = await film_service.get_list(
         sort=sort,
         genre=str(genre) if genre else None,
@@ -62,7 +69,9 @@ async def films_list(
 async def film_details(
     film_id: UUID,
     film_service: FilmService = Depends(get_film_service),
+    user: Optional[UserContext] = Depends(get_optional_user),
 ) -> FilmDetail:
+    logger.debug('film_details: film_id=%s user_id=%s', film_id, user.user_id if user else None)
     film = await film_service.get_by_id(str(film_id))
     if not film:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail='film not found')
