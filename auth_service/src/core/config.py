@@ -79,6 +79,8 @@ class Settings(BaseSettings):
         default="http://localhost:8001/api/v1/auth/oauth/google/callback",
         alias="GOOGLE_REDIRECT_URI",
     )
+    # Jaeger Configuration
+    jaeger_endpoint: str = Field(alias='JAEGER_ENDPOINT')
 
     @property
     def postgres_dsn(self) -> str:

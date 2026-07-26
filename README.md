@@ -35,6 +35,7 @@ docker compose --profile tests down -v --remove-orphans
   - Swagger (http://localhost:8000/docs)
 - auth_service:
   - Swagger (http://localhost:8001/docs)
+- jaeger: http://localhost:16686
 
 Миграции БД авторизации применяются автоматически (one-shot сервис `auth_migrations`).
 
