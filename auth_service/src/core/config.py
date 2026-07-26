@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     rate_limit_relaxed: str = Field(default="60/minute", alias="RATE_LIMIT_RELAXED")
 
     # Лимит по умолчанию (если не указан на конкретном эндпоинте)
-    rate_limit_default: str = Field(default="100/minute", alias="RATE_LIMIT_DEFAULT=100/min")
+    rate_limit_default: str = Field(default="100/minute", alias="RATE_LIMIT_DEFAULT")
 
     # OAuth (Google)
     google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
