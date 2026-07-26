@@ -1,9 +1,11 @@
 from http import HTTPStatus
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.v1.dependencies import PaginationParams
+from api.v1.dependencies import PaginationParams, get_optional_user
+from db.auth_client import UserContext
 from models.film import FilmShort
 from models.person import PersonFilmResponse, PersonResponse, PersonSearchResponse
 from services.person import PersonService, get_person_service
@@ -24,6 +26,7 @@ async def persons_search(
     query: str = Query(..., description='Поисковый запрос'),
     pagination: PaginationParams = Depends(PaginationParams),
     person_service: PersonService = Depends(get_person_service),
+    user: Optional[UserContext] = Depends(get_optional_user),
 ) -> list[PersonSearchResponse]:
     persons = await person_service.search(query, pagination.page_number, pagination.page_size)
     return [
@@ -46,6 +49,7 @@ async def persons_search(
 async def person_details(
     person_id: UUID,
     person_service: PersonService = Depends(get_person_service),
+    user: Optional[UserContext] = Depends(get_optional_user),
 ) -> PersonResponse:
     person = await person_service.get_by_id(str(person_id))
     if not person:
@@ -68,6 +72,7 @@ async def person_details(
 async def person_films(
     person_id: UUID,
     person_service: PersonService = Depends(get_person_service),
+    user: Optional[UserContext] = Depends(get_optional_user),
 ) -> list[FilmShort]:
     films = await person_service.get_films_by_person(str(person_id))
     if films is None:

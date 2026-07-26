@@ -49,9 +49,13 @@ class AuthService:
         self._session.add(user)
         try:
             await self._session.commit()
-        except IntegrityError:
+        except IntegrityError as exc:
             await self._session.rollback()
-            raise UserAlreadyExistsError(email)
+            # 23505 = unique_violation (SQLSTATE); другие IntegrityError — не
+            # "email занят", их нельзя маскировать под конфликт логина.
+            if getattr(getattr(exc, "orig", None), "sqlstate", None) == "23505":
+                raise UserAlreadyExistsError(email)
+            raise
         await self._session.refresh(user)
         return user
 

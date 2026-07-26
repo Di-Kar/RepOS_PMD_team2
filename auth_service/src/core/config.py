@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     # Лимит по умолчанию (если не указан на конкретном эндпоинте)
     rate_limit_default: str = Field(default="100/minute", alias="RATE_LIMIT_DEFAULT=100/min")
 
+    # OAuth (Google)
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
+    google_client_secret: str = Field(default="", alias="GOOGLE_CLIENT_SECRET")
+    google_redirect_uri: str = Field(
+        default="http://localhost:8001/api/v1/auth/oauth/google/callback",
+        alias="GOOGLE_REDIRECT_URI",
+    )
     # Jaeger Configuration
     jaeger_endpoint: str = Field(alias='JAEGER_ENDPOINT')
 

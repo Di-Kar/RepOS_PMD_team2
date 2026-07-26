@@ -66,6 +66,7 @@ class TokenService:
             "sub": str(user.id),
             "login": user.login,
             "roles": roles,
+            "is_superuser": user.is_superuser,
             "token_type": token_type,
             "jti": jti,
             "session_id": session_id,

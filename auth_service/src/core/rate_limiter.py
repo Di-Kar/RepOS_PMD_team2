@@ -1,10 +1,8 @@
 """Rate limiting configuration and utilities."""
 import logging
-from typing import Optional
 
 from fastapi import Request, Response
 from slowapi import Limiter
-from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
@@ -56,18 +54,24 @@ def get_user_identifier(request: Request) -> str:
     return identifier
 
 
-def create_limiter() -> Optional[Limiter]:
+def _disabled_limiter() -> Limiter:
+    """Fallback того же типа с enabled=False: ошибка конфигурации/Redis
+    не должна ронять auth_service целиком, только сам rate limiting."""
+    return Limiter(key_func=get_user_identifier, enabled=False)
+
+
+def create_limiter() -> Limiter:
     """
     Создание и настройка экземпляра rate limiter.
     """
     if not getattr(settings, "rate_limit_enabled", True):
         logger.warning("Rate limiting is disabled by settings")
-        return None
-    
+        return _disabled_limiter()
+
     try:
         limiter = Limiter(
             key_func=get_user_identifier,
-            storage_uri=settings.redis_dsn,  # <-- ИЗМЕНЕНО: было settings.redis_url
+            storage_uri=settings.redis_dsn,
             storage_options={
                 "socket_connect_timeout": 5,
                 "socket_timeout": 5,
@@ -75,18 +79,19 @@ def create_limiter() -> Optional[Limiter]:
             strategy=settings.rate_limit_strategy,
             default_limits=[settings.rate_limit_default],
             in_memory_fallback_enabled=True,
-            headers_enabled=True,
+            # True требует Response из эндпоинта; у нас Pydantic-модели/dict.
+            headers_enabled=False,
         )
-        
+
         logger.info(
-            f"Rate limiter initialized (moving-window) with Redis: {settings.redis_url}"
+            f"Rate limiter initialized ({settings.rate_limit_strategy}) with Redis: {settings.redis_dsn}"
         )
         return limiter
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize rate limiter: {e}")
         logger.warning("Rate limiting will be disabled due to initialization error")
-        return None
+        return _disabled_limiter()
 
 
 # Глобальный экземпляр лимитера

@@ -1,7 +1,7 @@
 """Зависимости авторизации: проверка Bearer-токена и загрузка текущего пользователя."""
 import uuid
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,7 @@ def _unauthorized(message: str) -> HTTPException:
 
 
 async def get_token_payload(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     redis: Redis = Depends(get_redis),
 ) -> TokenPayload:
@@ -33,9 +34,12 @@ async def get_token_payload(
     if credentials is None:
         raise _unauthorized("Authorization header with Bearer token is required")
     try:
-        return await TokenService(redis).validate_access_token(credentials.credentials)
+        payload = await TokenService(redis).validate_access_token(credentials.credentials)
     except InvalidTokenError as exc:
         raise _unauthorized(str(exc))
+    # Позволяет rate limiter'у лимитировать по пользователю, а не по IP.
+    request.state.user_id = payload.sub
+    return payload
 
 
 async def get_current_user(

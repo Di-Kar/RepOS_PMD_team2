@@ -35,3 +35,11 @@ class InvalidTokenError(Exception):
 
 class InvalidPasswordError(Exception):
     """Текущий пароль не совпадает (смена пароля)."""
+
+
+class SocialAccountNotLinkedError(Exception):
+    """У пользователя не привязан аккаунт этого провайдера."""
+
+
+class LastAuthMethodError(Exception):
+    """Нельзя отвязать последний способ входа (нет пароля и других соцаккаунтов)."""

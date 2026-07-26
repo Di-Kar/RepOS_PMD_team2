@@ -36,6 +36,8 @@ class UserResponse(BaseSchema):
     id: uuid.UUID = Field(..., description="User ID")
     email: str = Field(..., description="Email (login)")
     full_name: str = Field(default="", description="Full name")
+    roles: List[str] = Field(default_factory=list, description="Role names assigned to the user")
+    is_superuser: bool = Field(default=False, description="Superuser flag")
 
 
 class UserUpdateRequest(BaseSchema):
@@ -209,6 +211,7 @@ class TokenPayload(BaseSchema):
     sub: str = Field(..., description="Subject (user_id)")
     login: Optional[str] = Field(None, description="User login (email)")
     roles: Optional[List[str]] = Field(None, description="User role names")
+    is_superuser: bool = Field(False, description="Superuser flag")
     token_type: str = Field(..., description="Token type (access/refresh)")
     jti: str = Field(..., description="JWT ID")
     session_id: str = Field(..., description="Session ID (общий у access и refresh пары)")

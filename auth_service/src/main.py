@@ -1,9 +1,11 @@
 """Точка входа FastAPI-приложения auth_service."""
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -11,6 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from src.api.v1.auth import router as auth_router
 from src.api.v1.idm import router as idm_router
+from src.api.v1.oauth import router as oauth_router
 from src.core.config import settings
 from src.db.postgres import close_db
 from src.db.redis_db import close_redis, init_redis
@@ -47,6 +50,16 @@ def configure_tracer() -> None:
     trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
 
+class _HealthcheckAccessLogFilter(logging.Filter):
+    """Убирает из access-лога GET /openapi.json (Docker healthcheck, опрос раз в 5с)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/openapi.json" not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(_HealthcheckAccessLogFilter())
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await init_redis()
@@ -63,10 +76,13 @@ FastAPIInstrumentor.instrument_app(app)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+# Нужен authlib: хранит state/nonce OAuth-флоу между редиректом на Google и callback.
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 setup_rate_limit_middleware(app)
 
 app.include_router(auth_router)
 app.include_router(idm_router)
+app.include_router(oauth_router)
 
 
 # --- Middleware для X-Request-Id и трассировки ---

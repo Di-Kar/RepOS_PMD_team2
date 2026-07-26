@@ -11,6 +11,17 @@ from api.v1 import films, genres, persons
 from core import config
 from core.exceptions import StorageUnavailableError
 from core.logger import LOGGING
+from db.auth_client import AuthServiceClient
+
+
+class _HealthcheckAccessLogFilter(logging.Filter):
+    """Убирает из access-лога GET /openapi.json (Docker healthcheck, опрос раз в 5с)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return '/openapi.json' not in record.getMessage()
+
+
+logging.getLogger('uvicorn.access').addFilter(_HealthcheckAccessLogFilter())
 
 
 @asynccontextmanager
@@ -29,10 +40,15 @@ async def lifespan(app: FastAPI):
         max_retries=3,
         connections_per_node=32,
     )
+    app.state.auth_client = AuthServiceClient(
+        base_url=config.AUTH_SERVICE_URL,
+        timeout=config.settings.auth_request_timeout,
+    )
     yield
     # Отключаемся от баз при выключении сервера
     await app.state.redis.close()
     await app.state.elastic.close()
+    await app.state.auth_client.aclose()
 
 
 app = FastAPI(

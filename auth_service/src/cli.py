@@ -17,6 +17,11 @@ from src.services.auth_service import split_full_name
 cli = typer.Typer(help="Команды управления auth_service")
 
 
+@cli.callback()
+def _main() -> None:
+    """Обязателен: без callback Typer с одной командой не требует её имени."""
+
+
 async def _create_superuser(email: str, password: str, full_name: Optional[str]) -> str:
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.login == email))

@@ -45,6 +45,8 @@ services:
     depends_on:
       movie_db:
         condition: service_healthy
+      auth_service:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - frontend
@@ -170,8 +172,8 @@ services:
       POSTGRES_USER: ${AUTH_POSTGRES_USER}
       POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD}
       POSTGRES_DB: ${AUTH_POSTGRES_DB}
-    # ports:
-    #   - "127.0.0.1:5433:5432"
+    ports:
+      - "127.0.0.1:5433:5432"
     volumes:
       - auth_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -199,11 +201,26 @@ services:
     networks:
       - backend
 
-  # Миграции БД авторизации (one-shot: alembic upgrade head)
+  # Миграции + бутстрап суперпользователя (та же учётка по email, что и
+  # bootstrap-админ admin_panel).
   auth_migrations:
     build: ./auth_service
     container_name: auth_migrations
-    command: alembic upgrade head
+    # command YAML-списком: строкой compose сам делает shell-word-split и
+    # съедает вложенные кавычки вокруг $DJANGO_SUPERUSER_*.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        alembic upgrade head
+        # Бутстрап — best-effort, не должен блокировать старт сервисов.
+        set +e
+        if [ -n "$$DJANGO_SUPERUSER_EMAIL" ]; then
+          python -m src.cli create-superuser "$$DJANGO_SUPERUSER_EMAIL" --password "$$DJANGO_SUPERUSER_PASSWORD" --full-name 'Bootstrap Admin' \
+            || echo "WARNING: bootstrap superuser creation failed, continuing anyway"
+        fi
+        exit 0
     env_file:
       - ./.env
     environment:
@@ -261,16 +278,22 @@ services:
       - backend
 
   # Все тесты проекта (tests/): HTTP-тесты async_api и auth_service
+  # + Django-тесты admin_panel (tests/admin_panel/: AuthServiceBackend) —
+  # тому нужен сам Django (ORM, тестовая БД в Postgres), поэтому вдобавок к
+  # requirements.txt тестов ставим requirements.txt admin_panel и гоняем
+  # manage.py test поверх смонтированного исходника admin_panel.
   tests:
     profiles:
       - tests
     image: python:3.12-slim
     container_name: tests
     entrypoint: sh -c "
-      pip install -r /tests/requirements.txt
-      && pytest /tests -rs"
+      pip install -r /tests/requirements.txt -r /admin_panel/requirements.txt
+      && pytest /tests -rs --ignore=/tests/admin_panel
+      && cd /admin_panel && python manage.py test /tests/admin_panel"
     volumes:
       - ./tests:/tests
+      - ./admin_panel:/admin_panel
     environment:
       - PYTHONPATH=/
       - REDIS_HOST=async_api_redis
