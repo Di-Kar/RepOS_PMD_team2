@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # Лимит по умолчанию (если не указан на конкретном эндпоинте)
     rate_limit_default: str = Field(default="100/minute", alias="RATE_LIMIT_DEFAULT=100/min")
 
+    # Jaeger Configuration
+    jaeger_endpoint: str = Field(alias='JAEGER_ENDPOINT')
+
     @property
     def postgres_dsn(self) -> str:
         """Construct async PostgreSQL database DSN."""
