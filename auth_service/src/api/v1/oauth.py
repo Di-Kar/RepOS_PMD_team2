@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.v1.dependencies import get_current_user
 from src.core.config import settings
-from src.core.exceptions import LastAuthMethodError, SocialAccountNotLinkedError
+from src.core.exceptions import (
+    LastAuthMethodError,
+    OAuthEmailNotVerifiedError,
+    SocialAccountNotLinkedError,
+)
 from src.core.oauth import oauth
 from src.core.rate_limiter import limiter
 from src.db.postgres import get_session
@@ -60,15 +64,25 @@ async def google_callback(
         if token.get("expires_at")
         else None
     )
-    user = await OAuthService(session).authenticate_or_register(
-        provider="google",
-        provider_user_id=userinfo["sub"],
-        email=userinfo["email"],
-        full_name=userinfo.get("name"),
-        access_token=token.get("access_token"),
-        refresh_token=token.get("refresh_token"),
-        token_expires_at=expires_at,
-    )
+    try:
+        user = await OAuthService(session).authenticate_or_register(
+            provider="google",
+            provider_user_id=userinfo["sub"],
+            email=userinfo["email"],
+            email_verified=bool(userinfo.get("email_verified")),
+            full_name=userinfo.get("name"),
+            access_token=token.get("access_token"),
+            refresh_token=token.get("refresh_token"),
+            token_expires_at=expires_at,
+        )
+    except OAuthEmailNotVerifiedError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "email_not_verified",
+                "message": "Google email is not verified — cannot link to an existing account",
+            },
+        )
 
     roles = await AuthService(session).get_role_names(user.id)
     access_token, refresh_token = await TokenService(redis).create_token_pair(user, roles)

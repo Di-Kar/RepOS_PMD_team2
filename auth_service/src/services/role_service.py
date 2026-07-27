@@ -21,9 +21,13 @@ class RoleService:
         self._session.add(role)
         try:
             await self._session.commit()
-        except IntegrityError:
+        except IntegrityError as exc:
             await self._session.rollback()
-            raise RoleAlreadyExistsError(name)
+            # 23505 = unique_violation (SQLSTATE); другие IntegrityError — не
+            # "имя занято", их нельзя маскировать под конфликт имени.
+            if getattr(getattr(exc, "orig", None), "sqlstate", None) == "23505":
+                raise RoleAlreadyExistsError(name)
+            raise
         await self._session.refresh(role)
         return role
 
@@ -53,9 +57,13 @@ class RoleService:
             role.permissions = permissions
         try:
             await self._session.commit()
-        except IntegrityError:
+        except IntegrityError as exc:
             await self._session.rollback()
-            raise RoleAlreadyExistsError(name)
+            # 23505 = unique_violation (SQLSTATE); другие IntegrityError — не
+            # "имя занято", их нельзя маскировать под конфликт имени.
+            if getattr(getattr(exc, "orig", None), "sqlstate", None) == "23505":
+                raise RoleAlreadyExistsError(name)
+            raise
         await self._session.refresh(role)
         return role
 

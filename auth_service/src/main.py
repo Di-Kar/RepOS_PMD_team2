@@ -53,7 +53,8 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 # Нужен authlib: хранит state/nonce OAuth-флоу между редиректом на Google и callback.
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+# Секрет отдельный от JWT (settings.secret_key).
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 setup_rate_limit_middleware(app)
 
 app.include_router(auth_router)

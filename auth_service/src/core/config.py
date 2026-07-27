@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     # JWT
     secret_key: str = Field(alias="AUTH_SECRET_KEY")
     algorithm: str = Field(default="HS256", alias="AUTH_JWT_ALGORITHM")
+    # Секрет для SessionMiddleware (state/nonce OAuth-флоу), отдельный от JWT.
+    session_secret: str = Field(alias="AUTH_SESSION_SECRET")
     access_token_expire_minutes: int = Field(default=30, alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, alias="AUTH_REFRESH_TOKEN_EXPIRE_DAYS")
 
