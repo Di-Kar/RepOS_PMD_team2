@@ -18,36 +18,9 @@ from src.core.config import settings
 from src.db.postgres import close_db
 from src.db.redis_db import close_redis, init_redis
 from src.core.rate_limiter import limiter, setup_rate_limit_middleware
+from src.core.tracer import configure_tracer
 
-# --- OpenTelemetry (Jaeger) setup ---
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.propagate import set_global_textmap
-from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-
-
-def configure_tracer() -> None:
-    # Настройка ресурса
-    resource = Resource.create(attributes={
-        SERVICE_NAME: "auth_service"
-    }) 
-
-    # Настройка экспортера Jaeger (используется UDP по умолчанию на порт 6831)
-    jaeger_exporter = OTLPSpanExporter(
-        endpoint=settings.jaeger_endpoint,
-    )
-    # Установка провайдера трассировки
-    trace.set_tracer_provider(TracerProvider(resource=resource))
-    tracer_provider = trace.get_tracer_provider()
-    tracer_provider.add_span_processor(BatchSpanProcessor(jaeger_exporter))
-    # Включение TraceContextTextMapPropagator для поддержки w3c trace-context
-    set_global_textmap(TraceContextTextMapPropagator())
-    # Чтобы видеть трейсы в консоли
-    trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
 
 class _HealthcheckAccessLogFilter(logging.Filter):
@@ -62,13 +35,16 @@ logging.getLogger("uvicorn.access").addFilter(_HealthcheckAccessLogFilter())
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Включаем трассировку с учётом debug-режима
+    debug = getattr(settings, "debug", False)
+    configure_tracer(debug=debug)
+    
     await init_redis()
     yield
     await close_redis()
     await close_db()
 
 
-configure_tracer()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 FastAPIInstrumentor.instrument_app(app) 
