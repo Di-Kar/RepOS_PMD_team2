@@ -43,3 +43,7 @@ class SocialAccountNotLinkedError(Exception):
 
 class LastAuthMethodError(Exception):
     """Нельзя отвязать последний способ входа (нет пароля и других соцаккаунтов)."""
+
+
+class OAuthEmailNotVerifiedError(Exception):
+    """Email от провайдера не подтверждён — привязка к существующему пользователю запрещена."""

@@ -7,7 +7,11 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.exceptions import LastAuthMethodError, SocialAccountNotLinkedError
+from src.core.exceptions import (
+    LastAuthMethodError,
+    OAuthEmailNotVerifiedError,
+    SocialAccountNotLinkedError,
+)
 from src.core.security import hash_password
 from src.models.entity import SocialAccount, User
 
@@ -36,6 +40,7 @@ class OAuthService:
         provider: str,
         provider_user_id: str,
         email: str,
+        email_verified: bool,
         full_name: Optional[str],
         access_token: Optional[str],
         refresh_token: Optional[str],
@@ -46,8 +51,8 @@ class OAuthService:
 
         Порядок: уже была привязка этого provider_user_id -> берём владельца.
         Иначе — есть пользователь с таким email (заведён по паролю или другим
-        провайдером) -> просто привязываем к нему. Иначе — заводим нового,
-        с непригодным для входа по паролю случайным хэшем.
+        провайдером) -> привязываем к нему, если email_verified. Иначе —
+        заводим нового, с непригодным для входа по паролю случайным хэшем.
         """
         social_account = await self._get_social_account(provider, provider_user_id)
         if social_account is not None:
@@ -59,6 +64,8 @@ class OAuthService:
             return social_account.user
 
         user = await self._get_user_by_login(email)
+        if user is not None and not email_verified:
+            raise OAuthEmailNotVerifiedError(email)
         if user is None:
             first_name, _, last_name = (full_name or "").partition(" ")
             user = User(

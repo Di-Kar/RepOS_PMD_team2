@@ -11,7 +11,7 @@ from src.core.exceptions import (
     InvalidPasswordError,
     UserAlreadyExistsError,
 )
-from src.core.security import hash_password, verify_password
+from src.core.security import hash_password, verify_password, verify_password_or_dummy
 from src.core.utils import get_device_type
 from src.models.entity import LoginHistory, Role, User, UserRole
 
@@ -73,14 +73,14 @@ class AuthService:
         """Проверяет учётные данные и пишет запись в историю входов.
 
         Неудачная попытка для существующего пользователя тоже фиксируется
-        (success=False) — по ней можно обнаружить подбор пароля.
+        (success=False) — по ней можно обнаружить подбор пароля. Пароль
+        проверяется даже для несуществующего email (по фиктивному хэшу).
         """
         user = await self.get_by_login(email)
+        success = verify_password_or_dummy(password, user.password if user is not None else None)
         if user is None or not user.is_active:
             raise InvalidCredentialsError(email)
 
-        success = verify_password(password, user.password)
-        
         device_type = get_device_type(user_agent)
         
         # Опционально: можно сгенерировать простой fingerprint
