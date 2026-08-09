@@ -1,0 +1,73 @@
+@startuml architecture_as_is
+' S8-T1 (issue #66): текущая архитектура (AS IS), нотация C4, уровень 2 (Container)
+' Основа: docker-compose.yml в корне репозитория
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+title Онлайн-кинотеатр — AS IS (Container diagram)
+
+Person(viewer, "Пользователь", "Пользователь онлайн-кинотеатра")
+Person(content_admin, "Администратор", "Редактирует фильмы, жанры, персоны")
+
+System_Ext(google_oauth, "Google OAuth", "accounts.google.com — вход через Google-аккаунт")
+
+System_Boundary(platform, "Онлайн-кинотеатр") {
+
+    System_Boundary(admin_boundary, "Контент и админка") {
+        Container(admin_panel_nginx, "Nginx", "nginx:latest", "Точка входа: раздаёт статику, проксирует /admin и /api/ на admin_panel")
+        Container(admin_panel, "Admin Panel", "Django + uWSGI (Python)", "Панель администратора контента, REST API для контента фильмов")
+        Container(admin_panel_swagger, "Swagger UI", "swaggerapi/swagger-ui", "Документация API admin_panel (openapi.yaml)")
+        ContainerDb(movie_db, "Movie DB", "PostgreSQL 15", "Фильмы, жанры, персоны")
+    }
+
+    System_Boundary(search_boundary, "Полнотекстовый поиск") {
+        Container(fulltext_etl, "Fulltext ETL", "Python", "Переносит контент из movie_db в Elasticsearch (инкрементально, с состоянием)")
+        ContainerDb(elasticsearch, "Elasticsearch", "Elasticsearch 8.6", "Индекс для полнотекстового поиска по фильмам/жанрам/персонам")
+    }
+
+    System_Boundary(api_boundary, "Клиентское API") {
+        Container(async_api, "Async API", "FastAPI (Python)", "Асинхронное API кинотеатра для клиентов: каталог, поиск, детали фильма")
+        ContainerDb(async_api_redis, "Async API Redis", "Redis 7", "Кэш ответов async_api")
+    }
+
+    System_Boundary(auth_boundary, "Авторизация") {
+        Container(auth_service, "Auth Service", "FastAPI (Python)", "Аутентификация (JWT), OAuth, управление доступом RBAC (IDM)")
+        ContainerDb(auth_postgres, "Auth DB", "PostgreSQL 16", "Пользователи, роли, история входов")
+        ContainerDb(auth_redis, "Auth Redis", "Redis 7", "Refresh-сессии, кэш прав пользователя")
+        Container(auth_migrations, "Auth Migrations", "Alembic, one-shot", "Применяет миграции БД, бутстрапит суперпользователя при старте")
+    }
+
+    Container(jaeger, "Jaeger", "jaegertracing/all-in-one", "Сбор и визуализация распределённых трейсов (observability)")
+}
+
+Rel(content_admin, admin_panel_nginx, "Управляет контентом, тестирует поиск", "HTTPS, /admin, /search")
+Rel(content_admin, admin_panel_swagger, "Смотрит документацию API", "HTTPS, :8080")
+
+Rel(admin_panel_nginx, admin_panel, "proxy_pass /admin, /api/, /", "HTTP")
+Rel(admin_panel_swagger, admin_panel, "Раздаёт спецификацию openapi.yaml")
+
+Rel(admin_panel, movie_db, "Читает/пишет контент фильмов", "SQL, Django ORM")
+Rel(admin_panel, auth_service, "Логин в админку: проверка логина/пароля и роли admin", "HTTP REST, POST /login + GET /profile")
+
+Rel(fulltext_etl, movie_db, "Читает изменения контента (поллинг)", "SQL")
+Rel(fulltext_etl, elasticsearch, "Индексирует фильмы/жанры/персоны", "REST API")
+
+Rel(viewer, async_api, "Каталог, поиск, карточка фильма", "HTTPS REST, :8000")
+Rel(async_api, elasticsearch, "Поиск и выборка фильмов/жанров/персон", "REST API")
+Rel(async_api, async_api_redis, "Кэширует ответы API", "Redis protocol")
+Rel(async_api, auth_service, "Определяет текущего пользователя по токену (анонимный доступ при недоступности)", "HTTP REST, GET /profile")
+
+Rel(viewer, auth_service, "Регистрация, вход, профиль, история входов", "HTTPS REST, :8001, /api/v1/auth")
+Rel(viewer, google_oauth, "Вход через Google", "HTTPS, OpenID Connect")
+Rel(auth_service, google_oauth, "Обмен кода на данные пользователя", "HTTPS, OpenID Connect")
+Rel(content_admin, auth_service, "Управление ролями и правами (RBAC)", "HTTPS REST, /api/v1/idm")
+Rel(content_admin, google_oauth, "Вход через Google", "HTTPS, OpenID Connect")
+
+Rel(auth_service, auth_postgres, "Читает/пишет пользователей, роли, историю входов", "SQL, SQLAlchemy + asyncpg")
+Rel(auth_service, auth_redis, "Хранит refresh-токены, кэш прав", "Redis protocol")
+Rel(auth_service, jaeger, "Отправляет трейсы", "OTLP / Jaeger protocol")
+Rel(auth_migrations, auth_postgres, "Миграции Alembic, бутстрап суперпользователя", "SQL")
+
+SHOW_LEGEND()
+@enduml

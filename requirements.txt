@@ -5,3 +5,4 @@
 -r tests/requirements.txt
 -r auth_service/requirements.txt
 ruff
+plantuml
