@@ -1,8 +1,8 @@
-
 #!/usr/bin/env python3
 """
 Загрузка данных в Vertica из CSV-файлов.
 """
+
 import argparse
 import time
 import warnings
@@ -61,13 +61,13 @@ def main():
 
     conn_params = dict(VERTICA)
     conn_params["tlsmode"] = "disable"
-    conn_params["autocommit"] = True 
+    conn_params["autocommit"] = True
 
     conn = vertica_python.connect(**conn_params)
     cur = conn.cursor()
-    
+
     ensure_schema(cur)
-    
+
     cur.execute("SET TIME ZONE 'UTC'")
 
     if args.truncate:

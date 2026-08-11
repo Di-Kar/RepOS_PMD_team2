@@ -20,12 +20,9 @@ def gen_chunk(args):
     chunk_id, start_id, rows, seed, outdir = args
     rng = np.random.default_rng(seed)
 
-    ts = BASE_DATE + rng.integers(
-        0,
-        SECONDS_90_DAYS,
-        size=rows,
-        dtype=np.int64
-    ).astype("timedelta64[s]")
+    ts = BASE_DATE + rng.integers(0, SECONDS_90_DAYS, size=rows, dtype=np.int64).astype(
+        "timedelta64[s]"
+    )
 
     # amount в копейках/центах: от 1.00 до 10000.00
     amount_cents = rng.integers(100, 1_000_001, size=rows, dtype=np.int64)

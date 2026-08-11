@@ -57,6 +57,7 @@ QUERY = {
     """,
 }
 
+
 def connect(db: str):
     if db == "clickhouse":
         return Client(**CLICKHOUSE)
@@ -179,4 +180,3 @@ def insert_rows(conn, db: str, rows):
         return
 
     raise ValueError(f"Unsupported db: {db}")
-  

@@ -9,14 +9,11 @@ CLICKHOUSE = {
     "host": "localhost",
     "port": 9000,
     "user": "default",
-    "password": "clickhouse123", 
+    "password": "clickhouse123",
     "database": "bench",
 }
 
-POSTGRES_DSN = (
-    "dbname=bench user=postgres password=postgres "
-    "host=localhost port=5432"
-)
+POSTGRES_DSN = "dbname=bench user=postgres password=postgres host=localhost port=5432"
 
 VERTICA = {
     "host": "localhost",

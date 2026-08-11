@@ -133,9 +133,7 @@ def main():
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
     if not result["sla_read_max_lt_10s"]:
-        raise SystemExit(
-            "FAILED: aggregate query max latency is >= 10 seconds"
-        )
+        raise SystemExit("FAILED: aggregate query max latency is >= 10 seconds")
 
 
 if __name__ == "__main__":
