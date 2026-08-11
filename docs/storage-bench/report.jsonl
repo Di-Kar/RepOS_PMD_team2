@@ -1,0 +1,167 @@
+loaded data/csv/part_00000.csv
+loaded data/csv/part_00001.csv
+loaded data/csv/part_00002.csv
+loaded data/csv/part_00003.csv
+loaded data/csv/part_00004.csv
+loaded data/csv/part_00005.csv
+loaded data/csv/part_00006.csv
+loaded data/csv/part_00007.csv
+loaded data/csv/part_00008.csv
+loaded data/csv/part_00009.csv
+loaded data/csv/part_00010.csv
+loaded data/csv/part_00011.csv
+loaded data/csv/part_00012.csv
+loaded data/csv/part_00013.csv
+loaded data/csv/part_00014.csv
+loaded data/csv/part_00015.csv
+loaded data/csv/part_00016.csv
+loaded data/csv/part_00017.csv
+loaded data/csv/part_00018.csv
+loaded data/csv/part_00019.csv
+{"db":"clickhouse","bulk_insert_rows":10000000,"seconds":19.07,"rows_per_sec":524352}
+loaded data/csv/part_00000.csv
+loaded data/csv/part_00001.csv
+loaded data/csv/part_00002.csv
+loaded data/csv/part_00003.csv
+loaded data/csv/part_00004.csv
+loaded data/csv/part_00005.csv
+loaded data/csv/part_00006.csv
+loaded data/csv/part_00007.csv
+loaded data/csv/part_00008.csv
+loaded data/csv/part_00009.csv
+loaded data/csv/part_00010.csv
+loaded data/csv/part_00011.csv
+loaded data/csv/part_00012.csv
+loaded data/csv/part_00013.csv
+loaded data/csv/part_00014.csv
+loaded data/csv/part_00015.csv
+loaded data/csv/part_00016.csv
+loaded data/csv/part_00017.csv
+loaded data/csv/part_00018.csv
+loaded data/csv/part_00019.csv
+{"db":"postgres","bulk_insert_rows":10000000,"seconds":29.94,"rows_per_sec":334007}
+[Vertica] Схема и таблица готовы
+[Vertica] Таблица очищена
+[Vertica] loaded part_00000.csv
+[Vertica] loaded part_00001.csv
+[Vertica] loaded part_00002.csv
+[Vertica] loaded part_00003.csv
+[Vertica] loaded part_00004.csv
+[Vertica] loaded part_00005.csv
+[Vertica] loaded part_00006.csv
+[Vertica] loaded part_00007.csv
+[Vertica] loaded part_00008.csv
+[Vertica] loaded part_00009.csv
+[Vertica] loaded part_00010.csv
+[Vertica] loaded part_00011.csv
+[Vertica] loaded part_00012.csv
+[Vertica] loaded part_00013.csv
+[Vertica] loaded part_00014.csv
+[Vertica] loaded part_00015.csv
+[Vertica] loaded part_00016.csv
+[Vertica] loaded part_00017.csv
+[Vertica] loaded part_00018.csv
+[Vertica] loaded part_00019.csv
+{"db":"vertica","bulk_insert_rows":10000000,"seconds":4.00,"rows_per_sec":2497633}
+{
+  "db": "clickhouse",
+  "micro_batch_insert": {
+    "rows": 100000,
+    "seconds": 0.566,
+    "rows_per_sec": 176603.9,
+    "batch_avg_ms": 33.9,
+    "batch_p95_ms": 41.8,
+    "batch_max_ms": 46.6
+  },
+  "select": {
+    "avg_ms": 118.7,
+    "p95_ms": 131.8,
+    "max_ms": 137.5
+  }
+}
+{
+  "db": "clickhouse",
+  "duration_s": 60.04,
+  "writer": {
+    "inserted_rows": 120000,
+    "rows_per_sec": 1998.5,
+    "insert_avg_ms": 26.8,
+    "insert_p95_ms": 48.2,
+    "insert_max_ms": 64.8
+  },
+  "read_under_load": {
+    "queries": 479,
+    "avg_ms": 125.3,
+    "p95_ms": 145.9,
+    "max_ms": 183.8
+  },
+  "sla_read_max_lt_10s": true
+}
+{
+  "db": "postgres",
+  "micro_batch_insert": {
+    "rows": 100000,
+    "seconds": 3.904,
+    "rows_per_sec": 25615.2,
+    "batch_avg_ms": 360.2,
+    "batch_p95_ms": 529.4,
+    "batch_max_ms": 580.7
+  },
+  "select": {
+    "avg_ms": 8427.0,
+    "p95_ms": 8928.3,
+    "max_ms": 9166.2
+  }
+}
+{
+  "db": "postgres",
+  "duration_s": 68.4,
+  "writer": {
+    "inserted_rows": 120000,
+    "rows_per_sec": 1754.5,
+    "insert_avg_ms": 55.7,
+    "insert_p95_ms": 113.4,
+    "insert_max_ms": 389.1
+  },
+  "read_under_load": {
+    "queries": 8,
+    "avg_ms": 8547.9,
+    "p95_ms": 9032.9,
+    "max_ms": 9195.2
+  },
+  "sla_read_max_lt_10s": true
+}
+{
+  "db": "vertica",
+  "micro_batch_insert": {
+    "rows": 100000,
+    "seconds": 1.856,
+    "rows_per_sec": 53877.8,
+    "batch_avg_ms": 157.7,
+    "batch_p95_ms": 172.1,
+    "batch_max_ms": 175.0
+  },
+  "select": {
+    "avg_ms": 1477.6,
+    "p95_ms": 1585.0,
+    "max_ms": 1609.3
+  }
+}
+{
+  "db": "vertica",
+  "duration_s": 60.71,
+  "writer": {
+    "inserted_rows": 120000,
+    "rows_per_sec": 1976.5,
+    "insert_avg_ms": 72.8,
+    "insert_p95_ms": 114.7,
+    "insert_max_ms": 150.4
+  },
+  "read_under_load": {
+    "queries": 41,
+    "avg_ms": 1480.7,
+    "p95_ms": 1611.9,
+    "max_ms": 1918.0
+  },
+  "sla_read_max_lt_10s": true
+}
