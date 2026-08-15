@@ -42,7 +42,7 @@ System_Boundary(platform, "Онлайн-кинотеатр") {
     Container(jaeger, "Jaeger", "jaegertracing/all-in-one", "Сбор и визуализация распределённых трейсов (observability)")
 
     System_Boundary(analytics_boundary, "Аналитика событий") {
-        Container(event_api, "Event Collection API", "Flask (Python)", "REST API для приёма пользовательских действий (клики, просмотры, кастомные события), валидация, публикация в Kafka")
+        Container(event_api, "Event Collection API", "FastAPI (Python)", "REST API для приёма пользовательских действий (клики, просмотры, кастомные события), валидация, публикация в Kafka")
         Container(kafka, "Apache Kafka", "Kafka", "Брокер сообщений: 3 топия для кликов, page views, custom events")
         Container(etl_service, "Kafka → ClickHouse ETL", "Python", "Читает Kafka-топики, маппит на таблицы ClickHouse, dead-letter для невалидных событий")
         ContainerDb(clickhouse, "ClickHouse", "ClickHouse", "Колоночное хранилище для аналитики событий, агрегации, ретроспективный анализ")
@@ -81,6 +81,7 @@ Rel(auth_migrations, auth_postgres, "Миграции Alembic, бутстрап 
 ' Связи для аналитики
 Rel(viewer, event_api, "Отправляет пользовательские события", "HTTPS POST, /api/v1/events")
 Rel(event_api, kafka, "Публикует события в топики", "Kafka protocol")
+Rel(event_api, jaeger, "Отправляет трейсы", "OTLP / Jaeger protocol")
 Rel(kafka, etl_service, "Consuming events из топиков", "Kafka protocol")
 Rel(etl_service, clickhouse, "Загружает события в таблицы ClickHouse", "ClickHouse native protocol (TCP)")
 Rel(etl_service, jaeger, "Отправляет трейсы", "OTLP / Jaeger protocol")

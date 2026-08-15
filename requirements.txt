@@ -4,5 +4,6 @@
 -r async_api/requirements.txt
 -r tests/requirements.txt
 -r auth_service/requirements.txt
+-r event_api/requirements.txt
 ruff
 plantuml
