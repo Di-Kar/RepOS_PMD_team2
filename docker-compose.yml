@@ -6,7 +6,9 @@ volumes:
   async_api_redis_data:
   auth_postgres_data:
   auth_redis_data:
+  clickhouse_data:
   kafka_data:
+  etl_analytics_state:
 
 networks:
   frontend:
@@ -278,11 +280,83 @@ services:
     networks:
       - backend
 
+  # Все тесты проекта (tests/): HTTP-тесты async_api, auth_service, event_api
+  # (event_api смоук-тесты дополнительно вычитывают Kafka-топики через
+  # aiokafka, чтобы подтвердить доставку опубликованных событий)
+  # + Django-тесты admin_panel (tests/admin_panel/: AuthServiceBackend) —
+  # тому нужен сам Django (ORM, тестовая БД в Postgres), поэтому вдобавок к
+  # requirements.txt тестов ставим requirements.txt admin_panel и гоняем
+  # manage.py test поверх смонтированного исходника admin_panel.
+  tests:
+    profiles:
+      - tests
+    image: python:3.12-slim
+    container_name: tests
+    entrypoint: sh -c "
+      pip install -r /tests/requirements.txt -r /admin_panel/requirements.txt
+      && pytest /tests -rs --ignore=/tests/admin_panel
+      && cd /admin_panel && python manage.py test /tests/admin_panel"
+    volumes:
+      - ./tests:/tests
+      - ./admin_panel:/admin_panel
+    environment:
+      - PYTHONPATH=/
+      - REDIS_HOST=async_api_redis
+      - API_HOST=async_api
+      - AUTH_API_HOST=auth_service
+      - EVENT_API_HOST=event_api
+      - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ANALYTICS_CLICKHOUSE_HOST=clickhouse
+      - ANALYTICS_CLICKHOUSE_PORT=9000
+    env_file:
+      - ./.env
+    depends_on:
+      movie_db:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      async_api_redis:
+        condition: service_healthy
+      async_api:
+        condition: service_healthy
+      auth_service:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka_init:
+        condition: service_completed_successfully
+      event_api:
+        condition: service_healthy
+      kafka_ui:
+        condition: service_started
+      clickhouse:
+        condition: service_started
+      analytics_etl:
+        condition: service_started
+    networks:
+      - backend
+
+  # ClickHouse — аналитическая БД
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: clickhouse
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    env_file:
+      - ./.env
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+    networks:
+      - backend
+
   # Брокер сообщений для событий пользователей (клики, просмотры, кастомные
-  # события) — принимает публикации от event_api, читается будущим ETL в
-  # ClickHouse. Single-node KRaft (без Zookeeper). Официальный образ ASF —
-  # bitnami/kafka:3.7 вырезан из Docker Hub (Bitnami в 2025 обрезала старые
-  # floating-теги, оставив только последние версии).
+  # события) — принимает публикации от event_api, читается ETL в
+  # ClickHouse. Single-node KRaft (без Zookeeper). Официальный образ ASF.
   kafka:
     image: apache/kafka:3.7.0
     container_name: kafka
@@ -296,8 +370,6 @@ services:
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      # Топики создаёт kafka_init явно, с нужным числом партиций — без
-      # авто-создания по первой записи (это ещё и ловит тайпо в имени топика).
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
       - KAFKA_LOG_DIRS=/var/lib/kafka/data
     volumes:
@@ -337,7 +409,7 @@ services:
       - backend
 
   # Веб-UI для Kafka: просмотр топиков, сообщений (value/key/headers),
-  # consumer groups — удобно смотреть, что реально пишет event_api.
+  # consumer groups.
   kafka_ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka_ui
@@ -385,52 +457,39 @@ services:
     networks:
       - backend
 
-  # Все тесты проекта (tests/): HTTP-тесты async_api, auth_service, event_api
-  # (event_api смоук-тесты дополнительно вычитывают Kafka-топики через
-  # aiokafka, чтобы подтвердить доставку опубликованных событий)
-  # + Django-тесты admin_panel (tests/admin_panel/: AuthServiceBackend) —
-  # тому нужен сам Django (ORM, тестовая БД в Postgres), поэтому вдобавок к
-  # requirements.txt тестов ставим requirements.txt admin_panel и гоняем
-  # manage.py test поверх смонтированного исходника admin_panel.
-  tests:
-    profiles:
-      - tests
-    image: python:3.12-slim
-    container_name: tests
-    entrypoint: sh -c "
-      pip install -r /tests/requirements.txt -r /admin_panel/requirements.txt
-      && pytest /tests -rs --ignore=/tests/admin_panel
-      && cd /admin_panel && python manage.py test /tests/admin_panel"
-    volumes:
-      - ./tests:/tests
-      - ./admin_panel:/admin_panel
-    environment:
-      - PYTHONPATH=/
-      - REDIS_HOST=async_api_redis
-      - API_HOST=async_api
-      - AUTH_API_HOST=auth_service
-      - EVENT_API_HOST=event_api
-      - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+  # ETL: Kafka → ClickHouse (analytics)
+  analytics_etl:
+    build:
+      context: ./analytics_etl
+      dockerfile: Dockerfile
     env_file:
       - ./.env
+    volumes:
+      - etl_analytics_state:/app/state
+    environment:
+      - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ANALYTICS_KAFKA_CONSUMER_GROUP=analytics_etl
+      - ANALYTICS_KAFKA_TOPICS=analytics.clicks.v1,analytics.pageviews.v1,analytics.custom_events.v1
+      - ANALYTICS_CLICKHOUSE_HOST=clickhouse
+      - ANALYTICS_CLICKHOUSE_PORT=9000
+      - ANALYTICS_CLICKHOUSE_DATABASE=analytics
+      - ANALYTICS_CLICKHOUSE_USER=default
+      - ANALYTICS_CLICKHOUSE_PASSWORD=
+      - ANALYTICS_ETL_BATCH_SIZE=1000
+      - ANALYTICS_ETL_FLUSH_INTERVAL=5
+      - ANALYTICS_ETL_STATE_DIR=/app/state
+      - ANALYTICS_ETL_MEMORY_WARN_MB=500
+      - ANALYTICS_ETL_MEMORY_CRITICAL_MB=800
+      - ANALYTICS_ETL_BACKOFF_START=0.1
+      - ANALYTICS_ETL_BACKOFF_BORDER=10.0
+      - ANALYTICS_ETL_BACKOFF_MAX=0
     depends_on:
-      movie_db:
-        condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-      async_api_redis:
-        condition: service_healthy
-      async_api:
-        condition: service_healthy
-      auth_service:
-        condition: service_healthy
       kafka:
         condition: service_healthy
       kafka_init:
         condition: service_completed_successfully
-      event_api:
-        condition: service_healthy
-      kafka_ui:
+      clickhouse:
         condition: service_started
+    restart: unless-stopped
     networks:
       - backend
