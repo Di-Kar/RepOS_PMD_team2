@@ -33,12 +33,12 @@ def transform_for_events(event: dict) -> dict:
         'session_id': str(event['session_id']),
         'sequence_number': int(event['sequence_number']),
         'consent': 1 if event['consent'] else 0,
-        'context_page_type': context.get('page_type', ''),
-        'context_page_id': context.get('page_id', ''),
-        'context_device': context.get('device', ''),
-        'context_browser': context.get('browser', ''),
-        'context_app_version': context.get('app_version', ''),
-        'source': event.get('source', ''),
+        'context_page_type': _empty_str(context.get('page_type')),
+        'context_page_id': _empty_str(context.get('page_id')),
+        'context_device': _empty_str(context.get('device')),
+        'context_browser': _empty_str(context.get('browser')),
+        'context_app_version': _empty_str(context.get('app_version')),
+        'source': _empty_str(event.get('source')),
         'custom_event_type': payload.get('custom_event_type'),
         'payload_content_id': payload.get('content_id'),
         'payload_watch_session_id': payload.get('watch_session_id'),
@@ -149,7 +149,18 @@ def transform_for_watch_sessions(event: dict) -> Optional[dict]:
 #  Вспомогательные функции                                                 #
 # ------------------------------------------------------------------ #
 
+def _parse_timestamp(ts) -> Optional[datetime]:
+    """Разобрать строку в datetime (ISO формат или timestamp)."""
+    if isinstance(ts, datetime):
+        return ts
+    try:
+        return datetime.fromisoformat(ts)
+    except (ValueError, TypeError):
+        return None
+
+
 def _format_timestamp(ts) -> str:
+
     """Форматировать метку времени в DateTime64(3), совместимый с ClickHouse."""
     if isinstance(ts, datetime):
         dt = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
@@ -170,6 +181,13 @@ def _nullable(value: Any) -> Optional[str]:
         return None
     return str(value)
 
+
+
+def _empty_str(value: Any) -> str:
+    """Вернуть пустую строку, если value is None, иначе str(value)."""
+    if value is None:
+        return ""
+    return str(value)
 
 def _safe_float(value: Any) -> float:
     """Безопасно преобразовать в float."""

@@ -3,17 +3,18 @@
 Сценарий:
   1. Публикуем события через aiokafka.Producer в Kafka-топики.
   2. Ждём, пока analytics_etl сконсумит, трансформирует и запишет в ClickHouse.
-  3. Вычитываем данные из ClickHouse через clickhouse_connect (native, port=9000).
+  3. Вычитываем данные из ClickHouse через clickhouse_connect.
   4. Assert — данные существуют и корректны.
 """
 
+import asyncio
 import json
 import os
-import time
 import uuid
 from datetime import datetime, timezone
 
 import clickhouse_connect
+from clickhouse_connect.driver.asyncclient import Client
 import pytest_asyncio
 from aiokafka import AIOKafkaProducer
 
@@ -23,18 +24,13 @@ ANALYTICS_KAFKA_BOOTSTRAP_SERVERS = os.getenv(
     'ANALYTICS_KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092'
 )
 ANALYTICS_CLICKHOUSE_HOST = os.getenv('ANALYTICS_CLICKHOUSE_HOST', 'clickhouse')
-ANALYTICS_CLICKHOUSE_PORT = int(os.getenv('ANALYTICS_CLICKHOUSE_PORT', '9000'))
+ANALYTICS_CLICKHOUSE_HTTP_PORT = int(os.getenv('ANALYTICS_CLICKHOUSE_HTTP_PORT', '8123'))
+ANALYTICS_CLICKHOUSE_USER = os.getenv('ANALYTICS_CLICKHOUSE_USER', 'default')
+ANALYTICS_CLICKHOUSE_PASSWORD = os.getenv('ANALYTICS_CLICKHOUSE_PASSWORD', 'secret')
 ANALYTICS_CLICKHOUSE_DATABASE = os.getenv('ANALYTICS_CLICKHOUSE_DATABASE', 'analytics')
 
 TOPIC_CLICKS = 'analytics.clicks.v1'
 TOPIC_CUSTOM_EVENTS = 'analytics.custom_events.v1'
-
-# Таймаут ожидания: ETL flush interval = 5s, двойной запас + overhead.
-WAIT_TIMEOUT = 30
-
-
-def _is_docker() -> bool:
-    return os.path.exists('/.dockerenv')
 
 
 def make_click_event(event_id: str | None = None) -> dict:
@@ -100,15 +96,17 @@ def make_quality_change_event(
 
 
 @pytest_asyncio.fixture(name='clickhouse_client')
-def clickhouse_client_fixture():
-    """clickhouse_connect client (native protocol, port 9000)."""
-    client = clickhouse_connect.get_client(
+async def clickhouse_client_fixture():
+    """clickhouse_connect client (HTTP protocol, port 8123)."""
+    client = await clickhouse_connect.get_async_client(
         host=ANALYTICS_CLICKHOUSE_HOST,
-        port=ANALYTICS_CLICKHOUSE_PORT,
+        port=ANALYTICS_CLICKHOUSE_HTTP_PORT,
         database=ANALYTICS_CLICKHOUSE_DATABASE,
+        username=ANALYTICS_CLICKHOUSE_USER,
+        password=ANALYTICS_CLICKHOUSE_PASSWORD,
     )
     yield client
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture(name='kafka_producer')
@@ -126,84 +124,88 @@ async def kafka_producer_fixture():
 # --- Helpers ---
 
 
-def wait_for_data(
-    client: clickhouse_connect.Client,
+async def wait_for_data(
+    client: Client,
     query: str,
-    params: dict | None = None,
-    timeout: float = WAIT_TIMEOUT,
+    timeout: float = 15,
+    poll_interval: float = 2,
+    data_checker: callable = None,
 ) -> list:
-    """Полл-хелпер: повторяем запрос каждые 2s до timeout или пока данные не появятся."""
-    deadline = time.time() + timeout
-    last_error = None
-    while time.time() < deadline:
+    """Poll ClickHouse until query returns data or timeout is reached.
+    
+    Args:
+        data_checker: callback(rows) -> bool. If None, checks len(rows) > 0.
+    """
+    if data_checker is None:
+        data_checker = lambda rows: len(rows) > 0
+    
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
         try:
-            result = client.query(query, params)
+            result = await client.query(query)
             rows = result.result_rows
-            if rows:
+            if data_checker(rows):
                 return rows
-        except Exception as exc:
-            last_error = exc
-        time.sleep(2)
-    raise AssertionError(
-        f'Data not found in ClickHouse after {timeout}s. Last error: {last_error}'
-    )
+        except Exception:
+            pass
+        await asyncio.sleep(poll_interval)
+    raise AssertionError(f"Data not found after {timeout}s")
 
 
 # --- Tests ---
 
 
-def test_events_table_populated(
+async def test_events_table_populated(
     kafka_producer: AIOKafkaProducer,
-    clickhouse_client: clickhouse_connect.Client,
+    clickhouse_client: Client,
 ):
     """Тест 1: publish click → ETL → ClickHouse.events содержит запись."""
     event_id = f'click-test-{uuid.uuid4().hex[:8]}'
     event = make_click_event(event_id)
 
     # Публикуем событие
-    future = kafka_producer.send(
+    await kafka_producer.send(
         TOPIC_CLICKS,
         value=event,
     )
-    future.get(timeout=10)  # дожидаемся успешной отправки
+    await kafka_producer.flush()
 
-    # Ждём, пока ETL запишет в ClickHouse
-    rows = wait_for_data(
-        clickhouse_client,
-        'SELECT event_id FROM analytics.events WHERE event_id = %s',
-        {'param1': event_id},
+    # Ждём, пока ETL запишет в ClickHouse и проверим count
+    query = f"SELECT count() FROM events WHERE event_type = 'click' AND event_id = '{event_id}'"
+    rows = await wait_for_data(
+        clickhouse_client, query, data_checker=lambda rows: rows[0][0] > 0
     )
 
-    assert len(rows) >= 1, f'Expected at least 1 row for event_id={event_id}'
+    assert rows[0][0] >= 1, f'Expected at least 1 click event in ClickHouse'
 
 
-def test_movies_metrics_aggregated(
+async def test_movies_metrics_aggregated(
     kafka_producer: AIOKafkaProducer,
-    clickhouse_client: clickhouse_connect.Client,
+    clickhouse_client: Client,
 ):
     """Тест 2: publish quality_change → ETL → ClickHouse.movies_metrics обновлён."""
     content_id = f'content-{uuid.uuid4().hex[:6]}'
-    event = make_quality_change_event(
-        content_id=content_id,
-    )
+    event = make_quality_change_event(content_id=content_id)
 
-    future = kafka_producer.send(TOPIC_CUSTOM_EVENTS, value=event)
-    future.get(timeout=10)
+    await kafka_producer.send(TOPIC_CUSTOM_EVENTS, value=event)
+    await kafka_producer.flush()
 
     # Ждём агрегации movies_metrics
-    rows = wait_for_data(
+    query = f"SELECT content_id, total_views FROM movies_metrics WHERE content_id = '{content_id}'"
+    rows = await wait_for_data(
         clickhouse_client,
-        'SELECT content_id, total_views FROM analytics.movies_metrics WHERE content_id = %s',
-        {'param1': content_id},
+        query,
+        timeout=15,
+        data_checker=lambda rows: len(rows) >= 1,
     )
 
     assert len(rows) >= 1, f'Expected movies_metrics row for content_id={content_id}'
     assert rows[0][1] >= 1, f'total_views should be >= 1, got {rows[0][1]}'
 
 
-def test_watch_sessions_recorded(
+async def test_watch_sessions_recorded(
     kafka_producer: AIOKafkaProducer,
-    clickhouse_client: clickhouse_connect.Client,
+    clickhouse_client: Client,
 ):
     """Тест 3: publish quality_change с watch_session_id → ETL → ClickHouse.watch_sessions."""
     content_id = f'content-{uuid.uuid4().hex[:6]}'
@@ -213,14 +215,16 @@ def test_watch_sessions_recorded(
         watch_session_id=watch_session_id,
     )
 
-    future = kafka_producer.send(TOPIC_CUSTOM_EVENTS, value=event)
-    future.get(timeout=10)
+    await kafka_producer.send(TOPIC_CUSTOM_EVENTS, value=event)
+    await kafka_producer.flush()
 
     # Ждём записи watch_sessions
-    rows = wait_for_data(
+    query = f"SELECT watch_session_id FROM watch_sessions WHERE watch_session_id = '{watch_session_id}'"
+    rows = await wait_for_data(
         clickhouse_client,
-        'SELECT watch_session_id FROM analytics.watch_sessions WHERE watch_session_id = %s',
-        {'param1': watch_session_id},
+        query,
+        timeout=15,
+        data_checker=lambda rows: len(rows) >= 1,
     )
 
     assert len(rows) >= 1, (
@@ -228,27 +232,35 @@ def test_watch_sessions_recorded(
     )
 
 
-def test_multiple_events_batch(
+async def test_multiple_events_batch(
     kafka_producer: AIOKafkaProducer,
-    clickhouse_client: clickhouse_connect.Client,
+    clickhouse_client: Client,
 ):
     """Тест 4: publish 5 click events → ETL → ClickHouse.events содержит >= 5 записей."""
     event_ids = [f'batch-click-{uuid.uuid4().hex[:8]}' for _ in range(5)]
 
     # Публикуем батч
-    futures = []
     for eid in event_ids:
         event = make_click_event(eid)
-        futures.append(kafka_producer.send(TOPIC_CLICKS, value=event))
-    for fut in futures:
-        fut.get(timeout=10)
+        await kafka_producer.send(TOPIC_CLICKS, value=event)
+    await kafka_producer.flush()
 
     # Ждём все 5 записей
-    placeholders = ','.join(['%s'] * len(event_ids))
-    rows = wait_for_data(
-        clickhouse_client,
-        f'SELECT event_id FROM analytics.events WHERE event_id IN ({placeholders})',
-        {f'param{i + 1}': eid for i, eid in enumerate(event_ids)},
-    )
+    placeholders = ','.join(["'{0}'".format(eid) for eid in event_ids])
+    query = f"SELECT event_id FROM events WHERE event_id IN ({placeholders})"
 
-    assert len(rows) >= 5, f'Expected at least 5 rows, got {len(rows)}'
+    # Poll until we have 5 rows
+    deadline = asyncio.get_event_loop().time() + 15
+    last_error = None
+    while asyncio.get_event_loop().time() < deadline:
+        try:
+            result = await clickhouse_client.query(query)
+            if len(result.result_rows) >= 5:
+                break
+        except Exception as exc:
+            last_error = exc
+        await asyncio.sleep(2)
+    else:
+        raise AssertionError(
+            f'Expected at least 5 rows in events table. Last error: {last_error}'
+        )

@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import clickhouse_connect
 from clickhouse_connect.driver.exceptions import DatabaseError, OperationalError
-from analytics_etl.backoff_utils import backoff
-from analytics_etl.config import clickhouse_settings, etl_settings
+from backoff_utils import backoff
+from config import clickhouse_settings, etl_settings
 
 if TYPE_CHECKING:
     from clickhouse_connect.driver.client import Client
@@ -70,9 +70,20 @@ class ClickHouseLoader:
 
     def ensure_database_exists(self) -> None:
         """Создать базу данных аналитики, если она не существует."""
-        client = self._get_client()
-        client.command(f'CREATE DATABASE IF NOT EXISTS {self.database}')
+        # Подключаемся к БД по умолчанию, чтобы создать нужную БД
+        temp_client = clickhouse_connect.get_client(
+            host=self.host,
+            port=self.port,
+            database='default',
+            username=self.user,
+            password=self.password,
+            connect_timeout=10,
+        )
+        temp_client.command(f'CREATE DATABASE IF NOT EXISTS {self.database}')
+        temp_client.close()
         logger.info('База данных %s готова', self.database)
+        # Переподключаемся к созданной БД
+        self._client = None
 
     def execute_query(self, query: str, params: Any | None = None) -> None:
         """Выполнить запрос (DDL схемы, метаданные и т.д.)."""
@@ -81,14 +92,23 @@ class ClickHouseLoader:
 
     def init_schema(self, schema_file: str) -> None:
         """Выполнить все операторы CREATE TABLE из SQL-файла."""
+        logger.info('Попытка инициализации схемы из %s', schema_file)
+        import os
+        if not os.path.exists(schema_file):
+            logger.error('Файл схемы не найден: %s (cwd=%s, file=%s)', schema_file, os.getcwd(), os.path.dirname(__file__))
+            raise FileNotFoundError(f'Файл схемы не найден: {schema_file}')
         client = self._get_client()
         try:
             with open(schema_file, 'r', encoding='utf-8') as f:
                 sql = f.read()
-            for statement in sql.split(';'):
+            statements = sql.split(';')
+            logger.info('Найдено %d операторов (разделено по ;)', len(statements))
+            for i, statement in enumerate(statements):
                 statement = statement.strip()
-                if statement and statement.upper().startswith('CREATE TABLE'):
-                    client.execute(statement)
+                logger.info('Оператор #%d (len=%d, repr=%s)', i, len(statement), repr(statement[:80]))
+                if statement and ('CREATE TABLE' in statement.upper()):
+                    logger.info('Выполняю CREATE TABLE #%d: %s', i, statement[:100])
+                    client.command(statement)
                     logger.info('Выполнено: %s', statement[:80])
         except FileNotFoundError:
             logger.error('Файл схемы не найден: %s', schema_file)

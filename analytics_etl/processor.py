@@ -6,10 +6,10 @@ import time
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
-from analytics_etl.backoff_utils import backoff
-from analytics_etl.config import etl_settings
-from analytics_etl.loader import ClickHouseLoader
-from analytics_etl.transformer import (
+from backoff_utils import backoff
+from config import etl_settings
+from loader import ClickHouseLoader
+from transformer import (
     EVENTS_TABLE,
     MOVIES_METRICS_TABLE,
     WATCH_SESSIONS_TABLE,
@@ -42,6 +42,8 @@ class EventProcessor:
         self._movies_rows: List[dict] = []
         self._watch_rows: List[dict] = []
         self._flushed_count = 0
+        # Последние зафиксированные смещения Kafka: {partition: offset}
+        self._last_offsets: Dict[int, int] = {}
 
     @property
     def buffer_size(self) -> int:
@@ -134,6 +136,11 @@ class EventProcessor:
             self._flushed_count, total_processed,
         )
         return total_processed
+
+    @property
+    def last_offsets(self) -> Dict[int, int]:
+        """Возвращает последние зафиксированные смещения Kafka.""" 
+        return dict(self._last_offsets)
 
     def _try_insert(self, table: str, rows: List[dict]) -> bool:
         """Вставить строки в таблицу ClickHouse с обработкой ошибок."""

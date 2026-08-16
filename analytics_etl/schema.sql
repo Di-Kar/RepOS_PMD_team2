@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS analytics.events (
 ) ENGINE = ReplacingMergeTree(occurred_at)
 PARTITION BY toYYYYMM(occurred_at)
 ORDER BY (event_type, occurred_at, event_id)
-TTL occurred_at + INTERVAL 90 DAY;
+TTL toDateTime(occurred_at) + INTERVAL 90 DAY;
 
 -- Aggregated movie metrics (supports: most watched, not completed)
 CREATE TABLE IF NOT EXISTS analytics.movies_metrics (
@@ -67,4 +67,4 @@ CREATE TABLE IF NOT EXISTS analytics.dead_letter_queue (
     rejected_at DateTime64(3) DEFAULT now()
 ) ENGINE = MergeTree()
 ORDER BY (rejected_at, event_id)
-TTL rejected_at + INTERVAL 30 DAY;
+TTL toDateTime(rejected_at) + INTERVAL 30 DAY;

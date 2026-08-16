@@ -13,6 +13,15 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 logger = logging.getLogger(__name__)
 
 
+def normalize_consent(v: Any) -> bool:
+    """Привести 0 / 1 к bool (публичный интерфейс)."""
+    if isinstance(v, bool):
+        return v
+    if v in (0, 1):
+        return bool(v)
+    raise ValueError('consent должен быть True, False, 0 или 1')
+
+
 # --------------------------------------------------------------------------- #
 #  Payload-модели по типам событий                                                #
 # --------------------------------------------------------------------------- #

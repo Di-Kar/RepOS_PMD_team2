@@ -25,7 +25,7 @@ class KafkaSettings(BaseSettings):
 
 class ClickHouseSettings(BaseSettings):
     host: str = Field(default='clickhouse', alias='ANALYTICS_CLICKHOUSE_HOST')
-    port: int = Field(default=9000, alias='ANALYTICS_CLICKHOUSE_PORT')
+    port: int = Field(default=8123, alias='ANALYTICS_CLICKHOUSE_PORT')
     database: str = Field(default='analytics', alias='ANALYTICS_CLICKHOUSE_DATABASE')
     user: str = Field(default='default', alias='ANALYTICS_CLICKHOUSE_USER')
     password: str = Field(default='', alias='ANALYTICS_CLICKHOUSE_PASSWORD')

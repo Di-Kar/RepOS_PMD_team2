@@ -9,8 +9,8 @@ import logging
 import time
 from typing import Optional
 
-from analytics_etl.backoff_utils import backoff
-from analytics_etl.loader import ClickHouseLoader, _CLICKHOUSE_EXCEPTIONS
+from backoff_utils import backoff
+from loader import ClickHouseLoader, _CLICKHOUSE_EXCEPTIONS
 
 logger = logging.getLogger(__name__)
 

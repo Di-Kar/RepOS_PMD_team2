@@ -19,6 +19,6 @@ RUN mkdir -p /app/state
 
 # Set environment defaults
 ENV PYTHONUNBUFFERED=1
-ETL_STATE_DIR=/app/state
+ENV ETL_STATE_DIR=/app/state
 
 ENTRYPOINT ["python", "main.py"]
