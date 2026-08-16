@@ -1,0 +1,20 @@
+# FastAPI
+fastapi==0.111.0
+uvicorn[standard]==0.24.0
+pydantic==2.7.1
+pydantic-settings==2.12.0
+
+# Kafka
+aiokafka==0.11.0
+
+# Rate Limiting
+slowapi==0.1.9
+
+# Distributed Tracing
+opentelemetry-api==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-instrumentation-fastapi==0.65b0
+opentelemetry-exporter-otlp-proto-http==1.44.0
+
+# Code Quality
+ruff==0.6.9

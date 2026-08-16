@@ -6,6 +6,7 @@ volumes:
   async_api_redis_data:
   auth_postgres_data:
   auth_redis_data:
+  kafka_data:
 
 networks:
   frontend:
@@ -277,7 +278,116 @@ services:
     networks:
       - backend
 
-  # Все тесты проекта (tests/): HTTP-тесты async_api и auth_service
+  # Брокер сообщений для событий пользователей (клики, просмотры, кастомные
+  # события) — принимает публикации от event_api, читается будущим ETL в
+  # ClickHouse. Single-node KRaft (без Zookeeper). Официальный образ ASF —
+  # bitnami/kafka:3.7 вырезан из Docker Hub (Bitnami в 2025 обрезала старые
+  # floating-теги, оставив только последние версии).
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=controller,broker
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      # Топики создаёт kafka_init явно, с нужным числом партиций — без
+      # авто-создания по первой записи (это ещё и ловит тайпо в имени топика).
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Создаёт топики аналитики сразу при старте стека (one-shot), с нужным
+  # числом партиций — вместо ленивого авто-создания по первой записи.
+  kafka_init:
+    image: apache/kafka:3.7.0
+    container_name: kafka_init
+    env_file:
+      - ./.env
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        for topic in "$$EVENTS_KAFKA_TOPIC_CLICKS" "$$EVENTS_KAFKA_TOPIC_PAGEVIEWS" "$$EVENTS_KAFKA_TOPIC_CUSTOM_EVENTS"; do
+          echo "Creating topic: $$topic"
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+            --create --if-not-exists --topic "$$topic" \
+            --partitions 3 --replication-factor 1
+        done
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # Веб-UI для Kafka: просмотр топиков, сообщений (value/key/headers),
+  # consumer groups — удобно смотреть, что реально пишет event_api.
+  kafka_ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka_ui
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+    ports:
+      - "8090:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka_init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # API для сбора пользовательских действий (FastAPI): валидирует события
+  # по контракту docs/user_events_contract.md и публикует их в Kafka.
+  event_api:
+    build:
+      context: ./event_api
+      dockerfile: Dockerfile
+    container_name: event_api
+    env_file:
+      - ./.env
+    environment:
+      - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka_init:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Все тесты проекта (tests/): HTTP-тесты async_api, auth_service, event_api
+  # (event_api смоук-тесты дополнительно вычитывают Kafka-топики через
+  # aiokafka, чтобы подтвердить доставку опубликованных событий)
   # + Django-тесты admin_panel (tests/admin_panel/: AuthServiceBackend) —
   # тому нужен сам Django (ORM, тестовая БД в Postgres), поэтому вдобавок к
   # requirements.txt тестов ставим requirements.txt admin_panel и гоняем
@@ -299,6 +409,8 @@ services:
       - REDIS_HOST=async_api_redis
       - API_HOST=async_api
       - AUTH_API_HOST=auth_service
+      - EVENT_API_HOST=event_api
+      - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     env_file:
       - ./.env
     depends_on:
@@ -312,5 +424,13 @@ services:
         condition: service_healthy
       auth_service:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka_init:
+        condition: service_completed_successfully
+      event_api:
+        condition: service_healthy
+      kafka_ui:
+        condition: service_started
     networks:
       - backend
