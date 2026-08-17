@@ -153,7 +153,7 @@ def run_etl():
                 continue
 
             # Обработка сообщения
-            _process_message(msg, processor, consumer)
+            _process_message(msg, processor, consumer, dlq)
 
             # Проверить flush интервал
             if now - last_flush_time >= etl_settings.flush_interval:
@@ -172,7 +172,7 @@ def run_etl():
         logger.info('ETL остановлен')
 
 
-def _process_message(msg, processor, consumer):
+def _process_message(msg, processor, consumer, dlq):
     """Проверить и буферизовать одно сообщение Kafka."""
     try:
         raw_payload = msg.value().decode('utf-8')
@@ -202,7 +202,7 @@ def _process_message(msg, processor, consumer):
             'Недопустимое событие в [%s]://%d offset %d — отправка в DLQ',
             msg.topic(), msg.partition(), msg.offset(),
         )
-        _route_to_dlq(msg, raw_event, consumer)
+        _route_to_dlq(msg, raw_event, consumer, dlq)
         processor._last_offsets[msg.partition()] = msg.offset() + 1
         return
 
@@ -216,18 +216,10 @@ def _process_message(msg, processor, consumer):
     consumer.store_offsets(msg)
 
 
-def _route_to_dlq(msg, raw_event, consumer):
+def _route_to_dlq(msg, raw_event, consumer, dlq):
     """Направить недопустимое событие в DLQ и зафиксировать его смещение."""
-    _dlq = DeadLetterQueue(ClickHouseLoader(
-        host=clickhouse_settings.host,
-        port=clickhouse_settings.port,
-        database=clickhouse_settings.database,
-        user=clickhouse_settings.user,
-        password=clickhouse_settings.password,
-    ))
-
     try:
-        _dlq.write(
+        dlq.write(
             event_id=str(raw_event.get('event_id', 'unknown')),
             event_type=str(raw_event.get('event_type', 'unknown')),
             error_type='VALIDATION_ERROR',
