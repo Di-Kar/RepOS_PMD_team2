@@ -139,6 +139,7 @@ def transform_for_watch_sessions(event: dict) -> Optional[dict]:
         'user_id': _nullable(user_id),
         'session_id': str(event.get('session_id', '')),
         'started_at': _format_timestamp(event['occurred_at']),
+        'last_updated_at': _format_timestamp(event['received_at']),
         'quality': payload.get('to_quality', payload.get('from_quality', '')),
         'progress_percent': _safe_float(payload.get('progress_percent')),
         'duration_total': payload.get('duration_total_ms', 0),
@@ -160,7 +161,6 @@ def _parse_timestamp(ts) -> Optional[datetime]:
 
 
 def _format_timestamp(ts) -> str:
-
     """Форматировать метку времени в DateTime64(3), совместимый с ClickHouse."""
     if isinstance(ts, datetime):
         dt = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)

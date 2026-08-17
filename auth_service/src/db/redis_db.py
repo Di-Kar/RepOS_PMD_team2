@@ -17,7 +17,7 @@ redis_pool: Optional[ConnectionPool] = None
 redis_client: Optional[Redis] = None
 
 async def get_redis_pool() -> ConnectionPool:
-     """
+    """
     Получает или создает глобальный пул соединений Redis.
     Returns:
         ConnectionPool: Экземпляр пула соединений Redis.
