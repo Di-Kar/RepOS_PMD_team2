@@ -6,7 +6,9 @@ volumes:
   async_api_redis_data:
   auth_postgres_data:
   auth_redis_data:
+  clickhouse_data:
   kafka_data:
+  etl_analytics_state:
 
 networks:
   frontend:
@@ -279,7 +281,7 @@ services:
       - backend
 
   # Брокер сообщений для событий пользователей (клики, просмотры, кастомные
-  # события) — принимает публикации от event_api, читается будущим ETL в
+  # события) — принимает публикации от event_api, читается ETL в
   # ClickHouse. Single-node KRaft (без Zookeeper). Официальный образ ASF —
   # bitnami/kafka:3.7 вырезан из Docker Hub (Bitnami в 2025 обрезала старые
   # floating-теги, оставив только последние версии).
@@ -385,6 +387,62 @@ services:
     networks:
       - backend
 
+  # ClickHouse — аналитическая БД
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse_init:/docker-entrypoint-initdb.d:ro
+    environment:
+      - CLICKHOUSE_USER=${ANALYTICS_CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${ANALYTICS_CLICKHOUSE_PASSWORD}
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ETL: Kafka → ClickHouse (analytics)
+  analytics_etl:
+    build:
+      context: ./analytics_etl
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    volumes:
+      - etl_analytics_state:/app/state
+    environment:
+      - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ANALYTICS_KAFKA_CONSUMER_GROUP=analytics_etl
+      - ANALYTICS_KAFKA_TOPICS=analytics.clicks.v1,analytics.pageviews.v1,analytics.custom_events.v1
+      - ANALYTICS_CLICKHOUSE_HOST=clickhouse
+      - ANALYTICS_CLICKHOUSE_PORT=8123
+      - ANALYTICS_CLICKHOUSE_DATABASE=analytics
+      - ANALYTICS_CLICKHOUSE_USER=${ANALYTICS_CLICKHOUSE_USER}
+      - ANALYTICS_CLICKHOUSE_PASSWORD=${ANALYTICS_CLICKHOUSE_PASSWORD}
+      - ANALYTICS_ETL_BATCH_SIZE=1000
+      - ANALYTICS_ETL_FLUSH_INTERVAL=5
+      - ANALYTICS_ETL_STATE_DIR=/app/state
+      - ANALYTICS_ETL_MEMORY_WARN_MB=500
+      - ANALYTICS_ETL_MEMORY_CRITICAL_MB=800
+      - ANALYTICS_ETL_BACKOFF_START=0.1
+      - ANALYTICS_ETL_BACKOFF_BORDER=10.0
+      - ANALYTICS_ETL_BACKOFF_MAX=0
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka_init:
+        condition: service_completed_successfully
+      clickhouse:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+
   # Все тесты проекта (tests/): HTTP-тесты async_api, auth_service, event_api
   # (event_api смоук-тесты дополнительно вычитывают Kafka-топики через
   # aiokafka, чтобы подтвердить доставку опубликованных событий)
@@ -395,22 +453,28 @@ services:
   tests:
     profiles:
       - tests
-    image: python:3.12-slim
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
     container_name: tests
-    entrypoint: sh -c "
-      pip install -r /tests/requirements.txt -r /admin_panel/requirements.txt
-      && pytest /tests -rs --ignore=/tests/admin_panel
-      && cd /admin_panel && python manage.py test /tests/admin_panel"
     volumes:
       - ./tests:/tests
+      - ./analytics_etl:/analytics_etl
       - ./admin_panel:/admin_panel
+    command: sh -c "
+      pytest /tests -rs --ignore=/tests/admin_panel
+      && cd /admin_panel && python manage.py test /tests/admin_panel"
     environment:
-      - PYTHONPATH=/
+      - PYTHONPATH=/analytics_etl:/
       - REDIS_HOST=async_api_redis
       - API_HOST=async_api
       - AUTH_API_HOST=auth_service
       - EVENT_API_HOST=event_api
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ANALYTICS_CLICKHOUSE_HOST=clickhouse
+      - ANALYTICS_CLICKHOUSE_PORT=8123
+      - ANALYTICS_CLICKHOUSE_NATIVE_PORT=9000
     env_file:
       - ./.env
     depends_on:
@@ -431,6 +495,10 @@ services:
       event_api:
         condition: service_healthy
       kafka_ui:
+        condition: service_started
+      clickhouse:
+        condition: service_started
+      analytics_etl:
         condition: service_started
     networks:
       - backend

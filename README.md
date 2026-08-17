@@ -9,7 +9,7 @@
 - `fulltext_search` — сервис для полнотекстового поиска (ETL переноса данных из PostgreSQL в Elasticsearch).
 - `async_api` — асинхронное API для онлайн-кинотеатра.
 - `auth_service` — сервис авторизации (JWT, роли/RBAC; свои PostgreSQL и Redis, все env-переменные с префиксом `AUTH_`).
-- `tests` — все тесты проекта (HTTP-тесты async_api и auth_service, один общий контейнер).
+- `tests` — все тесты проекта (HTTP-тесты async_api и auth_service, smoke-тесты аналитического ETL `analytics_etl`, образ собирается из `tests/Dockerfile` с кэшированием зависимостей).
 
 ## Запуск проекта (без тестов)
 
@@ -42,10 +42,22 @@ docker compose --profile tests down -v --remove-orphans
 
 ## Тесты
 
-Все тесты живут в папке `tests/` (HTTP-тесты, подпапка = тестируемый сервис: `async_api`, `auth_service`) и запускаются одним контейнером. Нужен запущенный проект:
+Все тесты живут в папке `tests/` (HTTP-тесты, подпапка = тестируемый сервис: `async_api`, `auth_service`, аналитический ETL: `analytics_etl`) и запускаются одним контейнером. Нужен запущенный проект:
+
+### Запуск всех тестов
 
 ```bash
+# Первый запуск — собрать образ с зависимостями (зависимости кэшируются в слое Docker):
+docker compose build tests
+
+# Запуск всех тестов (локальные файлы примонтированы через volumes, пересборка не нужна):
 docker compose run --rm tests
+```
+
+### Запуск тестов только одного типа (например analytics ETL-тестов)
+
+```bash
+docker compose run --rm tests pytest /tests/analytics_etl -v
 ```
 
 Сервис `tests` вынесен в отдельный compose-профиль и при `docker compose up` не стартует — только явно, командой выше.

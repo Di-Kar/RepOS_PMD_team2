@@ -1,4 +1,4 @@
-# Общие зависимости всех тестов проекта (async_api + auth_service + event_api)
+# Общие зависимости всех тестов проекта (async_api + auth_service)
 aiohttp==3.11.18
 elasticsearch[async]==8.13.2
 redis==5.0.4
@@ -6,3 +6,4 @@ pydantic-settings==2.12.0
 pytest==8.3.5
 pytest-asyncio==0.26.0
 aiokafka==0.11.0
+clickhouse-connect[async]>=1.7.0
