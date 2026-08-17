@@ -12,7 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY src/ src/
 
 # Create state directory
 RUN mkdir -p /app/state
@@ -21,4 +21,4 @@ RUN mkdir -p /app/state
 ENV PYTHONUNBUFFERED=1
 ENV ETL_STATE_DIR=/app/state
 
-ENTRYPOINT ["python", "main.py"]
+ENTRYPOINT ["python", "src/main.py"]
