@@ -37,7 +37,6 @@ class DeadLetterQueue:
         """
         self._do_write(event_id, event_type, error_type, error_message, raw_event)
 
-    @backoff(exceptions=_CLICKHOUSE_EXCEPTIONS)
     def _do_write(
         self,
         event_id: str,
