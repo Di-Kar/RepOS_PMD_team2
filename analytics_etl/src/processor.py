@@ -42,8 +42,8 @@ class EventProcessor:
         self._movies_rows: List[dict] = []
         self._watch_rows: List[dict] = []
         self._flushed_count = 0
-        # Последние зафиксированные смещения Kafka: {partition: offset}
-        self._last_offsets: Dict[int, int] = {}
+        # Последние зафиксированные смещения Kafka: {topic: {partition: offset}}
+        self._last_offsets: Dict[str, Dict[int, int]] = {}
 
     @property
     def buffer_size(self) -> int:
@@ -138,9 +138,9 @@ class EventProcessor:
         return total_processed
 
     @property
-    def last_offsets(self) -> Dict[int, int]:
-        """Возвращает последние зафиксированные смещения Kafka.""" 
-        return dict(self._last_offsets)
+    def last_offsets(self) -> Dict[str, Dict[int, int]]:
+        """Возвращает последние зафиксированные смещения Kafka."""
+        return {k: dict(v) for k, v in self._last_offsets.items()}
 
     def _try_insert(self, table: str, rows: List[dict]) -> bool:
         """Вставить строки в таблицу ClickHouse с обработкой ошибок."""

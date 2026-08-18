@@ -97,7 +97,7 @@ def run_etl():
     )
 
     # Импортировать потребителя Kafka здесь, чтобы он загружался только во время выполнения
-    from confluent_kafka import Consumer, KafkaError, Message
+    from confluent_kafka import Consumer, KafkaError, Message, TopicPartition
 
     # Потребитель Kafka — ручная фиксация смещений
     kafka_conf = {
@@ -183,14 +183,15 @@ def _process_message(msg, processor, consumer, dlq):
             msg.topic(), msg.partition(), msg.offset(), e,
         )
         consumer.store_offsets(msg)
-        processor._last_offsets[msg.partition()] = msg.offset() + 1
+        if msg.topic() not in processor._last_offsets:
+            processor._last_offsets[msg.topic()] = {}
+        processor._last_offsets[msg.topic()][msg.partition()] = msg.offset() + 1
         return
     except Exception as e:
         logger.error('Ошибка обработки сообщения в [%s]://%d offset %d: %s',
                      msg.topic(), msg.partition(), msg.offset(), e)
         consumer.store_offsets(msg)
         return
-        processor._last_offsets[msg.partition()] = msg.offset() + 1
 
     # Валидация
     from validator import validate_event
@@ -203,7 +204,9 @@ def _process_message(msg, processor, consumer, dlq):
             msg.topic(), msg.partition(), msg.offset(),
         )
         _route_to_dlq(msg, raw_event, consumer, dlq)
-        processor._last_offsets[msg.partition()] = msg.offset() + 1
+        if msg.topic() not in processor._last_offsets:
+            processor._last_offsets[msg.topic()] = {}
+        processor._last_offsets[msg.topic()][msg.partition()] = msg.offset() + 1
         return
 
     # Сохранить валидированное событие в буфер
@@ -211,7 +214,9 @@ def _process_message(msg, processor, consumer, dlq):
 
 
     # Отслеживать последнее смещение для сохранения состояния
-    processor._last_offsets[msg.partition()] = msg.offset() + 1
+    if msg.topic() not in processor._last_offsets:
+        processor._last_offsets[msg.topic()] = {}
+    processor._last_offsets[msg.topic()][msg.partition()] = msg.offset() + 1
     # Зафиксировать смещение сразу после обработки
     consumer.store_offsets(msg)
 
@@ -235,35 +240,22 @@ def _route_to_dlq(msg, raw_event, consumer, dlq):
 def _commit_offsets(consumer, processor):
     """Зафиксировать смещения в Kafka и сохранить в файл состояния."""
     try:
-        # Commit stored offsets to Kafka
-        consumer.commit()
-
-        # Сохранить смещения в файл состояния
         last_offsets = processor.last_offsets
         if not last_offsets:
             return
 
-        # Преобразовать в словарь для хранения состояния: {topic: {partition: offset}}
-        offset_dict = {}
-        for partition, offset in last_offsets.items():
-            # Получим метаданные раздела для определения topic
-            try:
-                partitions = consumer.list_offsets(None)
-                for tp, metadata in partitions.items():
-                    if tp.partition == partition:
-                        topic = tp.topic
-                        if topic not in offset_dict:
-                            offset_dict[topic] = {}
-                        offset_dict[topic][partition] = offset
-                        break
-            except Exception:
-                # Если не удалось получить topic, пропускаем
-                pass
+        # Commit stored offsets to Kafka
+        offsets_to_commit = []
+        for topic, partitions in last_offsets.items():
+            for partition, offset in partitions.items():
+                offsets_to_commit.append(TopicPartition(topic, partition, offset))
+        if offsets_to_commit:
+            consumer.commit(offsets=offsets_to_commit)
 
-        if offset_dict:
-            storage = OffsetStorage(etl_settings.state_dir)
-            storage.save_offsets(offset_dict)
-            logger.debug('Смещения зафиксированы: %d тем', len(offset_dict))
+        # Сохранить смещения в файл состояния
+        storage = OffsetStorage(etl_settings.state_dir)
+        storage.save_offsets(last_offsets)
+        logger.debug('Смещения зафиксированы: %d тем', len(last_offsets))
     except Exception as e:
         logger.error('Не удалось зафиксировать смещения: %s', e)
 
