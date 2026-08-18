@@ -186,43 +186,60 @@ class EventProcessor:
         self._pending_offsets.clear()
 
     def _try_insert(self, table: str, rows: List[dict]) -> bool:
-        """Вставить строки в таблицу ClickHouse с обработкой ошибок."""
+        """Вставить строки в таблицу ClickHouse с обработкой ошибок.
+
+        Возвращает True при успехе, False после исчерпания попыток retry
+        (после чего строки направляются в DLQ).
+        """
         try:
-            success = self._loader.bulk_insert(table, rows)
-            if not success:
-                logger.error('Не удалось вставить %d строк в %s', len(rows), table)
-                # Направить неудавшиеся строки в DLQ
-                for row in rows:
+            self._loader.bulk_insert(table, rows)
+            return True
+        except Exception as e:
+            logger.error(
+                'Исчерпаны все попытки вставки %d строк в %s: %s',
+                len(rows), table, e,
+            )
+            # Направить неудавшиеся строки в DLQ
+            for row in rows:
+                try:
                     self._dlq.write(
                         event_id=row.get('event_id', 'unknown'),
                         event_type=row.get('event_type', 'unknown'),
                         error_type='INSERT_ERROR',
-                        error_message=f'Не удалось вставить в {table}',
+                        error_message=f'Не удалось вставить в {table}: {e}',
                         raw_event=row.get('raw_event', json.dumps(row, ensure_ascii=False)),
                     )
-            return success
-        except Exception as e:
-            logger.error('Исключение при вставке в %s: %s', table, e)
+                except Exception as dlq_error:
+                    logger.critical(
+                        'Не удалось записать в DLQ для event_id=%s: %s',
+                        row.get('event_id', 'unknown'), dlq_error,
+                    )
             return False
 
     def _try_insert_movies_metrics(self, rows: List[dict]) -> bool:
-        """Вставить агрегированные строки метрик фильмов."""
+        """Вставить агрегированные строки метрик фильмов.
+
+        Возвращает True при успехе, False после исчерпания попыток retry.
+        """
         try:
-            success = self._loader.bulk_insert_movies_metrics(rows)
-            if not success:
-                logger.error('Не удалось вставить %d строк в movies_metrics', len(rows))
-            return success
+            self._loader.bulk_insert_movies_metrics(rows)
+            return True
         except Exception as e:
-            logger.error('Исключение при вставке в movies_metrics: %s', e)
+            logger.error(
+                'Исчерпаны все попытки вставки метрик фильмов: %s', e,
+            )
             return False
 
     def _try_insert_watch_sessions(self, rows: List[dict]) -> bool:
-        """Вставить строки сеансов просмотра."""
+        """Вставить строки сеансов просмотра.
+
+        Возвращает True при успехе, False после исчерпания попыток retry.
+        """
         try:
-            success = self._loader.bulk_insert_watch_sessions(rows)
-            if not success:
-                logger.error('Не удалось вставить %d строк в watch_sessions', len(rows))
-            return success
+            self._loader.bulk_insert_watch_sessions(rows)
+            return True
         except Exception as e:
-            logger.error('Исключение при вставке в watch_sessions: %s', e)
+            logger.error(
+                'Исчерпаны все попытки вставки сеансов просмотра: %s', e,
+            )
             return False

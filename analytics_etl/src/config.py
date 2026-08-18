@@ -41,7 +41,7 @@ class ETLSettings(BaseSettings):
     memory_critical_mb: int = Field(default=800, alias='ANALYTICS_ETL_MEMORY_CRITICAL_MB')
     backoff_start: float = Field(default=0.1, alias='ANALYTICS_ETL_BACKOFF_START')
     backoff_border: float = Field(default=10.0, alias='ANALYTICS_ETL_BACKOFF_BORDER')
-    backoff_max: int = Field(default=0, alias='ANALYTICS_ETL_BACKOFF_MAX')
+    backoff_max: int = Field(default=3, alias='ANALYTICS_ETL_BACKOFF_MAX')
 
     model_config = {'populate_by_name': True, 'env_file': '.env', 'extra': 'ignore'}
 

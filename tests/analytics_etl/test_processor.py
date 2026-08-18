@@ -212,7 +212,8 @@ class TestFlush:
 
 class TestTryInsert:
     def test_failed_insert_routes_to_dlq(self, processor, mock_dlq):
-        processor._loader.bulk_insert.return_value = False
+        """При исключении в bulk_insert строки направляются в DLQ."""
+        processor._loader.bulk_insert.side_effect = RuntimeError('connection lost')
         processor.add_event(_make_validated_event())
         processor.flush()
         # Должна быть запись в DLQ для failed insert
@@ -227,16 +228,17 @@ class TestTryInsert:
         # При успешной вставке DLQ не вызывается
         assert mock_dlq.write.call_count == 0
 
-    def test_exception_in_insert_no_dlq(self, processor, mock_dlq):
-        """_try_insert при исключении возвращает False но DLQ не вызывается —
-        это баг, который мы подтверждаем тестом.
+    def test_exception_in_insert_routes_to_dlq(self, processor, mock_dlq):
+        """_try_insert при исключении возвращает False и направляет строки в DLQ —
+        исправленное поведение (был мёртвый код).
         """
         processor._loader.bulk_insert.side_effect = RuntimeError('connection lost')
         processor.add_event(_make_validated_event())
         processor.flush()
-        # Исключение ловится, возвращается False, но DLQ не вызывается
-        # (это наблюдаемое поведение)
-        assert mock_dlq.write.call_count == 0
+        # Исключение ловится, возвращается False, строки направляются в DLQ
+        assert mock_dlq.write.call_count >= 1
+        call_kwargs = mock_dlq.write.call_args
+        assert call_kwargs[1]['error_type'] == 'INSERT_ERROR'
 
 
 # --------------------------------------------------------------------------- #
