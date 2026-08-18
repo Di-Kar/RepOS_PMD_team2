@@ -79,8 +79,10 @@ class ClickHouseLoader:
             password=self.password,
             connect_timeout=10,
         )
-        temp_client.command(f'CREATE DATABASE IF NOT EXISTS {self.database}')
-        temp_client.close()
+        try:
+            temp_client.command(f'CREATE DATABASE IF NOT EXISTS {self.database}')
+        finally:
+            temp_client.close()
         logger.info('База данных %s готова', self.database)
         # Переподключаемся к созданной БД
         self._client = None
@@ -227,3 +229,14 @@ class ClickHouseLoader:
         """Выполнить DDL-запрос."""
         client = self._get_client()
         client.command(query)
+
+    def close(self) -> None:
+        """Закрыть основное соединение с ClickHouse."""
+        if self._client is not None:
+            try:
+                self._client.close()
+            except Exception:
+                logger.exception('Ошибка при закрытии клиента ClickHouse')
+            finally:
+                self._client = None
+            logger.info('Соединение с ClickHouse закрыто')

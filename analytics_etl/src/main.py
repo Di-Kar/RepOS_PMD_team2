@@ -178,6 +178,7 @@ def run_etl():
             _commit_offsets(consumer, processor)
             processor.clear_committed_offsets()
         consumer.close()
+        loader.close()
         logger.info('ETL остановлен')
 
 
