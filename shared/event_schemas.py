@@ -1,9 +1,15 @@
-"""Схемы событий по контракту docs/user_events_contract.md."""
+"""Единый источник схем событий пользователя — контракт docs/user_events_contract.md.
+
+Модуль общий для event_api (продюсер в Kafka) и analytics_etl (консьюмер из
+Kafka в ClickHouse). Раньше схемы были продублированы в обоих сервисах и
+разошлись (event_api — строгий вариант, analytics_etl — ослабленный); теперь
+оба сервиса валидируют события одной и той же моделью.
+"""
 from datetime import datetime, timezone
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SCHEMA_VERSION = 1
 
@@ -69,6 +75,9 @@ class EventBase(BaseModel):
     event_id: UUID
     schema_version: int = SCHEMA_VERSION
     occurred_at: datetime
+    # Проставляется event_api при приёме (раздел 2 контракта); отсутствует у
+    # события до публикации в Kafka, поэтому опционально на уровне модели.
+    received_at: datetime | None = None
     user_id: str | None = None
     anonymous_id: str | None = None
     session_id: UUID
@@ -76,8 +85,15 @@ class EventBase(BaseModel):
     consent: bool
     context: dict = Field(default_factory=dict)
     source: str
-    # received_at выставляется сервисом при приёме (раздел 2 контракта), клиентское
-    # значение, если и придёт, игнорируется — сериализуется отдельно перед публикацией.
+
+    @field_validator("consent", mode="before")
+    @classmethod
+    def _normalize_consent(cls, v: Any) -> Any:
+        """Привести 0/1 к bool; отклонить всё остальное явно — стандартная
+        lax-валидация bool у pydantic иначе пропускает строки вроде "yes"."""
+        if isinstance(v, bool) or v in (0, 1):
+            return bool(v)
+        raise ValueError('consent должен быть True, False, 0 или 1')
 
     @model_validator(mode="after")
     def _require_identity(self) -> "EventBase":

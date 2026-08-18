@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 _producer: Optional[AIOKafkaProducer] = None
 
-# topic_key (см. schemas.TOPIC_BY_EVENT_TYPE) -> имя топика из настроек
 _TOPIC_BY_KEY = {
     "clicks": lambda: settings.kafka_topic_clicks,
     "pageviews": lambda: settings.kafka_topic_pageviews,

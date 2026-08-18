@@ -368,6 +368,9 @@ services:
       - ./.env
     environment:
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - PYTHONPATH=/opt/app/shared
+    volumes:
+      - ./shared:/opt/app/shared:ro
     ports:
       - "8002:8000"
     healthcheck:
@@ -415,7 +418,9 @@ services:
       - ./.env
     volumes:
       - etl_analytics_state:/app/state
+      - ./shared:/app/shared:ro
     environment:
+      - PYTHONPATH=/app/shared
       - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ANALYTICS_KAFKA_CONSUMER_GROUP=analytics_etl
       - ANALYTICS_KAFKA_TOPICS=analytics.clicks.v1,analytics.pageviews.v1,analytics.custom_events.v1
@@ -461,6 +466,7 @@ services:
       - ./tests:/tests
       - ./analytics_etl:/analytics_etl
       - ./admin_panel:/admin_panel
+      - ./shared:/shared
     command: sh -c "
       pytest /tests -rs --ignore=/tests/admin_panel
       && cd /admin_panel && python manage.py test /tests/admin_panel"

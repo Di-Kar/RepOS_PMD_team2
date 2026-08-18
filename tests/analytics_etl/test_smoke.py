@@ -160,7 +160,7 @@ async def test_events_table_populated(
     clickhouse_client: Client,
 ):
     """Тест 1: publish click → ETL → ClickHouse.events содержит запись."""
-    event_id = f'click-test-{uuid.uuid4().hex[:8]}'
+    event_id = str(uuid.uuid4())
     event = make_click_event(event_id)
 
     # Публикуем событие
@@ -237,7 +237,7 @@ async def test_multiple_events_batch(
     clickhouse_client: Client,
 ):
     """Тест 4: publish 5 click events → ETL → ClickHouse.events содержит >= 5 записей."""
-    event_ids = [f'batch-click-{uuid.uuid4().hex[:8]}' for _ in range(5)]
+    event_ids = [str(uuid.uuid4()) for _ in range(5)]
 
     # Публикуем батч
     for eid in event_ids:

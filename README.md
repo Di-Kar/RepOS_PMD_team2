@@ -11,11 +11,13 @@
 - `auth_service` — сервис авторизации (JWT, роли/RBAC; свои PostgreSQL и Redis, все env-переменные с префиксом `AUTH_`).
 - `tests` — все тесты проекта (HTTP-тесты async_api и auth_service, smoke-тесты аналитического ETL `analytics_etl`, образ собирается из `tests/Dockerfile` с кэшированием зависимостей).
 
-## Запуск проекта (без тестов)
+## Запуск проекта (без тестов и с тестами)
 
 ```bash
 cp .env.example .env  # заполнить значения (но проще взять готовый в чате команды и подложить)
 docker compose up -d --build
+-----------------------------
+docker compose up -d --build; if ($?) { docker compose run --rm tests }
 ```
 
 ## Остановка и очистка всего проекта (включая тесты)

@@ -5,7 +5,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from src.core.kafka_producer import publish_event
 from src.models.responses import EventResult
-from src.models.schemas import TOPIC_BY_EVENT_TYPE, UserEvent, to_kafka_record
+from event_schemas import TOPIC_BY_EVENT_TYPE, UserEvent, to_kafka_record
 
 logger = logging.getLogger(__name__)
 
