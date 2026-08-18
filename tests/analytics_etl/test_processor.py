@@ -136,7 +136,9 @@ class TestBufferSize:
 class TestFlush:
     def test_empty_buffer_returns_zero(self, processor):
         result = processor.flush()
-        assert result == 0
+        count, success = result
+        assert count == 0
+        assert success is True
         processor._loader.bulk_insert.assert_not_called()
 
     def test_flush_calls_bulk_insert_for_events(self, processor):
@@ -177,9 +179,10 @@ class TestFlush:
 
     def test_flush_returns_processed_count(self, processor):
         processor.add_event(_make_validated_event())
-        count = processor.flush()
+        count, success = processor.flush()
         assert isinstance(count, int)
         assert count >= 1  # хотя бы events row
+        assert success is True
 
     def test_flush_clears_buffer(self, processor):
         processor.add_event(_make_validated_event())
@@ -189,15 +192,17 @@ class TestFlush:
     def test_flush_multiple_events(self, processor):
         processor.add_event(_make_validated_event(event_id='e1'))
         processor.add_event(_make_validated_event(event_id='e2'))
-        count = processor.flush()
+        count, success = processor.flush()
         assert count >= 2  # 2 events rows минимум
+        assert success is True
 
     def test_flush_after_dedup(self, processor):
         processor.add_event(_make_validated_event(event_id='dup', occurred_at='2025-01-01T00:00:00+00:00'))
         processor.add_event(_make_validated_event(event_id='dup', occurred_at='2025-12-31T23:59:59+00:00'))
         assert processor.buffer_size == 1
-        count = processor.flush()
+        count, success = processor.flush()
         assert count >= 1
+        assert success is True
 
 
 # --------------------------------------------------------------------------- #

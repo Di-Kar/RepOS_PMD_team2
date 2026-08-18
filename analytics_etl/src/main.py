@@ -136,9 +136,10 @@ def run_etl():
             if msg is None:
                 # Проверить flush интервал
                 if now - last_flush_time >= etl_settings.flush_interval:
-                    processed = processor.flush()
-                    if processed:
+                    processed, success = processor.flush()
+                    if processed and success:
                         _commit_offsets(consumer, processor)
+                        processor.clear_committed_offsets()
                     last_flush_time = now
                 continue
 
@@ -157,19 +158,32 @@ def run_etl():
 
             # Проверить flush интервал
             if now - last_flush_time >= etl_settings.flush_interval:
-                processed = processor.flush()
-                if processed:
+                processed, success = processor.flush()
+                if processed and success:
                     _commit_offsets(consumer, processor)
+                    processor.clear_committed_offsets()
                 last_flush_time = now
 
     except KeyboardInterrupt:
         logger.info('Прервано клавиатурой — завершение работы')
     finally:
         logger.info('Финальная отправка %d буферизованных событий', processor.buffer_size)
-        processor.flush()
-        _commit_offsets(consumer, processor)
+        processed, success = processor.flush()
+        if processed and success:
+            _commit_offsets(consumer, processor)
+            processor.clear_committed_offsets()
         consumer.close()
         logger.info('ETL остановлен')
+
+
+def _track_offset(processor, msg):
+    """Добавить смещение в pending_offsets для последующего коммита."""
+    topic = msg.topic()
+    partition = msg.partition()
+    offset = msg.offset()
+    if topic not in processor._pending_offsets:
+        processor._pending_offsets[topic] = {}
+    processor._pending_offsets[topic][partition] = offset + 1
 
 
 def _process_message(msg, processor, consumer, dlq):
@@ -182,15 +196,16 @@ def _process_message(msg, processor, consumer, dlq):
             'Не удалось декодировать сообщение в [%s]://%d offset %d: %s',
             msg.topic(), msg.partition(), msg.offset(), e,
         )
+        # Событие некорректно — фиксируем смещение немедленно,
+        # так как оно не попадёт в буфер и не потребится повторно
         consumer.store_offsets(msg)
-        if msg.topic() not in processor._last_offsets:
-            processor._last_offsets[msg.topic()] = {}
-        processor._last_offsets[msg.topic()][msg.partition()] = msg.offset() + 1
+        _track_offset(processor, msg)
         return
     except Exception as e:
         logger.error('Ошибка обработки сообщения в [%s]://%d offset %d: %s',
                      msg.topic(), msg.partition(), msg.offset(), e)
         consumer.store_offsets(msg)
+        _track_offset(processor, msg)
         return
 
     # Валидация
@@ -203,26 +218,18 @@ def _process_message(msg, processor, consumer, dlq):
             'Недопустимое событие в [%s]://%d offset %d — отправка в DLQ',
             msg.topic(), msg.partition(), msg.offset(),
         )
-        _route_to_dlq(msg, raw_event, consumer, dlq)
-        if msg.topic() not in processor._last_offsets:
-            processor._last_offsets[msg.topic()] = {}
-        processor._last_offsets[msg.topic()][msg.partition()] = msg.offset() + 1
+        _route_to_dlq(msg, raw_event, dlq)
+        # Событие отправлено в DLQ — фиксируем смещение немедленно
+        _track_offset(processor, msg)
         return
 
     # Сохранить валидированное событие в буфер
     processor.add_event(validated)
+    _track_offset(processor, msg)
 
 
-    # Отслеживать последнее смещение для сохранения состояния
-    if msg.topic() not in processor._last_offsets:
-        processor._last_offsets[msg.topic()] = {}
-    processor._last_offsets[msg.topic()][msg.partition()] = msg.offset() + 1
-    # Зафиксировать смещение сразу после обработки
-    consumer.store_offsets(msg)
-
-
-def _route_to_dlq(msg, raw_event, consumer, dlq):
-    """Направить недопустимое событие в DLQ и зафиксировать его смещение."""
+def _route_to_dlq(msg, raw_event, dlq):
+    """Направить недопустимое событие в DLQ."""
     try:
         dlq.write(
             event_id=str(raw_event.get('event_id', 'unknown')),
@@ -234,28 +241,30 @@ def _route_to_dlq(msg, raw_event, consumer, dlq):
     except Exception as e:
         logger.error('Не удалось записать в DLQ: %s', e)
 
-    consumer.store_offsets(msg)
-
 
 def _commit_offsets(consumer, processor):
-    """Зафиксировать смещения в Kafka и сохранить в файл состояния."""
+    """Зафиксировать pending смещения в Kafka и сохранить в файл состояния.
+    
+    Вызывается ТОЛЬКО после успешной вставки всех событий в ClickHouse.
+    Смещения коммитятся только для тех событий, которые были реально записаны.
+    """
     try:
-        last_offsets = processor.last_offsets
-        if not last_offsets:
+        offsets_to_commit = processor.pending_offsets
+        if not offsets_to_commit:
             return
 
         # Commit stored offsets to Kafka
-        offsets_to_commit = []
-        for topic, partitions in last_offsets.items():
+        commit_list = []
+        for topic, partitions in offsets_to_commit.items():
             for partition, offset in partitions.items():
-                offsets_to_commit.append(TopicPartition(topic, partition, offset))
-        if offsets_to_commit:
-            consumer.commit(offsets=offsets_to_commit)
+                commit_list.append(TopicPartition(topic, partition, offset))
+        if commit_list:
+            consumer.commit(offsets=commit_list)
 
         # Сохранить смещения в файл состояния
         storage = OffsetStorage(etl_settings.state_dir)
-        storage.save_offsets(last_offsets)
-        logger.debug('Смещения зафиксированы: %d тем', len(last_offsets))
+        storage.save_offsets(offsets_to_commit)
+        logger.debug('Смещения зафиксированы: %d тем', len(offsets_to_commit))
     except Exception as e:
         logger.error('Не удалось зафиксировать смещения: %s', e)
 
