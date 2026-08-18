@@ -189,22 +189,49 @@ def _track_offset(processor, msg):
 def _process_message(msg, processor, consumer, dlq):
     """Проверить и буферизовать одно сообщение Kafka."""
     try:
-        raw_payload = msg.value().decode('utf-8')
+        # Сохраняем сырое значение до обработки — для DLQ в случае ошибки
+        raw_value = msg.value()
+        raw_payload = raw_value.decode('utf-8') if raw_value else ''
         raw_event = json.loads(raw_payload)
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
         logger.warning(
             'Не удалось декодировать сообщение в [%s]://%d offset %d: %s',
             msg.topic(), msg.partition(), msg.offset(), e,
         )
-        # Событие некорректно — фиксируем смещение немедленно,
+        # Событие некорректно — направляем в DLQ и фиксируем смещение,
         # так как оно не попадёт в буфер и не потребится повторно
-        consumer.store_offsets(msg)
+        try:
+            raw_payload_str = (
+                raw_value.decode('utf-8', errors='replace')
+                if isinstance(raw_value, bytes) and raw_value
+                else str(raw_value) if raw_value else ''
+            )
+        except Exception:
+            raw_payload_str = ''
+        _route_to_dlq(msg, {
+            'raw_message': raw_payload_str,
+            'error_type': 'DECODE_ERROR',
+            'error_message': str(e),
+        }, dlq)
         _track_offset(processor, msg)
         return
     except Exception as e:
         logger.error('Ошибка обработки сообщения в [%s]://%d offset %d: %s',
                      msg.topic(), msg.partition(), msg.offset(), e)
-        consumer.store_offsets(msg)
+        # Отправляем сырое сообщение в DLQ — данные не должны теряться
+        try:
+            raw_payload_str = (
+                raw_value.decode('utf-8', errors='replace')
+                if isinstance(raw_value, bytes) and raw_value
+                else str(raw_value) if raw_value else ''
+            )
+        except Exception:
+            raw_payload_str = ''
+        _route_to_dlq(msg, {
+            'raw_message': raw_payload_str,
+            'error_type': 'PROCESSING_ERROR',
+            'error_message': str(e),
+        }, dlq)
         _track_offset(processor, msg)
         return
 
@@ -229,15 +256,32 @@ def _process_message(msg, processor, consumer, dlq):
 
 
 def _route_to_dlq(msg, raw_event, dlq):
-    """Направить недопустимое событие в DLQ."""
+    """Направить недопустимое событие в DLQ.
+
+    Поддерживает два сценария:
+    1. Валидационная ошибка: raw_event — оригинальное событие
+    2. Ошибка обработки: raw_event — словарь с ключами
+       'raw_message', 'error_type', 'error_message'
+    """
     try:
-        dlq.write(
-            event_id=str(raw_event.get('event_id', 'unknown')),
-            event_type=str(raw_event.get('event_type', 'unknown')),
-            error_type='VALIDATION_ERROR',
-            error_message='Событие не прошло проверки валидации',
-            raw_event=json.dumps(raw_event, ensure_ascii=False),
-        )
+        if 'error_message' in raw_event and 'raw_message' in raw_event:
+            # Ошибка обработки — отправляем сырое сообщение
+            dlq.write(
+                event_id=str(raw_event.get('event_id', 'unknown')),
+                event_type=str(raw_event.get('event_type', 'unknown')),
+                error_type=raw_event.get('error_type', 'UNKNOWN_ERROR'),
+                error_message=raw_event.get('error_message', 'Unknown error'),
+                raw_event=raw_event.get('raw_message', ''),
+            )
+        else:
+            # Валидационная ошибка — отправляем разобранное событие
+            dlq.write(
+                event_id=str(raw_event.get('event_id', 'unknown')),
+                event_type=str(raw_event.get('event_type', 'unknown')),
+                error_type='VALIDATION_ERROR',
+                error_message='Событие не прошло проверку валидации',
+                raw_event=json.dumps(raw_event, ensure_ascii=False),
+            )
     except Exception as e:
         logger.error('Не удалось записать в DLQ: %s', e)
 
