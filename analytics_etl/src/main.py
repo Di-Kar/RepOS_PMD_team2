@@ -161,8 +161,19 @@ def run_etl():
             # Обработка сообщения
             _process_message(msg, processor, consumer, dlq)
 
-            # Проверить flush интервал
-            if now - last_flush_time >= etl_settings.flush_interval:
+            # Flush при достижении batch_size — приоритетнее таймера
+            if processor.buffer_size >= etl_settings.batch_size:
+                logger.info(
+                    'Достигнут batch_size=%d — принудительный flush',
+                    etl_settings.batch_size,
+                )
+                processed, success = processor.flush()
+                if processed and success:
+                    _commit_offsets(consumer, processor)
+                    processor.clear_committed_offsets()
+                last_flush_time = now
+            # Flush по таймеру (только если batch_size не достигнут)
+            elif now - last_flush_time >= etl_settings.flush_interval:
                 processed, success = processor.flush()
                 if processed and success:
                     _commit_offsets(consumer, processor)
