@@ -19,6 +19,7 @@ from config import (
     kafka_settings,
 )
 from backoff_utils import configure as configure_backoff
+from confluent_kafka import TopicPartition
 from dlq import DeadLetterQueue
 from loader import ClickHouseLoader
 from memory_monitor import MemoryMonitor
@@ -97,7 +98,7 @@ def run_etl():
     )
 
     # Импортировать потребителя Kafka здесь, чтобы он загружался только во время выполнения
-    from confluent_kafka import Consumer, KafkaError, Message, TopicPartition
+    from confluent_kafka import Consumer, KafkaError, Message
 
     # Потребитель Kafka — ручная фиксация смещений
     kafka_conf = {
@@ -114,6 +115,10 @@ def run_etl():
     topics = kafka_settings.topics_list
     logger.info('Подписка на топики: %s', ', '.join(topics))
     consumer.subscribe(topics)
+
+    # Initial poll to trigger partition assignment
+    assigned = consumer.poll(timeout=5.0)
+    logger.info('Инициализация назначения партиций: получено %d сообщений', assigned)
 
     last_flush_time = time.time()
     poll_timeout = 1.0  # секунд между опросами
@@ -291,17 +296,26 @@ def _commit_offsets(consumer, processor):
     
     Вызывается ТОЛЬКО после успешной вставки всех событий в ClickHouse.
     Смещения коммитятся только для тех событий, которые были реально записаны.
+    
+    Использует consumer.assignment() для получения корректного списка 
+    назначенных партиций и валидации topic-partition перед коммитом.
     """
     try:
         offsets_to_commit = processor.pending_offsets
         if not offsets_to_commit:
             return
 
-        # Commit stored offsets to Kafka
+        # Получаем назначенные партиции через consumer.assignment()
+        assigned_partitions = consumer.assignment()
+        
+        # Фильтруем смещения: коммитим только для назначенных партиций
         commit_list = []
-        for topic, partitions in offsets_to_commit.items():
-            for partition, offset in partitions.items():
-                commit_list.append(TopicPartition(topic, partition, offset))
+        for tp in assigned_partitions:
+            if tp.topic in offsets_to_commit:
+                if tp.partition in offsets_to_commit[tp.topic]:
+                    offset = offsets_to_commit[tp.topic][tp.partition]
+                    commit_list.append(TopicPartition(tp.topic, tp.partition, offset))
+        
         if commit_list:
             consumer.commit(offsets=commit_list)
 
