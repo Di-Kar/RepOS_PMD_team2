@@ -44,19 +44,15 @@ jobs:
           # pip install -r requirements.txt 
 
       - name: Lint with Ruff
-    #    run: ruff check auth_service/
-        run: ruff check --fix --unsafe-fixes .
+        run: ruff check .
   
       - name: Format check with Ruff
-        run: ruff format .
-    #    run: ruff format --check auth_service/
+        run: ruff format --check .
 
       - name: Type check with Mypy
-    #   run: mypy ugc_service
-    #   run: mypy auth_service
-        run: mypy .
+        run: mypy ugc_service
 
-    #  - name: Run tests with pytest
+   #   - name: Run tests with pytest
    #     run: pytest || true
 
   # Задача 5: Отправка уведомления в Telegram
