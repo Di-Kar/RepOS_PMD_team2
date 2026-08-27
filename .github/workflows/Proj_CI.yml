@@ -45,7 +45,7 @@ jobs:
 
       - name: Lint with Ruff
     #    run: ruff check auth_service/
-        run: ruff check --fix .
+        run: ruff check --fix --unsafe-fixes` .
   
       - name: Format check with Ruff
         run: ruff format .
