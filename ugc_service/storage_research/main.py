@@ -131,8 +131,10 @@ class MongoHandler:
                 await self.db.action_logs.insert_many(logs_batch)
                 logs_batch = []
         
-        if likes_batch: await self.db.user_likes.insert_many(likes_batch)
-        if logs_batch: await self.db.action_logs.insert_many(logs_batch)
+        if likes_batch:
+            await self.db.user_likes.insert_many(likes_batch)
+        if logs_batch:
+            await self.db.action_logs.insert_many(logs_batch)
 
         # NEW: Генерация неструктурированных данных
         print("[Mongo] Generating unstructured data...")
