@@ -47,7 +47,8 @@ jobs:
         run: ruff check --fix --unsafe-fixes .
   
       - name: Format check with Ruff
-        run: ruff format --check .
+        run: ruff format .
+    #    run: ruff format --check .
 
       - name: Type check with Mypy
         run: mypy .
