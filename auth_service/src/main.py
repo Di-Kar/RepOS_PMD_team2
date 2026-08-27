@@ -1,4 +1,5 @@
 """Точка входа FastAPI-приложения auth_service."""
+
 import logging
 from contextlib import asynccontextmanager
 
@@ -97,12 +98,15 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
     first = exc.errors()[0]
     # loc = ("body", "<имя поля>", ...); для ошибок всего тела поля может не быть.
     field = next((str(part) for part in first["loc"][1:]), None)
-    error_type = first["type"]
-
-    error_code = _VALIDATION_ERROR_CODES.get((field, error_type))
-    if error_code is None:
-        error_code = f"invalid_{field}" if field else "validation_error"
-
+    error_type = str(first["type"])  # ← Явно приводим к str
+    # Проверяем field на None перед использованием в ключе
+    if field is not None:
+        error_code = _VALIDATION_ERROR_CODES.get((field, error_type))
+        if error_code is None:
+            error_code = f"invalid_{field}"
+    else:
+        error_code = "invalid_validation_error"
+    
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"error": error_code, "message": first["msg"], "field": field},
