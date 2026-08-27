@@ -42,10 +42,14 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="AUTH_LOG_LEVEL")
 
     # JWT
-    secret_key: str = Field(alias="AUTH_SECRET_KEY")
+    # secret_key: str = Field(alias="AUTH_SECRET_KEY")
+    # error[mypy]: Missing named argument "AUTH_SECRET_KEY" for "Settings"  [call-arg]
+    
     algorithm: str = Field(default="HS256", alias="AUTH_JWT_ALGORITHM")
     # Секрет для SessionMiddleware (state/nonce OAuth-флоу), отдельный от JWT.
-    session_secret: str = Field(alias="AUTH_SESSION_SECRET")
+    # session_secret: str = Field(alias="AUTH_SESSION_SECRET")
+    # error[mypy]: Missing named argument "AUTH_SESSION_SECRET" for "Settings"  [call-arg]
+    
     access_token_expire_minutes: int = Field(default=30, alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, alias="AUTH_REFRESH_TOKEN_EXPIRE_DAYS")
 
@@ -82,7 +86,8 @@ class Settings(BaseSettings):
         alias="GOOGLE_REDIRECT_URI",
     )
     # Jaeger Configuration
-    jaeger_endpoint: str = Field(alias='JAEGER_ENDPOINT')
+    # jaeger_endpoint: str = Field(alias='JAEGER_ENDPOINT')
+    #error[mypy]: Missing named argument "JAEGER_ENDPOINT" for "Settings"  [call-arg]
 
     @property
     def postgres_dsn(self) -> str:
