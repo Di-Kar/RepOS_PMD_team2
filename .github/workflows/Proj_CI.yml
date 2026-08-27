@@ -65,8 +65,6 @@ jobs:
     runs-on: ubuntu-latest
     # Дополнительная страховка: запускаем только при успехе
     # if: success() 
-    # Заглушка при отсутствии Телеграм, чтобы не падал тест.
-    if: false
 
     steps:
       - name: Send success message to Telegram
