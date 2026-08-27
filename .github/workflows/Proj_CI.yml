@@ -43,12 +43,12 @@ jobs:
           pip install ruff mypy pytest
           # pip install -r requirements.txt 
 
-    # - name: Lint with Ruff
-    #    run: ruff check --fix --unsafe-fixes .
+      - name: Lint with Ruff
+        run: ruff check --fix --unsafe-fixes .
   
       - name: Format check with Ruff
-        run: ruff format .
-    #    run: ruff format --check .
+    #    run: ruff format .
+        run: ruff format --check .
 
       - name: Type check with Mypy
         run: mypy .
