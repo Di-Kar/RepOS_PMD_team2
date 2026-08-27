@@ -1,10 +1,27 @@
 [tool.ruff]
 line-length = 150
 
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "C4"]
+ignore = [
+    # Кавычки
+    "Q000",  # flake8-quotes: неправильный тип кавычек
+    "Q001",  # flake8-quotes: многострочные строки
+    "Q002",  # flake8-quotes: docstrings
+    "Q003",  # flake8-quotes: избегайте экранированных кавычек
+    
+    # Длина строки
+    "E501",  # line too long
+    
+    # Пустые строки
+    "E301",  # expected 1 blank line
+    "E302",  # expected 2 blank lines
+    "E303",  # too many blank lines
+    "E304",  # blank lines found after function decorator
+    "E305",  # expected 2 blank lines after class or function definition
+    "W391",  # blank line at end of file
+]
+
 [tool.ruff.format]
 quote-style = "preserve"
 line-ending = "lf"
-
-[tool.ruff.lint]
-select = ["E", "W", "F", "I", "UP", "B", "C4"]
-ignore = ["E501", "Q000", "Q001", "Q002", "Q003"]
