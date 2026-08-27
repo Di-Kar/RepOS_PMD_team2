@@ -1,0 +1,41 @@
+{
+    "database": "MONGO",
+    "test_date": "2026-08-26T17:54:15.485721Z",
+    "total_records_in_db": 10000000,
+    "unstructured_records": 500000,
+    "sla_requirement_ms": 200,
+    "results": [
+        {
+            "scenario": "Read User Likes",
+            "time_ms": 1.99
+        },
+        {
+            "scenario": "Read Movie Likes Count",
+            "time_ms": 1.41
+        },
+        {
+            "scenario": "Read Bookmarks",
+            "time_ms": 1.37
+        },
+        {
+            "scenario": "Write Like + Read Count",
+            "time_ms": 4.11
+        },
+        {
+            "scenario": "Insert Unstructured Doc",
+            "time_ms": 1.43
+        },
+        {
+            "scenario": "Read Unstructured Doc by ID",
+            "time_ms": 1.31
+        },
+        {
+            "scenario": "Query by Nested Field",
+            "time_ms": 1.47
+        },
+        {
+            "scenario": "Query Deep Nested Field",
+            "time_ms": 1.61
+        }
+    ]
+}
