@@ -1,6 +1,8 @@
+[tool.ruff]
+line-length = 150
+
 [tool.ruff.format]
 quote-style = "preserve"
-line-length = 150
 line-ending = "lf"
 
 [tool.ruff.lint]
