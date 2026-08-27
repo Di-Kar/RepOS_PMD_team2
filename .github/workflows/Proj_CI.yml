@@ -64,7 +64,7 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     # Дополнительная страховка: запускаем только при успехе
-    # if: success() 
+    if: success() 
 
     steps:
       - name: Send success message to Telegram
