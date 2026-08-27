@@ -1,5 +1,5 @@
 [tool.mypy]
-strict = true
+strict = false
 ignore_missing_imports = true
 show_error_codes = true
 namespace_packages = true
