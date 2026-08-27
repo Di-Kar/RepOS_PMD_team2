@@ -180,7 +180,7 @@ class ClickHouseLoader:
             agg['last_viewed_at'] = max(agg['last_viewed_at'], row.get('occurred_at', ''))
 
         ch_rows = []
-        for cid, agg in aggregated.items():
+        for _cid, agg in aggregated.items(): # B007[ruff] Loop control variable `cid` not used within loop body
             ch_rows.append({
                 'content_id': agg['content_id'],
                 'total_views': agg['total_views'],
