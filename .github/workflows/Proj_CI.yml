@@ -47,8 +47,8 @@ jobs:
     #    run: ruff check --fix --unsafe-fixes .
   
       - name: Format check with Ruff
-        run: ruff format .
-    #    run: ruff format --check .
+    #    run: ruff format auth_service/
+        run: ruff format --check auth_service/
 
       - name: Type check with Mypy
         run: mypy auth_service
