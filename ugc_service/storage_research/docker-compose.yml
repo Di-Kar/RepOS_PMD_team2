@@ -1,0 +1,55 @@
+
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: research_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongo/mongod.conf:/etc/mongod.conf
+      - mongo_data:/data/db
+    command: mongod --config /etc/mongod.conf
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  postgres:
+    image: postgres:15
+    container_name: research_postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: research
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d research"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    image: python:3.10-slim
+    container_name: research_app
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: >
+      sh -c "pip install -r requirements.txt &&
+             python main.py --db mongo --action generate &&
+             python main.py --db mongo --action benchmark &&
+             python main.py --db postgres --action generate &&
+             python main.py --db postgres --action benchmark"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+volumes:
+  mongo_data:
+  pg_data:
