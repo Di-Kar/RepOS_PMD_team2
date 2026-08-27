@@ -1,5 +1,5 @@
 [tool.ruff.format]
-quote-style = "single"
+quote-style = "preserve"
 line-ending = "lf"
 
 [tool.ruff.lint]
