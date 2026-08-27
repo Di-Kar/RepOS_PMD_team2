@@ -2,12 +2,9 @@
 strict = true
 ignore_missing_imports = true
 show_error_codes = true
-
-# Заставляет mypy учитывать структуру папок, предотвращая конфликт имён "src"
+namespace_packages = true
 explicit_package_bases = true
-
-# Указываем mypy искать пакеты в этих директориях
-mypy_path = "auth_service:analytics_etl"
+mypy_path = "."
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "C4"]
