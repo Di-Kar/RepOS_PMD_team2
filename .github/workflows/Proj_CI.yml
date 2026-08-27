@@ -43,8 +43,8 @@ jobs:
           pip install ruff mypy pytest pydantic pydantic-settings django django-stubs
           # pip install -r requirements.txt 
 
-    #  - name: Lint with Ruff
-    #    run: ruff check --fix --unsafe-fixes .
+      - name: Lint with Ruff
+        run: ruff check --fix --unsafe-fixes auth_service/
   
       - name: Format check with Ruff
         run: ruff format auth_service/
