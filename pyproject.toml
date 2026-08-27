@@ -4,7 +4,7 @@ ignore_missing_imports = true
 show_error_codes = true
 
 # Указываем mypy искать пакеты в этих директориях
-mypy_path = "auth_service:analytics_etl"
+mypy_path = "auth_service/src:analytics_etl/src"
 # Заставляет mypy учитывать структуру папок, предотвращая конфликт имён "src"
 explicit_package_bases = true
 
