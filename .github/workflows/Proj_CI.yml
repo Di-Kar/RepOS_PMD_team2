@@ -44,7 +44,7 @@ jobs:
           # pip install -r requirements.txt 
 
       - name: Lint with Ruff
-        run: ruff check --fix .
+        run: ruff check --fix --unsafe-fixes .
 #        run: ruff check .
   
       - name: Format check with Ruff
