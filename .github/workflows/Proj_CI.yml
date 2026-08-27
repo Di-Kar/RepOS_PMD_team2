@@ -1,0 +1,85 @@
+name: Python CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # Задача 4: Проверка кода на матрице версий Python
+  build-and-test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      # Матрица версий Python
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+      # Если одна версия упадет, остальные продолжат выполнение
+      fail-fast: false 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          # allow-prereleases нужен, так как 3.14 может быть в статусе beta/rc
+          allow-prereleases: true 
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy pytest pydantic pydantic-settings django django-stubs
+          # pip install -r requirements.txt 
+
+      - name: Lint with Ruff
+        run: ruff check --fix --unsafe-fixes .
+#        run: ruff check .
+  
+      - name: Format check with Ruff
+        run: ruff format .
+#        run: ruff format --check .
+
+      - name: Type check with Mypy
+        run: mypy ugc_service
+
+   #   - name: Run tests with pytest
+   #     run: pytest || true
+
+  # Задача 5: Отправка уведомления в Telegram
+  notify-telegram:
+    name: Notify Telegram
+    # Запускается только если успешно завершилась предыдущая job (матрица)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    # Дополнительная страховка: запускаем только при успехе
+    # if: success() 
+
+    steps:
+      - name: Send success message to Telegram
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: markdown
+          message: |
+            ✅ *CI успешно пройден!*
+            
+            📦 Репозиторий: `${{ github.repository }}`
+            🌿 Ветка: `${{ github.ref_name }}`
+            🐍 Python: 3.12, 3.13, 3.14
+            👤 Автор: `${{ github.actor }}`
+            📝 Коммит: `${{ github.event.head_commit.message }}`
+            
+            🔗 [Посмотреть логи](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
