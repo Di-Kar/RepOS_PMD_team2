@@ -1,12 +1,13 @@
-import asyncio
 import argparse
-import time
+import asyncio
+import datetime
+import json
 import random
 import string
-import json
-import datetime
-from motor.motor_asyncio import AsyncIOMotorClient
+import time
+
 import asyncpg
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # ================= CONFIG =================
 TOTAL_RECORDS = 10_000_000
@@ -108,8 +109,8 @@ class MongoHandler:
         movies_batch = []
         for i in range(MOVIES_COUNT):
             movies_batch.append({
-                "_id": i, "title": f"Movie {i}", 
-                "avg_rating": round(random.uniform(1, 5), 1), 
+                "_id": i, "title": f"Movie {i}",
+                "avg_rating": round(random.uniform(1, 5), 1),
                 "total_likes": random.randint(0, 10000)
             })
         await self.db.movies.insert_many(movies_batch)
