@@ -44,15 +44,17 @@ jobs:
           # pip install -r requirements.txt 
 
       - name: Lint with Ruff
-        run: ruff check --fix --unsafe-fixes auth_service/
+    #    run: ruff check auth_service/
+        run: ruff check .
   
       - name: Format check with Ruff
-        run: ruff format auth_service/
+        run: ruff format .
     #    run: ruff format --check auth_service/
 
       - name: Type check with Mypy
-        run: mypy auth_service
-    #   run: mypy .
+    #   run: mypy ugc_service
+    #   run: mypy auth_service
+        run: mypy .
 
     #  - name: Run tests with pytest
    #     run: pytest || true
