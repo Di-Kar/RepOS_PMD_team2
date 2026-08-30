@@ -44,11 +44,11 @@ jobs:
           # pip install -r requirements.txt 
 
       - name: Lint with Ruff
-#        run: ruff check --fix --unsafe-fixes .
+ #       run: ruff check --fix --unsafe-fixes .
         run: ruff check ugc_service\
   
       - name: Format check with Ruff
-#        run: ruff format .
+ #       run: ruff format . 
         run: ruff format --check ugc_service\
 
       - name: Type check with Mypy

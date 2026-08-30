@@ -1,0 +1,118 @@
+
+services:
+
+  # Обратите внимание: не стоит использовать для ELK тот же ES, который задействован для полнотекстового поиска в вашем сервисе
+  elasticsearch-elk:
+    image: elasticsearch:8.15.0
+    container_name: elasticsearch-elk
+    logging:
+      driver: gelf
+      options:
+        gelf-address: udp://127.0.0.1:5044
+        tag: "elasticsearch"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9201:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    #  - ./deploy/esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+    networks:
+      - backend
+
+  kibana-elk:
+    image: kibana:8.15.0
+    container_name: kibana-elk
+    logging:
+      driver: gelf
+      options:
+        gelf-address: udp://127.0.0.1:5044
+        tag: "kibana"
+    ports:
+      - "5602:5601"
+    depends_on:
+      elasticsearch-elk:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch-elk:9200
+      - xpack.security.enabled=false
+      - xpack.encryptedSavedObjects.encryptionKey=super_secret_32_character_key_for_kibana_8x
+    networks:
+      - backend
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.15.0
+    container_name: logstash
+    depends_on:
+      elasticsearch-elk:
+        condition: service_healthy
+    ports:
+      - "5045:5045/tcp"
+      - "5044:5044/udp"
+
+    environment:
+      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
+      XPACK_MONITORING_ENABLED: "false"
+      ES_HOST: "elasticsearch-elk:9200"
+    volumes:
+      - ./deploy/logstash.conf:/config/logstash.conf:ro
+    command: logstash -f /config/logstash.conf
+
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    logging:
+      driver: gelf
+      options:
+        gelf-address: udp://127.0.0.1:5044 
+        tag: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - backend
+
+  filebeat:
+    image: elastic/filebeat:8.15.0
+    container_name: filebeat
+    user: root 
+    logging:
+      driver: gelf
+      options:
+        gelf-address: udp://127.0.0.1:5044
+        tag: "filebeat"
+    volumes:
+      - ./deploy/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      # Чтение реальных логов контейнеров Docker
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Доступ к API Docker для получения метаданных (имени контейнера "nginx")
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    command: filebeat -e -strict.perms=false
+    depends_on:
+      - nginx
+      - logstash
+      - elasticsearch-elk
+      - kibana-elk
+    links:
+      - logstash
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  es_data:

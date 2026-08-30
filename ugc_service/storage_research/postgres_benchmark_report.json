@@ -1,0 +1,41 @@
+{
+    "database": "POSTGRES",
+    "test_date": "2026-08-26T17:59:14.973518Z",
+    "total_records_in_db": 10000000,
+    "unstructured_records": 500000,
+    "sla_requirement_ms": 200,
+    "results": [
+        {
+            "scenario": "Read User Likes",
+            "time_ms": 2.97
+        },
+        {
+            "scenario": "Read Movie Likes Count",
+            "time_ms": 1.79
+        },
+        {
+            "scenario": "Read Bookmarks",
+            "time_ms": 2.05
+        },
+        {
+            "scenario": "Write Like + Read Count",
+            "time_ms": 10.59
+        },
+        {
+            "scenario": "Insert Unstructured Doc",
+            "time_ms": 5.62
+        },
+        {
+            "scenario": "Read Unstructured Doc by ID",
+            "time_ms": 1.58
+        },
+        {
+            "scenario": "Query by Nested Field",
+            "time_ms": 1.91
+        },
+        {
+            "scenario": "Query Deep Nested Field",
+            "time_ms": 1.96
+        }
+    ]
+}
