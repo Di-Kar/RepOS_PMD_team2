@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException
 from httpx import AsyncClient, HTTPError
 from pydantic import BaseModel, Field
 
-
 router = APIRouter(prefix='/api/v1/auth', tags=['Авторизация'])
 logger = logging.getLogger(__name__)
 
