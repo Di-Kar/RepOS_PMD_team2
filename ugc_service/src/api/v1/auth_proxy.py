@@ -2,11 +2,10 @@
 
 import logging
 
+from config import settings
 from fastapi import APIRouter, HTTPException
 from httpx import AsyncClient, HTTPError
 from pydantic import BaseModel, Field
-
-from config import settings
 
 
 router = APIRouter(prefix='/api/v1/auth', tags=['Авторизация'])

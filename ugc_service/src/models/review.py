@@ -3,8 +3,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from bson import ObjectId
 from beanie import Document
+from bson import ObjectId
 from pydantic import Field
 
 
