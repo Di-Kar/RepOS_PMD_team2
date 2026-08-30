@@ -36,7 +36,11 @@ class UserContext:
 class AuthServiceClient:
     """Клиент для вызова auth_service."""
 
-    def __init__(self, base_url: str = settings.auth_service_url, timeout: float = settings.auth_request_timeout):
+    def __init__(
+        self,
+        base_url: str = settings.auth_service_url,
+        timeout: float = settings.auth_request_timeout,
+    ):
         self.base_url = base_url
         self.timeout = timeout
 

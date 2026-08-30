@@ -30,10 +30,12 @@ async def init_cluster():
         db = client[settings.mongo_db]
 
         for collection_name, shard_key in shard_keys.items():
-            await db.command({
-                'shardCollection': f'{settings.mongo_db}.{collection_name}',
-                'key': shard_key,
-            })
+            await db.command(
+                {
+                    'shardCollection': f'{settings.mongo_db}.{collection_name}',
+                    'key': shard_key,
+                }
+            )
             logger.info(
                 'Shard key создан для коллекции %s: %s',
                 collection_name,

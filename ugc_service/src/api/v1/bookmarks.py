@@ -34,7 +34,7 @@ async def add_bookmark(
         example=str(EXAMPLE_FILM_ID),
         description='UUID фильма',
     ),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(
@@ -65,7 +65,7 @@ async def remove_bookmark(
         example=str(EXAMPLE_FILM_ID),
         description='UUID фильма',
     ),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(
@@ -89,7 +89,7 @@ async def remove_bookmark(
 )
 async def get_bookmarks(
     pagination: PaginationParams = Depends(PaginationParams),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(

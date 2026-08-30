@@ -43,9 +43,15 @@ async def get_film_reviews(
     }
     sort_field = sort_map.get(sort_by, [('likes_count', -1)])
 
-    reviews = await Review.find(
-        Review.film_id == film_id,
-    ).sort(*sort_field).skip(skip).limit(limit).to_list()
+    reviews = (
+        await Review.find(
+            Review.film_id == film_id,
+        )
+        .sort(*sort_field)
+        .skip(skip)
+        .limit(limit)
+        .to_list()
+    )
     return reviews
 
 
@@ -134,7 +140,9 @@ async def vote_on_review(
             review.dislikes_count += 1
         await review.save()
 
-    logger.info('Голос добавлен: user=%s review=%s like=%s', user_id, review_id, is_like)
+    logger.info(
+        'Голос добавлен: user=%s review=%s like=%s', user_id, review_id, is_like
+    )
     return vote
 
 

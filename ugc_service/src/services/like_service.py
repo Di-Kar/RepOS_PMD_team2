@@ -22,7 +22,9 @@ async def add_or_update_like(
         existing.rating = rating
         existing.updated_at = existing.updated_at.__class__.utcnow()
         await existing.save()
-        logger.info('Лайк обновлён: user=%s film=%s rating=%d', user_id, film_id, rating)
+        logger.info(
+            'Лайк обновлён: user=%s film=%s rating=%d', user_id, film_id, rating
+        )
         return existing
 
     like = Like(user_id=user_id, film_id=film_id, rating=rating)

@@ -93,7 +93,7 @@ async def create_review(
         example=9,
         description='Оценка от 0 до 10',
     ),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(
@@ -226,7 +226,7 @@ async def update_review(
         le=10,
         example=10,
     ),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(
@@ -262,7 +262,7 @@ async def delete_review(
         example='550e8400e29b41d4a7164466',
         description='ObjectId рецензии',
     ),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(
@@ -270,7 +270,9 @@ async def delete_review(
             detail='Требуется авторизация',
         )
 
-    success = await review_service.delete_review(ObjectId(review_id), UUID(user.user_id))
+    success = await review_service.delete_review(
+        ObjectId(review_id), UUID(user.user_id)
+    )
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -295,7 +297,7 @@ async def vote_on_review(
         example=True,
         description='True = лайк, False = дизлайк',
     ),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(

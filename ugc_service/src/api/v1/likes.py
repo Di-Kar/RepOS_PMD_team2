@@ -32,7 +32,7 @@ async def add_like(
         example=8,
         description='Оценка от 0 (дизлайк) до 10 (лайк)',
     ),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(
@@ -66,7 +66,7 @@ async def remove_like(
         example=str(EXAMPLE_FILM_ID),
         description='UUID фильма',
     ),
-    user = Depends(get_optional_user),
+    user=Depends(get_optional_user),
 ):
     if user is None:
         raise HTTPException(
