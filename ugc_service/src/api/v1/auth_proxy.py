@@ -16,14 +16,14 @@ class LoginRequest(BaseModel):
 
     email: str = Field(
         ...,
-        example='test_e2e@example.com',
         description='Email пользователя (логин)',
+        examples=['test_e2e@example.com'],
     )
     password: str = Field(
         ...,
         min_length=8,
-        example='TestPass123!',
         description='Пароль пользователя',
+        examples=['TestPass123!'],
     )
 
 

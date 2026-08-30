@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import asynccontextmanager
+from logging import config as logging_config
 
 from api.v1.auth_proxy import router as auth_proxy_router
 from api.v1.bookmarks import router as bookmarks_router
@@ -14,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.security import OAuth2PasswordBearer
 from logger import LOGGING
 
-logging.config.dictConfig(LOGGING)
+logging_config.dictConfig(LOGGING)
 logger = logging.getLogger(__name__)
 
 

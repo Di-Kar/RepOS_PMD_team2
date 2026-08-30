@@ -1,6 +1,8 @@
 """Настройка логирования."""
 
-LOGGING = {
+from typing import Final
+
+LOGGING: Final = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
