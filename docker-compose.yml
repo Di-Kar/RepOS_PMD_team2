@@ -9,6 +9,16 @@ volumes:
   clickhouse_data:
   kafka_data:
   etl_analytics_state:
+  # MongoDB Cluster data
+  mongo_config_data_0:
+  mongo_config_data_1:
+  mongo_config_data_2:
+  mongo_shard1_data_0:
+  mongo_shard1_data_1:
+  mongo_shard1_data_2:
+  mongo_shard2_data_0:
+  mongo_shard2_data_1:
+  mongo_shard2_data_2:
 
 networks:
   frontend:
@@ -448,6 +458,286 @@ services:
     networks:
       - backend
 
+# ============================================================================ #
+#  MongoDB Cluster (11 контейнеров: 2 шарда × 3 реплики + 3 config + 2 mongos) #
+# ============================================================================ #
+
+  # --- Config Servers (реплика сет "config") ---
+  mongo_config-0:
+    image: mongo:6.0
+    container_name: mongo_config-0
+    command: mongod --configsvr --replSet config --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_config_data_0:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  mongo_config-1:
+    image: mongo:6.0
+    container_name: mongo_config-1
+    command: mongod --configsvr --replSet config --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_config_data_1:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  mongo_config-2:
+    image: mongo:6.0
+    container_name: mongo_config-2
+    command: mongod --configsvr --replSet config --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_config_data_2:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # --- Shard 1 Replica Set ---
+  mongo_shard1-0:
+    image: mongo:6.0
+    container_name: mongo_shard1-0
+    command: mongod --shardsvr --replSet shard1 --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_shard1_data_0:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  mongo_shard1-1:
+    image: mongo:6.0
+    container_name: mongo_shard1-1
+    command: mongod --shardsvr --replSet shard1 --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_shard1_data_1:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  mongo_shard1-2:
+    image: mongo:6.0
+    container_name: mongo_shard1-2
+    command: mongod --shardsvr --replSet shard1 --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_shard1_data_2:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # --- Shard 2 Replica Set ---
+  mongo_shard2-0:
+    image: mongo:6.0
+    container_name: mongo_shard2-0
+    command: mongod --shardsvr --replSet shard2 --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_shard2_data_0:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  mongo_shard2-1:
+    image: mongo:6.0
+    container_name: mongo_shard2-1
+    command: mongod --shardsvr --replSet shard2 --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_shard2_data_1:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  mongo_shard2-2:
+    image: mongo:6.0
+    container_name: mongo_shard2-2
+    command: mongod --shardsvr --replSet shard2 --dbpath /data/db --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    volumes:
+      - mongo_shard2_data_2:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # --- Mongos Routers ---
+  mongo_mongos-0:
+    image: mongo:6.0
+    container_name: mongo_mongos-0
+    command: mongos --configdb config/mongo_config-0:27017,mongo_config-1:27017,mongo_config-2:27017 --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    ports:
+      - "27017:27017"
+    depends_on:
+      - mongo_config-0
+      - mongo_config-1
+      - mongo_config-2
+    networks:
+      - backend
+    restart: unless-stopped
+
+  mongo_mongos-1:
+    image: mongo:6.0
+    container_name: mongo_mongos-1
+    command: mongos --configdb config/mongo_config-0:27017,mongo_config-1:27017,mongo_config-2:27017 --port 27017 --bind_ip_all
+    expose:
+      - "27017"
+    ports:
+      - "27018:27017"
+    depends_on:
+      - mongo_config-0
+      - mongo_config-1
+      - mongo_config-2
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # --- MongoDB Cluster Initialization (one-shot) ---
+  mongo_init:
+    image: mongo:6.0
+    container_name: mongo_init
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Initializing config replica set..."
+        mongosh --host mongo_config-0:27017 --eval '
+          rs.initiate({
+            _id: "config",
+            configsvr: true,
+            members: [
+              { _id: 0, host: "mongo_config-0:27017" },
+              { _id: 1, host: "mongo_config-1:27017" },
+              { _id: 2, host: "mongo_config-2:27017" }
+            ]
+          })
+        ' 2>/dev/null || echo "Config replica set already initialized"
+
+        echo "Initializing shard1 replica set..."
+        mongosh --host mongo_shard1-0:27017 --eval '
+          rs.initiate({
+            _id: "shard1",
+            members: [
+              { _id: 0, host: "mongo_shard1-0:27017" },
+              { _id: 1, host: "mongo_shard1-1:27017" },
+              { _id: 2, host: "mongo_shard1-2:27017" }
+            ]
+          })
+        ' 2>/dev/null || echo "Shard1 replica set already initialized"
+
+        echo "Initializing shard2 replica set..."
+        mongosh --host mongo_shard2-0:27017 --eval '
+          rs.initiate({
+            _id: "shard2",
+            members: [
+              { _id: 0, host: "mongo_shard2-0:27017" },
+              { _id: 1, host: "mongo_shard2-1:27017" },
+              { _id: 2, host: "mongo_shard2-2:27017" }
+            ]
+          })
+        ' 2>/dev/null || echo "Shard2 replica set already initialized"
+
+        echo "Waiting for all primaries to be elected (up to 90s)..."
+        for i in $(seq 1 45); do
+          CONFIG_PRIMARY=$(mongosh --host mongo_config-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
+          SHARD1_PRIMARY=$(mongosh --host mongo_shard1-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
+          SHARD2_PRIMARY=$(mongosh --host mongo_shard2-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
+          if [ "$CONFIG_PRIMARY" = "true" ] && [ "$SHARD1_PRIMARY" = "true" ] && [ "$SHARD2_PRIMARY" = "true" ]; then
+            echo "All primaries elected!"
+            break
+          fi
+          if [ $((i % 10)) -eq 0 ]; then
+            echo "Waiting for primaries... ($i/45)"
+          fi
+          sleep 2
+        done
+
+        echo "Waiting for mongos to be ready..."
+        for i in $(seq 1 30); do
+          if mongosh --host mongo_mongos-0:27017 --eval "db.adminCommand('ping')" >/dev/null 2>&1; then
+            echo "Mongos is ready!"
+            break
+          fi
+          sleep 2
+        done
+
+        echo "Adding shards to cluster..."
+        mongosh --host mongo_mongos-0:27017 --eval '
+          sh.addShard("shard1/mongo_shard1-0:27017,mongo_shard1-1:27017,mongo_shard1-2:27017");
+          sh.addShard("shard2/mongo_shard2-0:27017,mongo_shard2-1:27017,mongo_shard2-2:27017");
+        '
+
+        echo "Enabling sharding for database ugc_service..."
+        mongosh --host mongo_mongos-0:27017 --eval '
+          sh.enableSharding("ugc_service");
+        '
+
+        echo "Setting shard keys..."
+        mongosh --host mongo_mongos-0:27017 --eval '
+          sh.shardCollection("ugc_service.bookmarks", { user_id: "hashed" });
+          sh.shardCollection("ugc_service.likes", { user_id: "hashed" });
+          sh.shardCollection("ugc_service.reviews", { film_id: 1 });
+          sh.shardCollection("ugc_service.review_votes", { review_id: 1 });
+        '
+
+        echo "MongoDB cluster initialization complete!"
+    depends_on:
+      - mongo_config-0
+      - mongo_config-1
+      - mongo_config-2
+      - mongo_shard1-0
+      - mongo_shard1-1
+      - mongo_shard1-2
+      - mongo_shard2-0
+      - mongo_shard2-1
+      - mongo_shard2-2
+      - mongo_mongos-0
+      - mongo_mongos-1
+    networks:
+      - backend
+
+  # --- ugc_service ---
+  ugc_service:
+    build:
+      context: ./ugc_service
+      dockerfile: Dockerfile
+    container_name: ugc_service
+    env_file:
+      - ./.env
+    environment:
+      - MONGO_URI=mongodb://mongo_mongos-0:27017,mongo_mongos-1:27017
+      - MONGO_DB=ugc_service
+      - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
+    ports:
+      - "8003:8000"
+    depends_on:
+      - mongo_mongos-0
+      - mongo_init
+      - auth_service
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - backend
+
   # Все тесты проекта (tests/): HTTP-тесты async_api, auth_service, event_api
   # (event_api смоук-тесты дополнительно вычитывают Kafka-топики через
   # aiokafka, чтобы подтвердить доставку опубликованных событий)
@@ -467,6 +757,7 @@ services:
       - ./analytics_etl:/analytics_etl
       - ./admin_panel:/admin_panel
       - ./shared:/shared
+      - ./ugc_service:/ugc_service
     command: sh -c "
       pytest /tests -rs --ignore=/tests/admin_panel
       && cd /admin_panel && python manage.py test /tests/admin_panel"
@@ -476,11 +767,15 @@ services:
       - API_HOST=async_api
       - AUTH_API_HOST=auth_service
       - EVENT_API_HOST=event_api
+      - UGC_API_HOST=ugc_service
+      - UGC_API_PORT=8000
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ANALYTICS_CLICKHOUSE_HOST=clickhouse
       - ANALYTICS_CLICKHOUSE_PORT=8123
       - ANALYTICS_CLICKHOUSE_NATIVE_PORT=9000
+      - MONGO_HOST=mongo_mongos-0
+      - MONGO_PORT=27017
     env_file:
       - ./.env
     depends_on:
@@ -506,5 +801,9 @@ services:
         condition: service_started
       analytics_etl:
         condition: service_started
+      ugc_service:
+        condition: service_healthy
+      mongo_init:
+        condition: service_completed_successfully
     networks:
       - backend
