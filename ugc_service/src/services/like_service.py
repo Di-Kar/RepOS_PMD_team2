@@ -1,6 +1,7 @@
 """Сервис работы с лайками."""
 
 import logging
+from datetime import datetime
 from uuid import UUID
 
 from models.like import Like
@@ -20,7 +21,7 @@ async def add_or_update_like(
     )
     if existing:
         existing.rating = rating
-        existing.updated_at = existing.updated_at.__class__.utcnow()
+        existing.updated_at = datetime.utcnow()
         await existing.save()
         logger.info(
             'Лайк обновлён: user=%s film=%s rating=%d', user_id, film_id, rating

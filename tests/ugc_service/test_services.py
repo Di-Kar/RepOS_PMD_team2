@@ -59,9 +59,7 @@ class TestBookmarkService:
         mock_bookmark.created_at = MagicMock()
         mock_bookmark_cls.find = MagicMock()
         mock_query = MagicMock()
-        mock_query.skip = MagicMock()
-        mock_query.limit = MagicMock()
-        mock_query.limit.return_value.to_list = AsyncMock(return_value=[mock_bookmark])
+        mock_query.to_list = AsyncMock(return_value=[mock_bookmark])
         mock_bookmark_cls.find.return_value = mock_query
 
         from services.bookmark_service import get_user_bookmarks
@@ -170,11 +168,16 @@ class TestReviewService:
         mock_vote.insert.assert_called_once()
 
     @patch('services.review_service.Review')
-    async def test_delete_review(self, mock_review_cls, mock_beanie):
+    @patch('services.review_service.ReviewVote')
+    async def test_delete_review(self, mock_vote_cls, mock_review_cls, mock_beanie):
         mock_review = MagicMock()
         mock_review.user_id = uuid4()
         mock_review.delete = AsyncMock()
         mock_review_cls.get = AsyncMock(return_value=mock_review)
+
+        mock_vote_query = MagicMock()
+        mock_vote_query.delete = AsyncMock()
+        mock_vote_cls.find = MagicMock(return_value=mock_vote_query)
 
         from services.review_service import delete_review
 
@@ -184,6 +187,7 @@ class TestReviewService:
 
         assert result is True
         mock_review.delete.assert_called_once()
+        mock_vote_query.delete.assert_called_once()
 
     @patch('services.review_service.Review')
     async def test_delete_review_not_owner(self, mock_review_cls, mock_beanie):
