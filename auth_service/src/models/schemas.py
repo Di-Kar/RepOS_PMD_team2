@@ -10,14 +10,20 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 class BaseSchema(BaseModel):
     """Base schema with common configuration."""
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(
+        from_attributes=True, populate_by_name=True, use_enum_values=True
+    )
 
 
 class UserRegisterRequest(BaseSchema):
     """Запрос регистрации. Email используется как логин."""
 
-    email: EmailStr = Field(..., min_length=5, max_length=255, description="Email (login)")
-    password: str = Field(..., min_length=8, max_length=255, description="User password")
+    email: EmailStr = Field(
+        ..., min_length=5, max_length=255, description="Email (login)"
+    )
+    password: str = Field(
+        ..., min_length=8, max_length=255, description="User password"
+    )
     full_name: Optional[str] = Field(None, max_length=100, description="Full name")
 
 
@@ -36,14 +42,18 @@ class UserResponse(BaseSchema):
     id: uuid.UUID = Field(..., description="User ID")
     email: str = Field(..., description="Email (login)")
     full_name: str = Field(default="", description="Full name")
-    roles: List[str] = Field(default_factory=list, description="Role names assigned to the user")
+    roles: List[str] = Field(
+        default_factory=list, description="Role names assigned to the user"
+    )
     is_superuser: bool = Field(default=False, description="Superuser flag")
 
 
 class UserUpdateRequest(BaseSchema):
     """Запрос обновления профиля: менять можно только full_name."""
 
-    full_name: str = Field(..., min_length=1, max_length=100, description="New full name")
+    full_name: str = Field(
+        ..., min_length=1, max_length=100, description="New full name"
+    )
 
 
 class UserLoginRequest(BaseSchema):
@@ -79,15 +89,21 @@ class RoleCreate(BaseSchema):
 
     name: str = Field(..., min_length=3, max_length=100, description="Unique role name")
     description: Optional[str] = Field(None, description="Role description")
-    permissions: List[str] = Field(default_factory=list, description="Permission strings, e.g. video:watch")
+    permissions: List[str] = Field(
+        default_factory=list, description="Permission strings, e.g. video:watch"
+    )
 
 
 class RoleUpdate(BaseSchema):
     """Schema for role update."""
 
-    name: Optional[str] = Field(None, min_length=3, max_length=100, description="New role name")
+    name: Optional[str] = Field(
+        None, min_length=3, max_length=100, description="New role name"
+    )
     description: Optional[str] = Field(None, description="New role description")
-    permissions: Optional[List[str]] = Field(None, description="Permission strings, e.g. video:watch")
+    permissions: Optional[List[str]] = Field(
+        None, description="Permission strings, e.g. video:watch"
+    )
 
 
 class RoleResponse(BaseSchema):
@@ -96,7 +112,9 @@ class RoleResponse(BaseSchema):
     id: uuid.UUID = Field(..., description="Role ID")
     name: str = Field(..., description="Role name")
     description: Optional[str] = Field(None, description="Role description")
-    permissions: List[str] = Field(default_factory=list, description="Permission strings")
+    permissions: List[str] = Field(
+        default_factory=list, description="Permission strings"
+    )
     created_at: datetime = Field(..., description="Creation date")
 
 
@@ -126,7 +144,9 @@ class LoginHistoryItem(BaseSchema):
     user_agent: Optional[str] = Field(None, description="User agent")
     ip_address: Optional[str] = Field(None, description="IP address")
     fingerprint: Optional[str] = Field(None, description="Device fingerprint")
-    timestamp: datetime = Field(..., validation_alias="login_at", description="Login timestamp")
+    timestamp: datetime = Field(
+        ..., validation_alias="login_at", description="Login timestamp"
+    )
     success: bool = Field(..., description="Login success status")
 
 
@@ -143,14 +163,23 @@ class LoginHistoryResponse(BaseSchema):
 class PermissionCheckRequest(BaseSchema):
     """Schema for permission check request."""
 
-    permission: str = Field(..., min_length=3, max_length=100, description="Permission to check, e.g. video:delete")
+    permission: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        description="Permission to check, e.g. video:delete",
+    )
 
 
 class PermissionCheckResponse(BaseSchema):
     """Schema for permission check response."""
 
-    has_permission: bool = Field(..., description="Whether the requested permission is granted")
-    granted_permissions: List[str] = Field(default_factory=list, description="All permissions the user has")
+    has_permission: bool = Field(
+        ..., description="Whether the requested permission is granted"
+    )
+    granted_permissions: List[str] = Field(
+        default_factory=list, description="All permissions the user has"
+    )
     missing_permissions: List[str] = Field(
         default_factory=list, description="Requested permissions the user lacks"
     )
@@ -199,7 +228,9 @@ class PaginatedResponse(BaseSchema, Generic[T]):
     pages: int = Field(..., description="Total pages count")
 
     @classmethod
-    def create(cls, items: List[T], total: int, page: int, size: int) -> "PaginatedResponse[T]":
+    def create(
+        cls, items: List[T], total: int, page: int, size: int
+    ) -> "PaginatedResponse[T]":
         """Create paginated response with calculated pages."""
         pages = (total + size - 1) // size if size > 0 else 0
         return cls(items=items, total=total, page=page, size=size, pages=pages)
@@ -214,6 +245,8 @@ class TokenPayload(BaseSchema):
     is_superuser: bool = Field(False, description="Superuser flag")
     token_type: str = Field(..., description="Token type (access/refresh)")
     jti: str = Field(..., description="JWT ID")
-    session_id: str = Field(..., description="Session ID (общий у access и refresh пары)")
+    session_id: str = Field(
+        ..., description="Session ID (общий у access и refresh пары)"
+    )
     exp: int = Field(..., description="Expiration timestamp")
     iat: int = Field(..., description="Issued at timestamp")

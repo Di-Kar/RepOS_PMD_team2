@@ -28,8 +28,8 @@ class GenreService(BaseService[Genre]):
 
 @lru_cache
 def get_genre_service(
-        storage: AbstractStorage = Depends(get_storage),
-        redis: Redis = Depends(get_redis),
+    storage: AbstractStorage = Depends(get_storage),
+    redis: Redis = Depends(get_redis),
 ) -> GenreService:
     cache = RedisCache(redis, Genre)
     return GenreService(storage, cache)

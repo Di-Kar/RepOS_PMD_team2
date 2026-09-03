@@ -5,6 +5,7 @@
 circuit breaker: при любой проблеме с auth_service запрос просто
 обслуживается как анонимный (см. get_current_user).
 """
+
 import logging
 from typing import List, Optional
 
@@ -37,7 +38,9 @@ class AuthServiceClient:
         if not token:
             return None
         if not self._breaker.allow_request():
-            logger.debug('auth_service circuit breaker открыт — считаем пользователя анонимным')
+            logger.debug(
+                'auth_service circuit breaker открыт — считаем пользователя анонимным'
+            )
             return None
         try:
             response = await self._client.get(

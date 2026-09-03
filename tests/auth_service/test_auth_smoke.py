@@ -1,4 +1,5 @@
 """HTTP-смоук-тесты /api/v1/auth: регистрация, вход, токены, профиль, история."""
+
 import uuid
 
 from .conftest import BASE_URL, PASSWORD, bearer, post_json
@@ -38,7 +39,10 @@ class TestRegister:
         status, body = await post_json(
             session,
             f"{BASE_URL}/auth/register",
-            {"email": f"smoke_{uuid.uuid4().hex[:12]}@example.com", "password": "short"},
+            {
+                "email": f"smoke_{uuid.uuid4().hex[:12]}@example.com",
+                "password": "short",
+            },
         )
         assert status == 400, body
         assert body["error"] == "too_short_password"
@@ -61,7 +65,10 @@ class TestLogin:
         status, _ = await post_json(
             session,
             f"{BASE_URL}/auth/login",
-            {"email": f"ghost_{uuid.uuid4().hex[:12]}@example.com", "password": PASSWORD},
+            {
+                "email": f"ghost_{uuid.uuid4().hex[:12]}@example.com",
+                "password": PASSWORD,
+            },
         )
         assert status == 401
 
@@ -82,10 +89,14 @@ class TestTokens:
             assert response.status == 401
 
     async def test_logout_kills_session(self, session, tokens):
-        async with session.post(f"{BASE_URL}/auth/logout", headers=bearer(tokens)) as response:
+        async with session.post(
+            f"{BASE_URL}/auth/logout", headers=bearer(tokens)
+        ) as response:
             assert response.status == 204
 
-        async with session.get(f"{BASE_URL}/auth/profile", headers=bearer(tokens)) as response:
+        async with session.get(
+            f"{BASE_URL}/auth/profile", headers=bearer(tokens)
+        ) as response:
             assert response.status == 401
 
     async def test_logout_all_keeps_current_session(self, session, new_user, login):
@@ -157,7 +168,9 @@ class TestHistory:
         await login(shared_user)
         tokens = await login(shared_user)
 
-        async with session.get(f"{BASE_URL}/auth/history", headers=bearer(tokens)) as response:
+        async with session.get(
+            f"{BASE_URL}/auth/history", headers=bearer(tokens)
+        ) as response:
             assert response.status == 200
             body = await response.json()
         assert body["total"] >= 2

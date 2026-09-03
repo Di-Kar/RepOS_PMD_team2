@@ -40,16 +40,20 @@ class DataTransformer:
         genres = []
         for row in raw_rows:
             try:
-                genres.append(Genre(
-                    id=row['id'],
-                    name=row['name'],
-                    description=row.get('description'),
-                ))
+                genres.append(
+                    Genre(
+                        id=row['id'],
+                        name=row['name'],
+                        description=row.get('description'),
+                    )
+                )
             except Exception as e:
                 logger.error('Ошибка валидации жанра id=%s: %s', row.get('id'), e)
         return genres
 
-    def transform_persons(self, raw_rows: List[dict], film_roles: List[dict]) -> List[Person]:
+    def transform_persons(
+        self, raw_rows: List[dict], film_roles: List[dict]
+    ) -> List[Person]:
         # person_id -> film_work_id -> {roles}
         films_by_person: dict = defaultdict(lambda: defaultdict(set))
         for row in film_roles:
@@ -62,11 +66,13 @@ class DataTransformer:
                     PersonFilm(uuid=film_id, roles=sorted(roles))
                     for film_id, roles in films_by_person.get(row['id'], {}).items()
                 ]
-                persons.append(Person(
-                    id=row['id'],
-                    full_name=row['full_name'],
-                    films=films,
-                ))
+                persons.append(
+                    Person(
+                        id=row['id'],
+                        full_name=row['full_name'],
+                        films=films,
+                    )
+                )
             except Exception as e:
                 logger.error('Ошибка валидации персоны id=%s: %s', row.get('id'), e)
         return persons

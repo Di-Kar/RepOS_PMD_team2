@@ -1,4 +1,5 @@
 """Конфигурация event_api из переменных окружения."""
+
 from pathlib import Path
 
 from pydantic import Field
@@ -23,9 +24,15 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, alias="DEBUG")
 
     # Kafka
-    kafka_bootstrap_servers: str = Field(default="localhost:9092", alias="EVENTS_KAFKA_BOOTSTRAP_SERVERS")
-    kafka_topic_clicks: str = Field(default="analytics.clicks.v1", alias="EVENTS_KAFKA_TOPIC_CLICKS")
-    kafka_topic_pageviews: str = Field(default="analytics.pageviews.v1", alias="EVENTS_KAFKA_TOPIC_PAGEVIEWS")
+    kafka_bootstrap_servers: str = Field(
+        default="localhost:9092", alias="EVENTS_KAFKA_BOOTSTRAP_SERVERS"
+    )
+    kafka_topic_clicks: str = Field(
+        default="analytics.clicks.v1", alias="EVENTS_KAFKA_TOPIC_CLICKS"
+    )
+    kafka_topic_pageviews: str = Field(
+        default="analytics.pageviews.v1", alias="EVENTS_KAFKA_TOPIC_PAGEVIEWS"
+    )
     kafka_topic_custom_events: str = Field(
         default="analytics.custom_events.v1", alias="EVENTS_KAFKA_TOPIC_CUSTOM_EVENTS"
     )
@@ -42,8 +49,12 @@ class Settings(BaseSettings):
     # (Redis и т.п.), поэтому лимитер работает in-memory — per-instance, а не
     # общий на все реплики при горизонтальном масштабировании (NFR-11).
     rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
-    rate_limit_events: str = Field(default="200/minute", alias="EVENTS_RATE_LIMIT_EVENTS")
-    rate_limit_default: str = Field(default="300/minute", alias="EVENTS_RATE_LIMIT_DEFAULT")
+    rate_limit_events: str = Field(
+        default="200/minute", alias="EVENTS_RATE_LIMIT_EVENTS"
+    )
+    rate_limit_default: str = Field(
+        default="300/minute", alias="EVENTS_RATE_LIMIT_DEFAULT"
+    )
 
     log_level: str = Field(default="INFO", alias="EVENTS_LOG_LEVEL")
 

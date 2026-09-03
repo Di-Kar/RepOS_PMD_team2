@@ -1,4 +1,3 @@
-
 from elasticsearch import AsyncElasticsearch
 from fastapi import Request
 

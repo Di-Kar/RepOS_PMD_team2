@@ -53,17 +53,18 @@ class MoviesListApi(MoviesApiMixin):
         except EmptyPage:
             return JsonResponse({'detail': 'Page not found.'}, status=404)
 
-        return self.render_to_response({
-            'count': paginator.count,
-            'total_pages': paginator.num_pages,
-            'prev': page.previous_page_number() if page.has_previous() else None,
-            'next': page.next_page_number() if page.has_next() else None,
-            'results': [serialize_film(f) for f in page.object_list],
-        })
+        return self.render_to_response(
+            {
+                'count': paginator.count,
+                'total_pages': paginator.num_pages,
+                'prev': page.previous_page_number() if page.has_previous() else None,
+                'next': page.next_page_number() if page.has_next() else None,
+                'results': [serialize_film(f) for f in page.object_list],
+            }
+        )
 
 
 class MoviesDetailApi(MoviesApiMixin):
-
     def get(self, request, pk, *args, **kwargs):
         try:
             film = self.get_queryset().get(id=pk)

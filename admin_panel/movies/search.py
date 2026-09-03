@@ -27,23 +27,36 @@ class SearchView(View):
             except Exception as e:
                 error = str(e)
 
-        return render(request, 'movies/search.html', {
-            'query': query,
-            'results': results,
-            'total': total,
-            'error': error,
-        })
+        return render(
+            request,
+            'movies/search.html',
+            {
+                'query': query,
+                'results': results,
+                'total': total,
+                'error': error,
+            },
+        )
 
     def _search(self, query: str):
-        body = json.dumps({
-            'size': 20,
-            'query': {
-                'multi_match': {
-                    'query': query,
-                    'fields': ['title^3', 'description', 'actors_names', 'directors_names', 'writers_names', 'genres'],
-                }
-            },
-        }).encode()
+        body = json.dumps(
+            {
+                'size': 20,
+                'query': {
+                    'multi_match': {
+                        'query': query,
+                        'fields': [
+                            'title^3',
+                            'description',
+                            'actors_names',
+                            'directors_names',
+                            'writers_names',
+                            'genres',
+                        ],
+                    }
+                },
+            }
+        ).encode()
 
         req = urllib.request.Request(
             f'{ES_URL}/movies/_search',
@@ -56,5 +69,7 @@ class SearchView(View):
 
         hits = data.get('hits', {})
         total = hits.get('total', {}).get('value', 0)
-        results = [{**h['_source'], 'score': h.get('_score')} for h in hits.get('hits', [])]
+        results = [
+            {**h['_source'], 'score': h.get('_score')} for h in hits.get('hits', [])
+        ]
         return results, total

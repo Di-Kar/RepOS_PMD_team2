@@ -2,6 +2,7 @@
 PostgreSQL database connection module.
 Provides async SQLAlchemy engine, session management and dependency injection.
 """
+
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (

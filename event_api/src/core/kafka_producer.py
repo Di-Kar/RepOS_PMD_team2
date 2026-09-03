@@ -1,4 +1,5 @@
 """Kafka producer: публикация событий, роутинг по топикам (раздел 1 контракта)."""
+
 import json
 import logging
 from typing import Optional

@@ -19,10 +19,13 @@ def monitor():
 @pytest.fixture
 def monitor_with_mocked_memory(monitor, monkeypatch):
     """Монитор с контролируемым значением RSS через monkeypatch."""
+
     def mock_track(rss_mb):
         def _mocked():
             return {'rss_mb': rss_mb, 'vms_mb': 0, 'percent': 0}
+
         return _mocked()
+
     return monitor
 
 
@@ -35,7 +38,8 @@ class TestCheckThresholds:
     def test_returns_ok_when_below_warn(self, monitor, monkeypatch):
         """Когда RSS ниже warn — возвращается 'ok'."""
         monkeypatch.setattr(
-            monitor, 'track_memory',
+            monitor,
+            'track_memory',
             lambda: {'rss_mb': 100.0, 'vms_mb': 0, 'percent': 0},
         )
         result = monitor.check_thresholds()
@@ -44,7 +48,8 @@ class TestCheckThresholds:
     def test_returns_warning_when_above_warn(self, monitor, monkeypatch):
         """Когда RSS >= warn_mb — возвращается 'warning'."""
         monkeypatch.setattr(
-            monitor, 'track_memory',
+            monitor,
+            'track_memory',
             lambda: {'rss_mb': 600.0, 'vms_mb': 0, 'percent': 0},
         )
         result = monitor.check_thresholds()
@@ -53,7 +58,8 @@ class TestCheckThresholds:
     def test_returns_critical_when_above_critical(self, monitor, monkeypatch):
         """Когда RSS >= critical_mb — возвращается 'critical'."""
         monkeypatch.setattr(
-            monitor, 'track_memory',
+            monitor,
+            'track_memory',
             lambda: {'rss_mb': 900.0, 'vms_mb': 0, 'percent': 0},
         )
         result = monitor.check_thresholds()
@@ -62,7 +68,8 @@ class TestCheckThresholds:
     def test_ok_at_exact_warn(self, monitor, monkeypatch):
         """При RSS точно равном warn_mb — 'warning' (>= check)."""
         monkeypatch.setattr(
-            monitor, 'track_memory',
+            monitor,
+            'track_memory',
             lambda: {'rss_mb': 500.0, 'vms_mb': 0, 'percent': 0},
         )
         result = monitor.check_thresholds()
@@ -70,7 +77,8 @@ class TestCheckThresholds:
 
     def test_returns_string_not_int(self, monitor, monkeypatch):
         monkeypatch.setattr(
-            monitor, 'track_memory',
+            monitor,
+            'track_memory',
             lambda: {'rss_mb': 100.0, 'vms_mb': 0, 'percent': 0},
         )
         result = monitor.check_thresholds()
@@ -125,7 +133,8 @@ class TestAutoGc:
     def test_returns_zero_when_memory_low(self, monitor, monkeypatch):
         """Когда память ниже warn — auto_gc возвращает 0."""
         monkeypatch.setattr(
-            monitor, 'track_memory',
+            monitor,
+            'track_memory',
             lambda: {'rss_mb': 100.0, 'vms_mb': 0, 'percent': 0},
         )
         result = monitor.auto_gc()
@@ -134,7 +143,8 @@ class TestAutoGc:
     def test_returns_zero_when_memory_at_warn(self, monitor, monkeypatch):
         """При RSS точно на warn_mb — auto_gc запускает gc (>= check)."""
         monkeypatch.setattr(
-            monitor, 'track_memory',
+            monitor,
+            'track_memory',
             lambda: {'rss_mb': 500.0, 'vms_mb': 0, 'percent': 0},
         )
         result = monitor.auto_gc()
@@ -149,7 +159,8 @@ class TestAutoGc:
     def test_calls_gc_collect(self, monitor, monkeypatch):
         """auto_gc вызывает gc.collect() при высокой памяти."""
         monkeypatch.setattr(
-            monitor, 'track_memory',
+            monitor,
+            'track_memory',
             lambda: {'rss_mb': 600.0, 'vms_mb': 0, 'percent': 0},
         )
         with patch('memory_monitor.gc.collect') as mock_gc:

@@ -1,4 +1,5 @@
 """Фикстуры HTTP-смоук-тестов auth_service (black-box, только HTTP)."""
+
 import asyncio
 import os
 import uuid
@@ -11,7 +12,9 @@ def is_docker() -> bool:
     return os.path.exists('/.dockerenv')
 
 
-AUTH_API_HOST = os.getenv('AUTH_API_HOST', 'auth_service' if is_docker() else '127.0.0.1')
+AUTH_API_HOST = os.getenv(
+    'AUTH_API_HOST', 'auth_service' if is_docker() else '127.0.0.1'
+)
 # Внутри docker-сети сервис слушает 8000, наружу проброшен как 8001.
 AUTH_API_PORT = int(os.getenv('AUTH_API_PORT', '8000' if is_docker() else '8001'))
 BASE_URL = f"http://{AUTH_API_HOST}:{AUTH_API_PORT}/api/v1"
@@ -29,7 +32,10 @@ def bearer(tokens: dict) -> dict:
 
 
 async def post_json(
-    session: aiohttp.ClientSession, url: str, json_body: dict, headers: dict | None = None
+    session: aiohttp.ClientSession,
+    url: str,
+    json_body: dict,
+    headers: dict | None = None,
 ) -> tuple:
     """POST с уважением к 429 Retry-After (register/login/change-password
     ограничены RATE_LIMIT_STRICT)."""
@@ -100,7 +106,11 @@ async def shared_user():
             },
         )
         if status == 201:
-            return {"id": body["id"], "email": SHARED_USER_EMAIL, "password": SHARED_USER_PASSWORD}
+            return {
+                "id": body["id"],
+                "email": SHARED_USER_EMAIL,
+                "password": SHARED_USER_PASSWORD,
+            }
         assert status == 409, body  # уже зарегистрирован в прошлом прогоне
 
         status, login_body = await post_json(
@@ -117,7 +127,11 @@ async def shared_user():
             assert response.status == 200, await response.text()
             profile = await response.json()
 
-    return {"id": profile["id"], "email": SHARED_USER_EMAIL, "password": SHARED_USER_PASSWORD}
+    return {
+        "id": profile["id"],
+        "email": SHARED_USER_EMAIL,
+        "password": SHARED_USER_PASSWORD,
+    }
 
 
 @pytest_asyncio.fixture(name='shared_tokens', scope='session', loop_scope='session')

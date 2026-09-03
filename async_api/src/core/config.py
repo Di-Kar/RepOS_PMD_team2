@@ -13,7 +13,9 @@ AUTH_SERVICE_URL = 'http://auth_service:8000/api/v1/auth'
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
+    model_config = SettingsConfigDict(
+        env_file='.env', env_file_encoding='utf-8', extra='ignore'
+    )
 
     project_name: str = 'movies'
 

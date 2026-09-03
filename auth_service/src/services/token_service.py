@@ -10,6 +10,7 @@
 заменяется на новый jti, старый refresh становится бесполезным (jti не
 совпадает). Повторное использование ротированного токена убивает сессию.
 """
+
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
@@ -109,7 +110,12 @@ class TokenService:
             await self._redis.set(key, refresh_jti, ex=refresh_ttl)
         else:
             result = await self._redis.eval(
-                _ROTATE_JTI_LUA, 1, key, rotate_from_jti, refresh_jti, int(refresh_ttl.total_seconds())
+                _ROTATE_JTI_LUA,
+                1,
+                key,
+                rotate_from_jti,
+                refresh_jti,
+                int(refresh_ttl.total_seconds()),
             )
             if result == "missing":
                 raise InvalidTokenError("Session has been terminated")
@@ -122,7 +128,9 @@ class TokenService:
     def decode(self, token: str) -> TokenPayload:
         """Декодирует токен, проверяя подпись и срок действия."""
         try:
-            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+            payload = jwt.decode(
+                token, settings.secret_key, algorithms=[settings.algorithm]
+            )
         except jwt.ExpiredSignatureError:
             raise InvalidTokenError("Token has expired")
         except jwt.PyJWTError:
@@ -164,7 +172,9 @@ class TokenService:
 
     async def revoke_session(self, user_id: str, session_id: str) -> None:
         """Завершает одну сессию (logout)."""
-        await self._redis.delete(SESSION_KEY.format(user_id=user_id, session_id=session_id))
+        await self._redis.delete(
+            SESSION_KEY.format(user_id=user_id, session_id=session_id)
+        )
 
     async def revoke_all_sessions(
         self, user_id: str, except_session_id: Optional[str] = None

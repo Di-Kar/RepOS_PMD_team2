@@ -1,4 +1,5 @@
 """Вход через соцсети — /api/v1/auth/oauth (только Google в этом спринте)."""
+
 from datetime import datetime, timezone
 
 from authlib.integrations.starlette_client import OAuthError
@@ -55,12 +56,17 @@ async def google_callback(
     if not userinfo.get("email"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "oauth_failed", "message": "Google did not return an email"},
+            detail={
+                "error": "oauth_failed",
+                "message": "Google did not return an email",
+            },
         )
 
     # БД хранит naive UTC (TIMESTAMP WITHOUT TIME ZONE), как и остальные datetime-колонки проекта.
     expires_at = (
-        datetime.fromtimestamp(token["expires_at"], tz=timezone.utc).replace(tzinfo=None)
+        datetime.fromtimestamp(token["expires_at"], tz=timezone.utc).replace(
+            tzinfo=None
+        )
         if token.get("expires_at")
         else None
     )
@@ -85,7 +91,9 @@ async def google_callback(
         )
 
     roles = await AuthService(session).get_role_names(user.id)
-    access_token, refresh_token = await TokenService(redis).create_token_pair(user, roles)
+    access_token, refresh_token = await TokenService(redis).create_token_pair(
+        user, roles
+    )
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -104,7 +112,10 @@ async def unlink_social_account(
     if provider not in _SUPPORTED_PROVIDERS:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "unknown_provider", "message": f"Provider '{provider}' is not supported"},
+            detail={
+                "error": "unknown_provider",
+                "message": f"Provider '{provider}' is not supported",
+            },
         )
     try:
         await OAuthService(session).unlink(user, provider)

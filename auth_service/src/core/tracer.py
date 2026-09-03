@@ -19,10 +19,11 @@ if not logger.handlers:
     handler.setFormatter(
         logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
     )
     logger.addHandler(handler)
+
 
 def configure_tracer(debug: bool = False) -> None:
     """
@@ -31,9 +32,7 @@ def configure_tracer(debug: bool = False) -> None:
     Args:
         debug: Если True, добавляется ConsoleSpanExporter (для локальной отладки).
     """
-    resource = Resource.create(attributes={
-        SERVICE_NAME: "auth_service"
-    })
+    resource = Resource.create(attributes={SERVICE_NAME: "auth_service"})
     # Установка провайдера трассировки
     tracer_provider = TracerProvider(resource=resource)
     trace.set_tracer_provider(tracer_provider)
@@ -58,7 +57,6 @@ def configure_tracer(debug: bool = False) -> None:
     if debug:
         tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
         logger.debug("Debug-режим включён — консольный экспорт включён")
-    
+
     # Включение TraceContextTextMapPropagator для поддержки w3c trace-context
     set_global_textmap(TraceContextTextMapPropagator())
-    

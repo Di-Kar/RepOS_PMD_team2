@@ -28,8 +28,12 @@ async def films_search(
     film_service: FilmService = Depends(get_film_service),
     user: Optional[UserContext] = Depends(get_optional_user),
 ) -> list[FilmShort]:
-    logger.debug('films_search: query=%r user_id=%s', query, user.user_id if user else None)
-    films = await film_service.search(query, pagination.page_number, pagination.page_size)
+    logger.debug(
+        'films_search: query=%r user_id=%s', query, user.user_id if user else None
+    )
+    films = await film_service.search(
+        query, pagination.page_number, pagination.page_size
+    )
     return [FilmShort(uuid=f.id, title=f.title, imdb_rating=f.rating) for f in films]
 
 
@@ -42,7 +46,11 @@ async def films_search(
     tags=["Фильмы"],
 )
 async def films_list(
-    sort: str = Query('-imdb_rating', pattern=r'^-?(imdb_rating|title)$', description='Поле сортировки: imdb_rating или title, префикс - для убывания'),
+    sort: str = Query(
+        '-imdb_rating',
+        pattern=r'^-?(imdb_rating|title)$',
+        description='Поле сортировки: imdb_rating или title, префикс - для убывания',
+    ),
     genre: Optional[UUID] = Query(None, description='Фильтр по UUID жанра'),
     pagination: PaginationParams = Depends(PaginationParams),
     film_service: FilmService = Depends(get_film_service),
@@ -71,7 +79,9 @@ async def film_details(
     film_service: FilmService = Depends(get_film_service),
     user: Optional[UserContext] = Depends(get_optional_user),
 ) -> FilmDetail:
-    logger.debug('film_details: film_id=%s user_id=%s', film_id, user.user_id if user else None)
+    logger.debug(
+        'film_details: film_id=%s user_id=%s', film_id, user.user_id if user else None
+    )
     film = await film_service.get_by_id(str(film_id))
     if not film:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail='film not found')
@@ -84,5 +94,7 @@ async def film_details(
         genre=[FilmGenre(uuid=g.id, name=g.name) for g in film.genres],
         actors=[FilmPerson(uuid=p.id, full_name=p.full_name) for p in film.actors],
         writers=[FilmPerson(uuid=p.id, full_name=p.full_name) for p in film.writers],
-        directors=[FilmPerson(uuid=p.id, full_name=p.full_name) for p in film.directors],
+        directors=[
+            FilmPerson(uuid=p.id, full_name=p.full_name) for p in film.directors
+        ],
     )

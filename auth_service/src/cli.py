@@ -3,6 +3,7 @@
 Создание суперпользователя:
     python -m src.cli create-superuser admin@example.com --password 'Secret123!' --full-name 'Super Admin'
 """
+
 import asyncio
 from typing import Optional
 

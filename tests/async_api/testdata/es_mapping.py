@@ -7,7 +7,10 @@ MOVIES_INDEX_SETTINGS = {
             "filter": {
                 "english_stop": {"type": "stop", "stopwords": "_english_"},
                 "english_stemmer": {"type": "stemmer", "language": "english"},
-                "english_possessive_stemmer": {"type": "stemmer", "language": "possessive_english"},
+                "english_possessive_stemmer": {
+                    "type": "stemmer",
+                    "language": "possessive_english",
+                },
                 "russian_stop": {"type": "stop", "stopwords": "_russian_"},
                 "russian_stemmer": {"type": "stemmer", "language": "russian"},
             },
@@ -15,8 +18,12 @@ MOVIES_INDEX_SETTINGS = {
                 "ru_en": {
                     "tokenizer": "standard",
                     "filter": [
-                        "lowercase", "english_stop", "english_stemmer",
-                        "english_possessive_stemmer", "russian_stop", "russian_stemmer",
+                        "lowercase",
+                        "english_stop",
+                        "english_stemmer",
+                        "english_possessive_stemmer",
+                        "russian_stop",
+                        "russian_stemmer",
                     ],
                 }
             },
@@ -84,7 +91,10 @@ GENRES_INDEX_SETTINGS = {
             "filter": {
                 "english_stop": {"type": "stop", "stopwords": "_english_"},
                 "english_stemmer": {"type": "stemmer", "language": "english"},
-                "english_possessive_stemmer": {"type": "stemmer", "language": "possessive_english"},
+                "english_possessive_stemmer": {
+                    "type": "stemmer",
+                    "language": "possessive_english",
+                },
                 "russian_stop": {"type": "stop", "stopwords": "_russian_"},
                 "russian_stemmer": {"type": "stemmer", "language": "russian"},
             },
@@ -92,8 +102,12 @@ GENRES_INDEX_SETTINGS = {
                 "ru_en": {
                     "tokenizer": "standard",
                     "filter": [
-                        "lowercase", "english_stop", "english_stemmer",
-                        "english_possessive_stemmer", "russian_stop", "russian_stemmer",
+                        "lowercase",
+                        "english_stop",
+                        "english_stemmer",
+                        "english_possessive_stemmer",
+                        "russian_stop",
+                        "russian_stemmer",
                     ],
                 }
             },
@@ -120,7 +134,10 @@ PERSONS_INDEX_SETTINGS = {
             "filter": {
                 "english_stop": {"type": "stop", "stopwords": "_english_"},
                 "english_stemmer": {"type": "stemmer", "language": "english"},
-                "english_possessive_stemmer": {"type": "stemmer", "language": "possessive_english"},
+                "english_possessive_stemmer": {
+                    "type": "stemmer",
+                    "language": "possessive_english",
+                },
                 "russian_stop": {"type": "stop", "stopwords": "_russian_"},
                 "russian_stemmer": {"type": "stemmer", "language": "russian"},
             },
@@ -128,8 +145,12 @@ PERSONS_INDEX_SETTINGS = {
                 "ru_en": {
                     "tokenizer": "standard",
                     "filter": [
-                        "lowercase", "english_stop", "english_stemmer",
-                        "english_possessive_stemmer", "russian_stop", "russian_stemmer",
+                        "lowercase",
+                        "english_stop",
+                        "english_stemmer",
+                        "english_possessive_stemmer",
+                        "russian_stop",
+                        "russian_stemmer",
                     ],
                 }
             },

@@ -108,7 +108,9 @@ class LikeStatsSchema(BaseModel):
     rating_distribution: dict = Field(
         default_factory=dict,
         description='Распределение оценок {0: N, 1: N, ..., 10: N}',
-        examples=[{0: 5, 1: 3, 2: 8, 3: 14, 4: 20, 5: 25, 6: 20, 7: 25, 8: 22, 9: 15, 10: 23}],
+        examples=[
+            {0: 5, 1: 3, 2: 8, 3: 14, 4: 20, 5: 25, 6: 20, 7: 25, 8: 22, 9: 15, 10: 23}
+        ],
     )
 
 

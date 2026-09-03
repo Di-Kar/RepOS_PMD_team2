@@ -24,7 +24,9 @@ ANALYTICS_KAFKA_BOOTSTRAP_SERVERS = os.getenv(
     'ANALYTICS_KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092'
 )
 ANALYTICS_CLICKHOUSE_HOST = os.getenv('ANALYTICS_CLICKHOUSE_HOST', 'clickhouse')
-ANALYTICS_CLICKHOUSE_HTTP_PORT = int(os.getenv('ANALYTICS_CLICKHOUSE_HTTP_PORT', '8123'))
+ANALYTICS_CLICKHOUSE_HTTP_PORT = int(
+    os.getenv('ANALYTICS_CLICKHOUSE_HTTP_PORT', '8123')
+)
 ANALYTICS_CLICKHOUSE_USER = os.getenv('ANALYTICS_CLICKHOUSE_USER', 'default')
 ANALYTICS_CLICKHOUSE_PASSWORD = os.getenv('ANALYTICS_CLICKHOUSE_PASSWORD', 'secret')
 ANALYTICS_CLICKHOUSE_DATABASE = os.getenv('ANALYTICS_CLICKHOUSE_DATABASE', 'analytics')
@@ -132,14 +134,15 @@ async def wait_for_data(
     data_checker: callable = None,
 ) -> list:
     """Poll ClickHouse until query returns data or timeout is reached.
-    
+
     Args:
         data_checker: callback(rows) -> bool. If None, checks len(rows) > 0.
     """
     if data_checker is None:
+
         def data_checker(rows):
             return len(rows) > 0
-    
+
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
         try:
@@ -228,9 +231,9 @@ async def test_watch_sessions_recorded(
         data_checker=lambda rows: len(rows) >= 1,
     )
 
-    assert len(rows) >= 1, (
-        f'Expected watch_session row for watch_session_id={watch_session_id}'
-    )
+    assert (
+        len(rows) >= 1
+    ), f'Expected watch_session row for watch_session_id={watch_session_id}'
 
 
 async def test_multiple_events_batch(

@@ -1,4 +1,5 @@
 """Роуты аутентификации и профиля — /api/v1/auth (по openapi_auth.yaml)."""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -43,7 +44,9 @@ def _user_response(user: User) -> dict:
 
 async def _profile_response(user: User, session: AsyncSession) -> UserResponse:
     roles = await AuthService(session).get_role_names(user.id)
-    return UserResponse(**_user_response(user), roles=roles, is_superuser=user.is_superuser)
+    return UserResponse(
+        **_user_response(user), roles=roles, is_superuser=user.is_superuser
+    )
 
 
 @router.post(
@@ -60,7 +63,9 @@ async def register(
 ) -> UserRegisterResponse:
     service = AuthService(session)
     try:
-        user = await service.register(payload.email, payload.password, payload.full_name)
+        user = await service.register(
+            payload.email, payload.password, payload.full_name
+        )
     except UserAlreadyExistsError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -88,11 +93,16 @@ async def login(
     except InvalidCredentialsError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "invalid_credentials", "message": "Invalid email or password"},
+            detail={
+                "error": "invalid_credentials",
+                "message": "Invalid email or password",
+            },
         )
 
     roles = await service.get_role_names(user.id)
-    access_token, refresh_token = await TokenService(redis).create_token_pair(user, roles)
+    access_token, refresh_token = await TokenService(redis).create_token_pair(
+        user, roles
+    )
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -107,7 +117,9 @@ async def refresh(
     """Ротация: старый refresh гасится, выдаётся новая пара в той же сессии."""
     token_service = TokenService(redis)
     try:
-        token_payload = await token_service.validate_refresh_token(payload.refresh_token)
+        token_payload = await token_service.validate_refresh_token(
+            payload.refresh_token
+        )
     except InvalidTokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -124,7 +136,10 @@ async def refresh(
     roles = await AuthService(session).get_role_names(user.id)
     try:
         access_token, refresh_token = await token_service.create_token_pair(
-            user, roles, session_id=token_payload.session_id, rotate_from_jti=token_payload.jti
+            user,
+            roles,
+            session_id=token_payload.session_id,
+            rotate_from_jti=token_payload.jti,
         )
     except InvalidTokenError as exc:
         raise HTTPException(
@@ -142,7 +157,9 @@ async def logout(
     redis: Redis = Depends(get_redis),
 ) -> None:
     """Завершает текущую сессию: refresh отзывается, access этой сессии перестаёт работать."""
-    await TokenService(redis).revoke_session(token_payload.sub, token_payload.session_id)
+    await TokenService(redis).revoke_session(
+        token_payload.sub, token_payload.session_id
+    )
 
 
 @router.post("/logout-all", tags=["Tokens"], status_code=status.HTTP_204_NO_CONTENT)

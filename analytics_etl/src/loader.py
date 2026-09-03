@@ -16,7 +16,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_CLICKHOUSE_EXCEPTIONS = (DatabaseError, OperationalError, ConnectionError, TimeoutError)
+_CLICKHOUSE_EXCEPTIONS = (
+    DatabaseError,
+    OperationalError,
+    ConnectionError,
+    TimeoutError,
+)
 
 
 class ClickHouseLoader:
@@ -56,7 +61,9 @@ class ClickHouseLoader:
                 )
                 logger.info(
                     'Подключено к ClickHouse на %s:%d, база данных=%s',
-                    self.host, self.port, self.database,
+                    self.host,
+                    self.port,
+                    self.database,
                 )
             except Exception as e:
                 logger.error('Не удалось подключиться к ClickHouse: %s', e)
@@ -95,8 +102,14 @@ class ClickHouseLoader:
         """Выполнить все операторы CREATE TABLE из SQL-файла."""
         logger.info('Попытка инициализации схемы из %s', schema_file)
         import os
+
         if not os.path.exists(schema_file):
-            logger.error('Файл схемы не найден: %s (cwd=%s, file=%s)', schema_file, os.getcwd(), os.path.dirname(__file__))
+            logger.error(
+                'Файл схемы не найден: %s (cwd=%s, file=%s)',
+                schema_file,
+                os.getcwd(),
+                os.path.dirname(__file__),
+            )
             raise FileNotFoundError(f'Файл схемы не найден: {schema_file}')
         client = self._get_client()
         try:
@@ -106,7 +119,12 @@ class ClickHouseLoader:
             logger.info('Найдено %d операторов (разделено по ;)', len(statements))
             for i, statement in enumerate(statements):
                 statement = statement.strip()
-                logger.info('Оператор #%d (len=%d, repr=%s)', i, len(statement), repr(statement[:80]))
+                logger.info(
+                    'Оператор #%d (len=%d, repr=%s)',
+                    i,
+                    len(statement),
+                    repr(statement[:80]),
+                )
                 if statement and ('CREATE TABLE' in statement.upper()):
                     logger.info('Выполняю CREATE TABLE #%d: %s', i, statement[:100])
                     client.command(statement)
@@ -176,20 +194,29 @@ class ClickHouseLoader:
                 agg['total_watch_sessions'] += 1
             agg['unique_users'].add(row.get('user_id'))
             agg['total_views'] += 1
-            agg['last_viewed_at'] = max(agg['last_viewed_at'], row.get('occurred_at', ''))
+            agg['last_viewed_at'] = max(
+                agg['last_viewed_at'], row.get('occurred_at', '')
+            )
 
         ch_rows = []
-        for _cid, agg in aggregated.items(): # B007[ruff] Loop control variable `cid` not used within loop body
-            ch_rows.append({
-                'content_id': agg['content_id'],
-                'total_views': agg['total_views'],
-                'total_watch_sessions': agg['total_watch_sessions'],
-                'completions': agg['completions'],
-                'total_duration_ms': agg.get('total_duration_ms', 0),
-                'unique_viewers': len(agg['unique_users']),
-                'last_viewed_at': agg['last_viewed_at'],
-                'updated_at': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
-            })
+        for (
+            _cid,
+            agg,
+        ) in (
+            aggregated.items()
+        ):  # B007[ruff] Loop control variable `cid` not used within loop body
+            ch_rows.append(
+                {
+                    'content_id': agg['content_id'],
+                    'total_views': agg['total_views'],
+                    'total_watch_sessions': agg['total_watch_sessions'],
+                    'completions': agg['completions'],
+                    'total_duration_ms': agg.get('total_duration_ms', 0),
+                    'unique_viewers': len(agg['unique_users']),
+                    'last_viewed_at': agg['last_viewed_at'],
+                    'updated_at': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
+                }
+            )
 
         if ch_rows:
             columns = list(ch_rows[0].keys())

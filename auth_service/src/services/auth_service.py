@@ -1,4 +1,5 @@
 """Бизнес-логика аутентификации: регистрация, вход, профиль, история входов."""
+
 import uuid
 from typing import List, Optional, Tuple
 
@@ -37,7 +38,9 @@ class AuthService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def register(self, email: str, password: str, full_name: Optional[str]) -> User:
+    async def register(
+        self, email: str, password: str, full_name: Optional[str]
+    ) -> User:
         """Создаёт пользователя. Email хранится в колонке login."""
         first_name, last_name = split_full_name(full_name)
         user = User(
@@ -77,12 +80,14 @@ class AuthService:
         проверяется даже для несуществующего email (по фиктивному хэшу).
         """
         user = await self.get_by_login(email)
-        success = verify_password_or_dummy(password, user.password if user is not None else None)
+        success = verify_password_or_dummy(
+            password, user.password if user is not None else None
+        )
         if user is None or not user.is_active:
             raise InvalidCredentialsError(email)
 
         device_type = get_device_type(user_agent)
-        
+
         # Опционально: можно сгенерировать простой fingerprint
         fingerprint = f"{ip_address}_{device_type}" if ip_address else None
 
@@ -96,20 +101,20 @@ class AuthService:
                 user_device_type=device_type,
             )
         )
-       
+
         await self._session.commit()
 
         if not success:
             raise InvalidCredentialsError(email)
-        
+
         return user
 
     async def get_role_names(self, user_id: uuid.UUID) -> List[str]:
         """Имена ролей пользователя — кладутся в payload access-токена."""
         result = await self._session.execute(
-            select(Role.name).join(UserRole, UserRole.role_id == Role.id).where(
-                UserRole.user_id == user_id
-            )
+            select(Role.name)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(UserRole.user_id == user_id)
         )
         return list(result.scalars())
 
@@ -120,7 +125,9 @@ class AuthService:
         await self._session.refresh(user)
         return user
 
-    async def change_password(self, user: User, current_password: str, new_password: str) -> None:
+    async def change_password(
+        self, user: User, current_password: str, new_password: str
+    ) -> None:
         if not verify_password(current_password, user.password):
             raise InvalidPasswordError(user.id)
         user.password = hash_password(new_password)
@@ -131,7 +138,9 @@ class AuthService:
     ) -> Tuple[List[LoginHistory], int]:
         """Страница истории входов (свежие первыми) и общее число записей."""
         total = await self._session.scalar(
-            select(func.count()).select_from(LoginHistory).where(LoginHistory.user_id == user_id)
+            select(func.count())
+            .select_from(LoginHistory)
+            .where(LoginHistory.user_id == user_id)
         )
         result = await self._session.execute(
             select(LoginHistory)

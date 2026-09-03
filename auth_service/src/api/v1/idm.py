@@ -1,4 +1,5 @@
 """Роуты управления ролями и правами (RBAC) — /api/v1/idm."""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -48,11 +49,17 @@ async def create_role(
 ) -> RoleResponse:
     service = RoleService(session)
     try:
-        role = await service.create(payload.name, payload.description, payload.permissions)
+        role = await service.create(
+            payload.name, payload.description, payload.permissions
+        )
     except RoleAlreadyExistsError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "role_name_taken", "message": "Role with this name already exists", "field": "name"},
+            detail={
+                "error": "role_name_taken",
+                "message": "Role with this name already exists",
+                "field": "name",
+            },
         )
     return role
 
@@ -80,18 +87,28 @@ async def update_role(
 ) -> RoleResponse:
     service = RoleService(session)
     try:
-        role = await service.update(role_id, payload.name, payload.description, payload.permissions)
+        role = await service.update(
+            role_id, payload.name, payload.description, payload.permissions
+        )
     except RoleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+        )
     except RoleAlreadyExistsError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "role_name_taken", "message": "Role with this name already exists", "field": "name"},
+            detail={
+                "error": "role_name_taken",
+                "message": "Role with this name already exists",
+                "field": "name",
+            },
         )
     return role
 
 
-@router.delete("/roles/{role_id}", tags=["Roles"], status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/roles/{role_id}", tags=["Roles"], status_code=status.HTTP_204_NO_CONTENT
+)
 @limiter.limit(settings.rate_limit_strict)
 async def delete_role(
     request: Request,
@@ -103,10 +120,14 @@ async def delete_role(
     try:
         await service.delete(role_id)
     except RoleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+        )
 
 
-@router.post("/users/{user_id}/roles", tags=["Permissions"], response_model=RoleResponse)
+@router.post(
+    "/users/{user_id}/roles", tags=["Permissions"], response_model=RoleResponse
+)
 @limiter.limit(settings.rate_limit_moderate)
 async def assign_role(
     request: Request,
@@ -120,17 +141,24 @@ async def assign_role(
     try:
         role = await service.assign_role(user_id, payload.role_id)
     except (UserNotFoundError, RoleNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User or role not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User or role not found"
+        )
     except RoleAlreadyAssignedError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"error": "role_already_assigned", "message": "Role is already assigned to this user"},
+            detail={
+                "error": "role_already_assigned",
+                "message": "Role is already assigned to this user",
+            },
         )
     return role
 
 
 @router.delete(
-    "/users/{user_id}/roles/{role_id}", tags=["Permissions"], status_code=status.HTTP_204_NO_CONTENT
+    "/users/{user_id}/roles/{role_id}",
+    tags=["Permissions"],
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 @limiter.limit(settings.rate_limit_moderate)
 async def revoke_role(
@@ -145,13 +173,20 @@ async def revoke_role(
     try:
         await service.remove_role(user_id, role_id)
     except (UserNotFoundError, RoleNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User or role not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User or role not found"
+        )
     except RoleNotAssignedError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role was not assigned to this user")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Role was not assigned to this user",
+        )
 
 
 @router.post(
-    "/users/{user_id}/permissions/check", tags=["Permissions"], response_model=PermissionCheckResponse
+    "/users/{user_id}/permissions/check",
+    tags=["Permissions"],
+    response_model=PermissionCheckResponse,
 )
 @limiter.limit(settings.rate_limit_relaxed)
 async def check_permission(
@@ -173,10 +208,16 @@ async def check_permission(
 
     service = PermissionService(session, redis)
     try:
-        has_permission, granted, missing = await service.check_permission(user_id, payload.permission)
+        has_permission, granted, missing = await service.check_permission(
+            user_id, payload.permission
+        )
     except UserNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
 
     return PermissionCheckResponse(
-        has_permission=has_permission, granted_permissions=granted, missing_permissions=missing
+        has_permission=has_permission,
+        granted_permissions=granted,
+        missing_permissions=missing,
     )

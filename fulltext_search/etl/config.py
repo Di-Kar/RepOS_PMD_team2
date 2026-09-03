@@ -31,8 +31,12 @@ class ETLSettings(BaseSettings):
     sleep_interval: int = Field(default=60, alias='ETL_SLEEP_INTERVAL')
     state_file: str = Field(default='state.json', alias='ETL_STATE_FILE')
     backoff_max_attempts: int = Field(default=0, alias='ETL_BACKOFF_MAX_ATTEMPTS')
-    backoff_start_sleep_time: float = Field(default=0.1, alias='ETL_BACKOFF_START_SLEEP_TIME')
-    backoff_border_sleep_time: float = Field(default=10.0, alias='ETL_BACKOFF_BORDER_SLEEP_TIME')
+    backoff_start_sleep_time: float = Field(
+        default=0.1, alias='ETL_BACKOFF_START_SLEEP_TIME'
+    )
+    backoff_border_sleep_time: float = Field(
+        default=10.0, alias='ETL_BACKOFF_BORDER_SLEEP_TIME'
+    )
 
     model_config = {'populate_by_name': True, 'env_file': '.env'}
 

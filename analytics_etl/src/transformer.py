@@ -93,7 +93,9 @@ def transform_for_movies_metrics(event: dict) -> Optional[dict]:
         return None
 
     content_id = payload.get('content_id') or (
-        payload.get('attrs', {}).get('content_id') if isinstance(payload.get('attrs'), dict) else None
+        payload.get('attrs', {}).get('content_id')
+        if isinstance(payload.get('attrs'), dict)
+        else None
     )
     if not content_id:
         return None
@@ -150,6 +152,7 @@ def transform_for_watch_sessions(event: dict) -> Optional[dict]:
 #  Вспомогательные функции                                                 #
 # ------------------------------------------------------------------ #
 
+
 def _parse_timestamp(ts) -> Optional[datetime]:
     """Разобрать строку в datetime (ISO формат или timestamp)."""
     if isinstance(ts, datetime):
@@ -182,12 +185,12 @@ def _nullable(value: Any) -> Optional[str]:
     return str(value)
 
 
-
 def _empty_str(value: Any) -> str:
     """Вернуть пустую строку, если value is None, иначе str(value)."""
     if value is None:
         return ""
     return str(value)
+
 
 def _safe_float(value: Any) -> float:
     """Безопасно преобразовать в float."""

@@ -1,4 +1,5 @@
 """Хэширование и проверка паролей (passlib + bcrypt)."""
+
 import secrets
 from typing import Optional
 
@@ -24,6 +25,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def verify_password_or_dummy(plain_password: str, hashed_password: Optional[str]) -> bool:
+def verify_password_or_dummy(
+    plain_password: str, hashed_password: Optional[str]
+) -> bool:
     """Как verify_password, но при hashed_password=None проверяет по фиктивному хэшу."""
     return verify_password(plain_password, hashed_password or _DUMMY_PASSWORD_HASH)

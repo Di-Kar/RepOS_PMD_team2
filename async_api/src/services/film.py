@@ -19,7 +19,9 @@ class FilmService(BaseService[Film]):
 
     def _build_list_query(self, genre: Optional[str] = None, **_) -> dict:
         if genre:
-            return {'nested': {'path': 'genres', 'query': {'term': {'genres.id': genre}}}}
+            return {
+                'nested': {'path': 'genres', 'query': {'term': {'genres.id': genre}}}
+            }
         return {'match_all': {}}
 
     def _build_search_query(self, query: str) -> dict:
@@ -40,7 +42,9 @@ class FilmService(BaseService[Film]):
         page_number: int,
         page_size: int,
     ) -> list[Film]:
-        key = self._build_cache_key('list', str(sort), str(genre), str(page_number), str(page_size))
+        key = self._build_cache_key(
+            'list', str(sort), str(genre), str(page_number), str(page_size)
+        )
         cached = await self._get_list_from_cache(key)
         if cached is not None:
             return cached
@@ -69,8 +73,8 @@ class FilmService(BaseService[Film]):
 
 @lru_cache
 def get_film_service(
-        storage: AbstractStorage = Depends(get_storage),
-        redis: Redis = Depends(get_redis),
+    storage: AbstractStorage = Depends(get_storage),
+    redis: Redis = Depends(get_redis),
 ) -> FilmService:
     cache = RedisCache(redis, Film)
     return FilmService(storage, cache)

@@ -45,7 +45,8 @@ class JsonFileStorage(BaseStorage):
             logger.error(
                 'Файл состояния повреждён (%s) — начинаем переиндексацию заново. '
                 'Резервная копия сохранена: %s',
-                e, backup_path,
+                e,
+                backup_path,
             )
             try:
                 os.replace(self.file_path, backup_path)

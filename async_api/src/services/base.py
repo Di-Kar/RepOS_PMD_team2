@@ -26,7 +26,6 @@ class BaseService(Generic[ModelType]):
         # storage — абстракция хранилища (DIP), cache — кэш
         self.storage = storage
         self.cache = cache
-        
 
     # --- Формирование ключа кэша ---
 
@@ -63,7 +62,9 @@ class BaseService(Generic[ModelType]):
         return {'match_all': {}}
 
     def _build_search_query(self, query: str) -> dict:
-        raise NotImplementedError(f'{self.__class__.__name__} does not implement _build_search_query')
+        raise NotImplementedError(
+            f'{self.__class__.__name__} does not implement _build_search_query'
+        )
 
     # --- Выполнение поиска в Elasticsearch ---
 

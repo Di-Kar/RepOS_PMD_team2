@@ -1,4 +1,5 @@
 """Функциональные тесты для эндпоинта /genres."""
+
 import pytest
 
 from tests.async_api.settings import test_settings
@@ -7,6 +8,7 @@ TEST_GENRE_UUID = '2fec4f4f-7f84-475c-ad28-791ce135bd2e'
 
 
 # === Тесты получения списка жанров ===
+
 
 @pytest.mark.asyncio
 async def test_genres_list(es_write_data, es_data_genres, make_get_request):
@@ -17,16 +19,17 @@ async def test_genres_list(es_write_data, es_data_genres, make_get_request):
 
     assert response['status'] == 200
     body = response['body']
-    
+
     assert isinstance(body, list), f"Ожидался список, получен {type(body)}"
     assert len(body) > 0, "Список жанров не должен быть пустым"
-    
+
     for genre in body:
         assert 'uuid' in genre
         assert 'name' in genre
 
 
 # === Тесты получения жанра по ID ===
+
 
 @pytest.mark.asyncio
 async def test_genre_by_id(es_write_data, es_data_genres, make_get_request):
@@ -69,6 +72,7 @@ async def test_genre_not_found(es_write_data, es_data_genres, make_get_request):
 
 # === Тесты валидации UUID ===
 
+
 @pytest.mark.parametrize(
     'endpoint, expected_status',
     [
@@ -92,6 +96,7 @@ async def test_genre_validation(make_get_request, endpoint, expected_status):
 
 
 # === Тесты кеширования в Redis ===
+
 
 @pytest.mark.asyncio
 async def test_genre_redis_cache(
@@ -125,7 +130,7 @@ async def test_genre_cache_invalidation(
 
     # Создаем второй фиксированный жанр для теста
     test_genre_uuid_2 = '2fec4f4f-7f84-475c-ad28-791ce135bd2f'
-    
+
     response1 = await make_get_request('/genres', f'/{TEST_GENRE_UUID}')
     assert response1['status'] == 200
 
@@ -138,6 +143,7 @@ async def test_genre_cache_invalidation(
 
 # === Тесты с реальными данными (из ETL) ===
 
+
 @pytest.mark.asyncio
 async def test_genre_real_data(make_get_request, es_client, redis_client):
     """Жанр из индекса (данные ETL или синтетика) доступен через API по своему id."""
@@ -149,7 +155,7 @@ async def test_genre_real_data(make_get_request, es_client, redis_client):
 
     result = await es_client.search(
         index=test_settings.elastic_settings.es_index_genres,
-        body={"size": 1, "query": {"match_all": {}}}
+        body={"size": 1, "query": {"match_all": {}}},
     )
 
     # Публичный идентификатор жанра — поле id (оно же _id документа);
@@ -168,18 +174,18 @@ async def test_genre_real_data(make_get_request, es_client, redis_client):
 async def test_genres_list_real_data(make_get_request, es_client, redis_client):
     """Получение списка жанров из реальных данных (после работы ETL)."""
     await redis_client.flushdb()
-    
+
     count = await es_client.count(index=test_settings.elastic_settings.es_index_genres)
     if count['count'] == 0:
         pytest.skip("В индексе genres нет данных. Запустите ETL.")
 
     response = await make_get_request('/genres', '')
-    
+
     assert response['status'] == 200
     body = response['body']
     assert isinstance(body, list), "Ответ должен быть списком"
     assert len(body) > 0, "Список жанров не должен быть пустым"
-    
+
     for genre in body:
         assert 'uuid' in genre
         assert 'name' in genre

@@ -2,6 +2,7 @@
 -> half-open (пробный запрос) -> CLOSED/OPEN. Состояние в памяти процесса
 (не шарится между воркерами, но каждый деградирует независимо).
 """
+
 import time
 from typing import Optional
 

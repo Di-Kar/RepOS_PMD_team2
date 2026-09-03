@@ -37,7 +37,12 @@ def run_etl(
     for table in WATCHED_TABLES:
         cursor_modified = state.get_state(f'cursor_modified_{table}') or _MIN_DATETIME
         cursor_id = state.get_state(f'cursor_id_{table}') or _MIN_UUID
-        logger.info('Проверка изменений в %s с курсора %s / %s', table, cursor_modified, cursor_id)
+        logger.info(
+            'Проверка изменений в %s с курсора %s / %s',
+            table,
+            cursor_modified,
+            cursor_id,
+        )
 
         for film_ids, new_modified, new_id in extractor.fetch_batches(
             table, cursor_modified, cursor_id, etl_settings.batch_size
@@ -63,7 +68,9 @@ def run_genres_etl(
 ) -> None:
     cursor_modified = state.get_state('cursor_modified_genres_index') or _MIN_DATETIME
     cursor_id = state.get_state('cursor_id_genres_index') or _MIN_UUID
-    logger.info('Проверка изменений в genres с курсора %s / %s', cursor_modified, cursor_id)
+    logger.info(
+        'Проверка изменений в genres с курсора %s / %s', cursor_modified, cursor_id
+    )
 
     for rows, new_modified, new_id in extractor.fetch_genres_batches(
         cursor_modified, cursor_id, etl_settings.batch_size
@@ -85,7 +92,9 @@ def run_persons_etl(
 ) -> None:
     cursor_modified = state.get_state('cursor_modified_persons_index') or _MIN_DATETIME
     cursor_id = state.get_state('cursor_id_persons_index') or _MIN_UUID
-    logger.info('Проверка изменений в persons с курсора %s / %s', cursor_modified, cursor_id)
+    logger.info(
+        'Проверка изменений в persons с курсора %s / %s', cursor_modified, cursor_id
+    )
 
     for rows, new_modified, new_id in extractor.fetch_persons_batches(
         cursor_modified, cursor_id, etl_settings.batch_size

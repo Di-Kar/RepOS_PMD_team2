@@ -4,6 +4,7 @@
 из ответа auth_service. Локальный Django User — не источник истины, а
 зеркало для офлайн-фолбэка (см. AuthServiceUnavailable).
 """
+
 import logging
 
 from django.conf import settings
@@ -53,7 +54,9 @@ class AuthServiceBackend(ModelBackend):
             return None  # auth_service явно отверг учётные данные
 
         if not _is_admin(auth_user):
-            logger.info("Пользователь %s аутентифицирован, но без прав администратора", username)
+            logger.info(
+                "Пользователь %s аутентифицирован, но без прав администратора", username
+            )
             return None
 
         return self._sync_local_user(auth_user, password)

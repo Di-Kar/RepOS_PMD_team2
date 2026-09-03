@@ -68,12 +68,18 @@ class TestLikeSchema:
     def test_like_rating_invalid(self):
         with pytest.raises(ValidationError):
             LikeSchema(
-                user_id=uuid4(), film_id=uuid4(), rating=11, created_at=datetime.utcnow()
+                user_id=uuid4(),
+                film_id=uuid4(),
+                rating=11,
+                created_at=datetime.utcnow(),
             )
 
         with pytest.raises(ValidationError):
             LikeSchema(
-                user_id=uuid4(), film_id=uuid4(), rating=-1, created_at=datetime.utcnow()
+                user_id=uuid4(),
+                film_id=uuid4(),
+                rating=-1,
+                created_at=datetime.utcnow(),
             )
 
 

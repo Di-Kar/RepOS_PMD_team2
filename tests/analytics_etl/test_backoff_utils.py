@@ -15,6 +15,7 @@ def reset_config():
     """Сбросить глобальную конфигу backoff перед каждым тестом."""
     # Сохранить оригинальные значения
     import backoff_utils as mod
+
     orig_start = mod._start_sleep_time
     orig_factor = mod._factor
     orig_border = mod._border_sleep_time
@@ -88,6 +89,7 @@ class TestBackoffDecorator:
 
     def test_raises_original_exception(self):
         """Внезапное исключение, не в списке — пробрасывается без повторов."""
+
         @backoff(exceptions=(ValueError,))
         def fn():
             raise TypeError('wrong type')
@@ -105,6 +107,7 @@ class TestConfigure:
     def test_sets_global_parameters(self):
         """configure меняет глобальные параметры."""
         import backoff_utils as mod
+
         configure(
             start_sleep_time=0.5,
             factor=3,
@@ -119,6 +122,7 @@ class TestConfigure:
     def test_zero_max_attempts_no_limit(self):
         """max_attempts=0 = без ограничений."""
         import backoff_utils as mod
+
         configure(max_attempts=0)
         assert mod._max_attempts == 0
 
@@ -133,7 +137,9 @@ class TestExponentialSleep:
         """Сон растёт по формуле sleep *= factor (до border_sleep_time)."""
         sleeps = []
 
-        configure(start_sleep_time=0.1, factor=2, border_sleep_time=10.0, max_attempts=5)
+        configure(
+            start_sleep_time=0.1, factor=2, border_sleep_time=10.0, max_attempts=5
+        )
 
         @backoff(exceptions=(ValueError,))
         def fn():

@@ -1,4 +1,5 @@
 """CRUD-операции над ролями."""
+
 import uuid
 from typing import List, Sequence
 
@@ -16,7 +17,9 @@ class RoleService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def create(self, name: str, description: str | None, permissions: List[str]) -> Role:
+    async def create(
+        self, name: str, description: str | None, permissions: List[str]
+    ) -> Role:
         role = Role(name=name, description=description, permissions=permissions)
         self._session.add(role)
         try:

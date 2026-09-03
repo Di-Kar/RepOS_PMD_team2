@@ -1,4 +1,5 @@
 """HTTP-смоук-тесты /api/v1/idm: доступ к ролям и проверка прав."""
+
 import uuid
 
 from .conftest import BASE_URL, bearer
@@ -26,7 +27,9 @@ class TestRolesAccess:
         ) as response:
             assert response.status == 403
 
-    async def test_assign_role_forbidden_for_regular_user(self, session, shared_user, shared_tokens):
+    async def test_assign_role_forbidden_for_regular_user(
+        self, session, shared_user, shared_tokens
+    ):
         async with session.post(
             f"{BASE_URL}/idm/users/{shared_user['id']}/roles",
             json={"role_id": str(uuid.uuid4())},

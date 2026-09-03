@@ -1,5 +1,6 @@
 """Фикстуры HTTP+Kafka смоук-тестов event_api (black-box): отправляем события
 через HTTP API и вычитываем их обратно из Kafka, чтобы подтвердить доставку."""
+
 import asyncio
 import json
 import os
@@ -15,7 +16,9 @@ def is_docker() -> bool:
     return os.path.exists('/.dockerenv')
 
 
-EVENT_API_HOST = os.getenv('EVENT_API_HOST', 'event_api' if is_docker() else '127.0.0.1')
+EVENT_API_HOST = os.getenv(
+    'EVENT_API_HOST', 'event_api' if is_docker() else '127.0.0.1'
+)
 # Внутри docker-сети сервис слушает 8000, наружу проброшен как 8002.
 EVENT_API_PORT = int(os.getenv('EVENT_API_PORT', '8000' if is_docker() else '8002'))
 BASE_URL = f"http://{EVENT_API_HOST}:{EVENT_API_PORT}/api/v1/events"
@@ -26,7 +29,9 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv('EVENTS_KAFKA_BOOTSTRAP_SERVERS', 'kafka:909
 
 TOPIC_CLICKS = os.getenv('EVENTS_KAFKA_TOPIC_CLICKS', 'analytics.clicks.v1')
 TOPIC_PAGEVIEWS = os.getenv('EVENTS_KAFKA_TOPIC_PAGEVIEWS', 'analytics.pageviews.v1')
-TOPIC_CUSTOM_EVENTS = os.getenv('EVENTS_KAFKA_TOPIC_CUSTOM_EVENTS', 'analytics.custom_events.v1')
+TOPIC_CUSTOM_EVENTS = os.getenv(
+    'EVENTS_KAFKA_TOPIC_CUSTOM_EVENTS', 'analytics.custom_events.v1'
+)
 
 API_KEY = os.getenv('EVENTS_API_KEY', '')
 HEADERS = {"X-API-Key": API_KEY} if API_KEY else {}
@@ -64,7 +69,9 @@ async def post_event(session: aiohttp.ClientSession, body: dict) -> tuple:
 
 
 async def post_batch(session: aiohttp.ClientSession, events: list) -> tuple:
-    async with session.post(f"{BASE_URL}/batch", json={"events": events}, headers=HEADERS) as response:
+    async with session.post(
+        f"{BASE_URL}/batch", json={"events": events}, headers=HEADERS
+    ) as response:
         return response.status, await response.json()
 
 

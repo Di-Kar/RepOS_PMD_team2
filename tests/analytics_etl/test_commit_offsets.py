@@ -55,7 +55,9 @@ def etl_settings_mock(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_commit_offsets_uses_assignment(mock_consumer, mock_processor, mock_storage, etl_settings_mock):
+def test_commit_offsets_uses_assignment(
+    mock_consumer, mock_processor, mock_storage, etl_settings_mock
+):
     """Verify _commit_offsets filters offsets by consumer.assignment()."""
     from main import _commit_offsets
 
@@ -86,7 +88,9 @@ def test_commit_offsets_uses_assignment(mock_consumer, mock_processor, mock_stor
     assert ('pageviews', 0, 50) not in topics_partitions
 
 
-def test_commit_offsets_empty_assignment(mock_consumer, mock_processor, mock_storage, etl_settings_mock):
+def test_commit_offsets_empty_assignment(
+    mock_consumer, mock_processor, mock_storage, etl_settings_mock
+):
     """Verify _commit_offsets handles empty assignment gracefully."""
     from main import _commit_offsets
 
@@ -104,7 +108,9 @@ def test_commit_offsets_empty_assignment(mock_consumer, mock_processor, mock_sto
         assert commit_list == []
 
 
-def test_commit_offsets_only_some_partitions_assigned(mock_consumer, mock_processor, mock_storage, etl_settings_mock):
+def test_commit_offsets_only_some_partitions_assigned(
+    mock_consumer, mock_processor, mock_storage, etl_settings_mock
+):
     """Verify only assigned partitions are committed, others ignored."""
     from main import _commit_offsets
 
@@ -125,7 +131,9 @@ def test_commit_offsets_only_some_partitions_assigned(mock_consumer, mock_proces
     assert commit_list[0].offset == 50
 
 
-def test_commit_offsets_empty_pending_offsets(mock_consumer, mock_processor, mock_storage, etl_settings_mock):
+def test_commit_offsets_empty_pending_offsets(
+    mock_consumer, mock_processor, mock_storage, etl_settings_mock
+):
     """Verify _commit_offsets returns early when there are no pending offsets."""
     from main import _commit_offsets
 
@@ -138,7 +146,9 @@ def test_commit_offsets_empty_pending_offsets(mock_consumer, mock_processor, moc
     mock_consumer.commit.assert_not_called()
 
 
-def test_commit_offsets_saves_state(mock_consumer, mock_processor, mock_storage, etl_settings_mock):
+def test_commit_offsets_saves_state(
+    mock_consumer, mock_processor, mock_storage, etl_settings_mock
+):
     """Verify offsets are saved to state storage."""
     from main import _commit_offsets
 
@@ -152,12 +162,16 @@ def test_commit_offsets_saves_state(mock_consumer, mock_processor, mock_storage,
     _commit_offsets(mock_consumer, mock_processor)
 
     # Verify save_offsets was called with the pending offsets
-    mock_storage.save_offsets.assert_called_once_with({
-        'clicks': {0: 100},
-    })
+    mock_storage.save_offsets.assert_called_once_with(
+        {
+            'clicks': {0: 100},
+        }
+    )
 
 
-def test_commit_offsets_with_unassigned_topic(mock_consumer, mock_processor, mock_storage, etl_settings_mock):
+def test_commit_offsets_with_unassigned_topic(
+    mock_consumer, mock_processor, mock_storage, etl_settings_mock
+):
     """Verify offsets for completely unassigned topics are ignored."""
     from main import _commit_offsets
 
@@ -181,8 +195,10 @@ def test_commit_offsets_with_unassigned_topic(mock_consumer, mock_processor, moc
     assert commit_list[0].offset == 100
 
     # State should still save ALL pending offsets (for resume after restart)
-    mock_storage.save_offsets.assert_called_once_with({
-        'clicks': {0: 100},
-        'pageviews': {0: 200, 1: 300},
-        'sessions': {0: 400},
-    })
+    mock_storage.save_offsets.assert_called_once_with(
+        {
+            'clicks': {0: 100},
+            'pageviews': {0: 200, 1: 300},
+            'sessions': {0: 400},
+        }
+    )

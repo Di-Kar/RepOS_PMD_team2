@@ -1,4 +1,5 @@
 """Application configuration."""
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -30,7 +31,9 @@ class Settings(BaseSettings):
     postgres_port: int = Field(default=5432, alias="AUTH_POSTGRES_PORT")
     postgres_db: str = Field(default="auth_db", alias="AUTH_POSTGRES_DB")
     postgres_user: str = Field(default="auth_user", alias="AUTH_POSTGRES_USER")
-    postgres_password: str = Field(default="auth_password", alias="AUTH_POSTGRES_PASSWORD")
+    postgres_password: str = Field(
+        default="auth_password", alias="AUTH_POSTGRES_PASSWORD"
+    )
 
     # Redis Configuration
     redis_host: str = Field(default="localhost", alias="AUTH_REDIS_HOST")
@@ -44,20 +47,26 @@ class Settings(BaseSettings):
     # JWT
     secret_key: str = Field(alias="AUTH_SECRET_KEY")
     # error[mypy]: Missing named argument "AUTH_SECRET_KEY" for "Settings"  [call-arg]
-    
+
     algorithm: str = Field(default="HS256", alias="AUTH_JWT_ALGORITHM")
     # Секрет для SessionMiddleware (state/nonce OAuth-флоу), отдельный от JWT.
     session_secret: str = Field(alias="AUTH_SESSION_SECRET")
     # error[mypy]: Missing named argument "AUTH_SESSION_SECRET" for "Settings"  [call-arg]
-    
-    access_token_expire_minutes: int = Field(default=30, alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES")
-    refresh_token_expire_days: int = Field(default=7, alias="AUTH_REFRESH_TOKEN_EXPIRE_DAYS")
+
+    access_token_expire_minutes: int = Field(
+        default=30, alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES"
+    )
+    refresh_token_expire_days: int = Field(
+        default=7, alias="AUTH_REFRESH_TOKEN_EXPIRE_DAYS"
+    )
 
     # Rate Limiting
-    #"Глобальное включение/отключение rate limiting"
+    # "Глобальное включение/отключение rate limiting"
     rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
-    #"Алгоритм ограничения: 'fixed-window', 'moving-window' (Leaky bucket), 'fixed-window-elastic-expiry'"
-    rate_limit_strategy: str = Field(default="moving-window", alias="RATE_LIMIT_STRATEGY")
+    # "Алгоритм ограничения: 'fixed-window', 'moving-window' (Leaky bucket), 'fixed-window-elastic-expiry'"
+    rate_limit_strategy: str = Field(
+        default="moving-window", alias="RATE_LIMIT_STRATEGY"
+    )
 
     # Строгие лимиты (защита от брутфорса и спама)
     # Для критических операций: login, register, change-password
@@ -87,7 +96,7 @@ class Settings(BaseSettings):
     )
     # Jaeger Configuration
     jaeger_endpoint: str = Field(alias='JAEGER_ENDPOINT')
-    #error[mypy]: Missing named argument "JAEGER_ENDPOINT" for "Settings"  [call-arg]
+    # error[mypy]: Missing named argument "JAEGER_ENDPOINT" for "Settings"  [call-arg]
 
     # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
     sentry_dsn: str = Field(default='', alias='SENTRY_DSN')
@@ -120,5 +129,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
+
+
 # Global settings instance
 settings = get_settings()

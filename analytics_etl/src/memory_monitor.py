@@ -65,13 +65,15 @@ class MemoryMonitor:
         if rss >= self.critical_mb:
             logger.critical(
                 'КРИТИЧЕСКИ: RSS-память %.0f МБ превышает порог %d МБ',
-                rss, self.critical_mb,
+                rss,
+                self.critical_mb,
             )
             return 'critical'
         elif rss >= self.warn_mb:
             logger.warning(
                 'ВНИМАНИЕ: RSS-память %.0f МБ превышает порог %d МБ',
-                rss, self.warn_mb,
+                rss,
+                self.warn_mb,
             )
             return 'warning'
         return 'ok'
@@ -83,7 +85,9 @@ class MemoryMonitor:
         """
         metrics = self.track_memory()
         if metrics['rss_mb'] >= self.warn_mb:
-            logger.info('Запускаю авто-сборку мусора (память %.0f МБ)', metrics['rss_mb'])
+            logger.info(
+                'Запускаю авто-сборку мусора (память %.0f МБ)', metrics['rss_mb']
+            )
             collected = gc.collect()
             logger.info('Авто-сборка собрала %d объектов', collected)
             return collected

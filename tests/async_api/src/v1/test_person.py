@@ -1,4 +1,5 @@
 """Функциональные тесты для эндпоинта /persons."""
+
 import pytest
 
 from tests.async_api.settings import test_settings
@@ -6,11 +7,14 @@ from tests.async_api.settings import test_settings
 TEST_PERSON_UUID = '3a6ed55e-6aef-4cd2-932c-808495182425'
 TEST_PERSON_UUID_2 = '4a6ed55e-6aef-4cd2-932c-808495182426'
 
+
 # === Тесты получения персоны по ID ===
 @pytest.mark.asyncio
 async def test_person_by_id(es_write_data, es_data_persons, make_get_request):
     """Получение персоны по существующему UUID."""
-    await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
+    await es_write_data(
+        es_data_persons, test_settings.elastic_settings.es_index_persons
+    )
 
     response = await make_get_request('/persons', f'/{TEST_PERSON_UUID}')
 
@@ -23,7 +27,9 @@ async def test_person_by_id(es_write_data, es_data_persons, make_get_request):
 @pytest.mark.asyncio
 async def test_person_structure(es_write_data, es_data_persons, make_get_request):
     """Проверка структуры ответа персоны."""
-    await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
+    await es_write_data(
+        es_data_persons, test_settings.elastic_settings.es_index_persons
+    )
 
     response = await make_get_request('/persons', f'/{TEST_PERSON_UUID}')
 
@@ -56,7 +62,9 @@ async def test_person_films(
     # Сбрасываем кэш: предыдущие тесты могли закэшировать персону без films
     await redis_client.flushdb()
     await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
-    await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
+    await es_write_data(
+        es_data_persons, test_settings.elastic_settings.es_index_persons
+    )
 
     response = await make_get_request('/persons', f'/{TEST_PERSON_UUID}')
     assert response['status'] == 200
@@ -70,6 +78,7 @@ async def test_person_films(
         assert 'uuid' in film
         assert 'roles' in film
         assert all(isinstance(r, str) for r in film['roles'])
+
 
 # === Тесты валидации UUID ===
 @pytest.mark.parametrize(
@@ -96,12 +105,15 @@ async def test_person_validation(make_get_request, endpoint, expected_status):
 
 # === Тесты кеширования в Redis ===
 
+
 @pytest.mark.asyncio
 async def test_person_redis_cache(
     es_write_data, es_data_persons, make_get_request, redis_client
 ):
     """Проверка кеширования персоны в Redis."""
-    await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
+    await es_write_data(
+        es_data_persons, test_settings.elastic_settings.es_index_persons
+    )
 
     await redis_client.flushdb()
     keys_before = await redis_client.keys('*')
@@ -123,7 +135,9 @@ async def test_person_cache_invalidation(
     es_write_data, es_data_persons, make_get_request, redis_client
 ):
     """Проверка, что разные персоны кешируются отдельно."""
-    await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
+    await es_write_data(
+        es_data_persons, test_settings.elastic_settings.es_index_persons
+    )
     await redis_client.flushdb()
 
     response1 = await make_get_request('/persons', f'/{TEST_PERSON_UUID}')
@@ -134,6 +148,7 @@ async def test_person_cache_invalidation(
 
     assert response1['body']['uuid'] != response2['body']['uuid']
     assert response1['body']['full_name'] != response2['body']['full_name']
+
 
 # === Тесты с реальными данными (из ETL) ===
 @pytest.mark.asyncio
@@ -147,7 +162,7 @@ async def test_person_real_data(make_get_request, es_client, redis_client):
 
     result = await es_client.search(
         index=test_settings.elastic_settings.es_index_persons,
-        body={"size": 1, "query": {"match_all": {}}}
+        body={"size": 1, "query": {"match_all": {}}},
     )
 
     # Публичный идентификатор персоны — поле id (оно же _id документа);
@@ -159,11 +174,14 @@ async def test_person_real_data(make_get_request, es_client, redis_client):
     assert response['status'] == 200
     assert response['body']['uuid'] == person_id
 
+
 # === Тесты поиска персон ===
 @pytest.mark.asyncio
 async def test_persons_search(es_write_data, es_data_persons, make_get_request):
     """Поиск персон по имени (GET /api/v1/persons/search?query=...)."""
-    await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
+    await es_write_data(
+        es_data_persons, test_settings.elastic_settings.es_index_persons
+    )
 
     response = await make_get_request(
         '/persons', '/search', query_data={'query': 'James'}
@@ -173,15 +191,19 @@ async def test_persons_search(es_write_data, es_data_persons, make_get_request):
     body = response['body']
     assert isinstance(body, list)
     assert len(body) > 0, "Поиск 'James' должен вернуть результаты"
-    
+
     names = [p.get('full_name', '').lower() for p in body]
     assert any('james' in n for n in names)
 
 
 @pytest.mark.asyncio
-async def test_persons_search_not_found(es_write_data, es_data_persons, make_get_request):
+async def test_persons_search_not_found(
+    es_write_data, es_data_persons, make_get_request
+):
     """Поиск несуществующей персоны."""
-    await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
+    await es_write_data(
+        es_data_persons, test_settings.elastic_settings.es_index_persons
+    )
 
     response = await make_get_request(
         '/persons', '/search', query_data={'query': 'xyzabc123nonexistent'}
@@ -204,15 +226,16 @@ async def test_persons_search_not_found(es_write_data, es_data_persons, make_get
 )
 @pytest.mark.asyncio
 async def test_persons_search_validation(
-    es_write_data, es_data_persons, make_get_request,
-    query_data, expected_status
+    es_write_data, es_data_persons, make_get_request, query_data, expected_status
 ):
     """Валидация параметров поиска."""
-    await es_write_data(es_data_persons, test_settings.elastic_settings.es_index_persons)
+    await es_write_data(
+        es_data_persons, test_settings.elastic_settings.es_index_persons
+    )
 
     response = await make_get_request('/persons', '/search', query_data=query_data)
     assert response['status'] == expected_status
-    
+
     if query_data.get('query') == '' and expected_status == 200:
         body = response['body']
         assert isinstance(body, list), "Ответ должен быть списком"

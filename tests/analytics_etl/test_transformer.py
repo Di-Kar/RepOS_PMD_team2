@@ -115,6 +115,7 @@ class TestTransformForEvents:
 
     def test_raw_event_is_json(self):
         import json
+
         result = transform_for_events(BASE_EVENT)
         parsed = json.loads(result['raw_event'])
         assert parsed['event_id'] == 'evt-001'
@@ -131,16 +132,20 @@ class TestExtractContentId:
         assert extract_content_id(event) == 'c-42'
 
     def test_from_payload_attrs_content_id(self):
-        event = _make_event(payload={
-            'attrs': {'content_id': 'c-42'},
-        })
+        event = _make_event(
+            payload={
+                'attrs': {'content_id': 'c-42'},
+            }
+        )
         assert extract_content_id(event) == 'c-42'
 
     def test_payload_content_id_takes_priority(self):
-        event = _make_event(payload={
-            'content_id': 'direct',
-            'attrs': {'content_id': 'attr'},
-        })
+        event = _make_event(
+            payload={
+                'content_id': 'direct',
+                'attrs': {'content_id': 'attr'},
+            }
+        )
         assert extract_content_id(event) == 'direct'
 
     def test_returns_none_when_absent(self):

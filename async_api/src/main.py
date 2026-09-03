@@ -42,7 +42,9 @@ async def lifespan(app: FastAPI):
     )
     app.state.redis = Redis(connection_pool=redis_pool)
     app.state.elastic = AsyncElasticsearch(
-        hosts=[f'{config.settings.elastic_schema}{config.settings.elastic_host}:{config.settings.elastic_port}'],
+        hosts=[
+            f'{config.settings.elastic_schema}{config.settings.elastic_host}:{config.settings.elastic_port}'
+        ],
         max_retries=3,
         connections_per_node=32,
     )
@@ -65,7 +67,7 @@ app = FastAPI(
         "Источник данных — PostgreSQL, перенос осуществляется ETL-пайплайном."
     ),
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 app.include_router(films.router, prefix='/api/v1/films')
@@ -74,7 +76,9 @@ app.include_router(persons.router, prefix='/api/v1/persons')
 
 
 @app.exception_handler(StorageUnavailableError)
-async def storage_unavailable_handler(_: Request, exc: StorageUnavailableError) -> JSONResponse:
+async def storage_unavailable_handler(
+    _: Request, exc: StorageUnavailableError
+) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={'detail': 'Storage is temporarily unavailable'},
@@ -82,6 +86,7 @@ async def storage_unavailable_handler(_: Request, exc: StorageUnavailableError) 
 
 
 if config.settings.debug:
+
     @app.get('/api/v1/_sentry_debug')
     async def sentry_debug():
         raise ZeroDivisionError

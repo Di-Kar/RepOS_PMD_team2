@@ -107,7 +107,9 @@ class TestAddEvent:
         """Равные occurred_at — новая запись заменяет."""
         ts = '2025-01-15T10:00:00+00:00'
         processor.add_event(_make_validated_event(event_id='e1', occurred_at=ts))
-        processor.add_event(_make_validated_event(event_id='e1', occurred_at=ts, user_id='new_user'))
+        processor.add_event(
+            _make_validated_event(event_id='e1', occurred_at=ts, user_id='new_user')
+        )
         assert processor.buffer_size == 1
         stored = list(processor._buffer.values())[0]
         assert stored['user_id'] == 'new_user'
@@ -196,8 +198,16 @@ class TestFlush:
         assert success is True
 
     def test_flush_after_dedup(self, processor):
-        processor.add_event(_make_validated_event(event_id='dup', occurred_at='2025-01-01T00:00:00+00:00'))
-        processor.add_event(_make_validated_event(event_id='dup', occurred_at='2025-12-31T23:59:59+00:00'))
+        processor.add_event(
+            _make_validated_event(
+                event_id='dup', occurred_at='2025-01-01T00:00:00+00:00'
+            )
+        )
+        processor.add_event(
+            _make_validated_event(
+                event_id='dup', occurred_at='2025-12-31T23:59:59+00:00'
+            )
+        )
         assert processor.buffer_size == 1
         count, success = processor.flush()
         assert count >= 1

@@ -1,4 +1,5 @@
 """Функциональные тесты для эндпоинта /films."""
+
 import pytest
 
 from tests.async_api.settings import test_settings
@@ -7,6 +8,7 @@ TEST_FILM_UUID = '608c4567-0b8a-49a0-88fb-82770c5b2f61'
 TEST_FILM_UUID_2 = '708c4567-0b8a-49a0-88fb-82770c5b2f62'
 
 # === Тесты получения фильма по ID ===
+
 
 @pytest.mark.asyncio
 async def test_film_by_id(es_write_data, es_data_movies, make_get_request):
@@ -39,15 +41,26 @@ async def test_film_structure(es_write_data, es_data_movies, make_get_request):
 
     # Опциональные поля
     optional_fields = [
-        'description', 'genre',  # ✅ 'genre', не 'genres'
-        'actors', 'actors_names',
-        'writers', 'writers_names',
-        'directors', 'directors_names',
+        'description',
+        'genre',  # ✅ 'genre', не 'genres'
+        'actors',
+        'actors_names',
+        'writers',
+        'writers_names',
+        'directors',
+        'directors_names',
     ]
     for field in optional_fields:
         if field in body:
-            if field in ['genre', 'actors', 'writers', 'directors',
-                         'actors_names', 'writers_names', 'directors_names']:
+            if field in [
+                'genre',
+                'actors',
+                'writers',
+                'directors',
+                'actors_names',
+                'writers_names',
+                'directors_names',
+            ]:
                 assert isinstance(body[field], list)
 
 
@@ -88,6 +101,7 @@ async def test_film_nested_data(es_write_data, es_data_movies, make_get_request)
 
 # === Тесты валидации UUID ===
 
+
 @pytest.mark.parametrize(
     'endpoint, expected_status',
     [
@@ -111,6 +125,7 @@ async def test_film_validation(make_get_request, endpoint, expected_status):
 
 
 # === Тесты кеширования в Redis ===
+
 
 @pytest.mark.asyncio
 async def test_film_redis_cache(
@@ -164,7 +179,7 @@ async def test_film_real_data(make_get_request, es_client, redis_client):
 
     result = await es_client.search(
         index=test_settings.elastic_settings.es_index_movies,
-        body={"size": 1, "query": {"match_all": {}}}
+        body={"size": 1, "query": {"match_all": {}}},
     )
 
     # Публичный идентификатор фильма — поле id (оно же _id документа);
@@ -179,6 +194,7 @@ async def test_film_real_data(make_get_request, es_client, redis_client):
 
 # === Тесты списка фильмов ===
 
+
 @pytest.mark.asyncio
 async def test_films_list(es_write_data, es_data_movies, make_get_request):
     """Получение списка всех фильмов (GET /api/v1/films)."""
@@ -188,19 +204,17 @@ async def test_films_list(es_write_data, es_data_movies, make_get_request):
 
     assert response['status'] == 200
     body = response['body']
-    
+
     assert isinstance(body, list), f"Ожидался список, получен {type(body)}"
     assert len(body) > 0, "Список фильмов не должен быть пустым"
-    
+
     for film in body:
         assert 'uuid' in film or 'id' in film
         assert 'title' in film
 
 
 @pytest.mark.asyncio
-async def test_films_list_pagination(
-    es_write_data, es_data_movies, make_get_request
-):
+async def test_films_list_pagination(es_write_data, es_data_movies, make_get_request):
     """Пагинация списка фильмов."""
     await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
 
@@ -222,6 +236,7 @@ async def test_films_list_pagination(
 
 # === Тесты поиска фильмов ===
 
+
 @pytest.mark.asyncio
 async def test_films_search(es_write_data, es_data_movies, make_get_request):
     """Поиск фильмов по названию (GET /api/v1/films/search?query=...)."""
@@ -235,7 +250,7 @@ async def test_films_search(es_write_data, es_data_movies, make_get_request):
     body = response['body']
     assert isinstance(body, list)
     assert len(body) > 0, "Поиск 'The movie' должен вернуть результаты"
-    
+
     titles = [f.get('title', '').lower() for f in body]
     assert any('the movie' in t or 'movie' in t for t in titles)
 
@@ -269,15 +284,14 @@ async def test_films_search_not_found(es_write_data, es_data_movies, make_get_re
 )
 @pytest.mark.asyncio
 async def test_films_search_validation(
-    es_write_data, es_data_movies, make_get_request,
-    query_data, expected_status
+    es_write_data, es_data_movies, make_get_request, query_data, expected_status
 ):
     """Валидация параметров поиска."""
     await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
 
     response = await make_get_request('/films', '/search', query_data=query_data)
     assert response['status'] == expected_status
-    
+
     # Дополнительная проверка для пустого запроса
     if query_data.get('query') == '' and expected_status == 200:
         body = response['body']
@@ -286,23 +300,26 @@ async def test_films_search_validation(
 
 # === Тесты поиска фильмов (дополнительные) ===
 
+
 @pytest.mark.asyncio
-async def test_films_search_pagination(
-    es_write_data, es_data_movies, make_get_request
-):
+async def test_films_search_pagination(es_write_data, es_data_movies, make_get_request):
     """Проверка пагинации результатов поиска."""
     await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
 
     # Запрос первой страницы
     response1 = await make_get_request(
-        '/films', '/search', query_data={'query': 'movie', 'page_number': 1, 'page_size': 2}
+        '/films',
+        '/search',
+        query_data={'query': 'movie', 'page_number': 1, 'page_size': 2},
     )
     assert response1['status'] == 200
     assert len(response1['body']) <= 2
 
     # Запрос второй страницы
     response2 = await make_get_request(
-        '/films', '/search', query_data={'query': 'movie', 'page_number': 2, 'page_size': 2}
+        '/films',
+        '/search',
+        query_data={'query': 'movie', 'page_number': 2, 'page_size': 2},
     )
     assert response2['status'] == 200
     assert len(response2['body']) <= 2
@@ -332,33 +349,37 @@ async def test_films_search_case_insensitive(
 
     assert response_lower['status'] == 200
     assert response_upper['status'] == 200
-    
+
     # Оба запроса должны вернуть результаты
-    assert len(response_lower['body']) > 0, "Поиск 'the movie' должен вернуть результаты"
-    assert len(response_upper['body']) > 0, "Поиск 'THE MOVIE' должен вернуть результаты"
-    
-    
+    assert (
+        len(response_lower['body']) > 0
+    ), "Поиск 'the movie' должен вернуть результаты"
+    assert (
+        len(response_upper['body']) > 0
+    ), "Поиск 'THE MOVIE' должен вернуть результаты"
+
+
 @pytest.mark.asyncio
 async def test_films_search_partial_match(
     es_write_data, es_data_movies, make_get_request
 ):
     """Проверка частичного совпадения при поиске."""
     await es_write_data(es_data_movies, test_settings.elastic_settings.es_index_movies)
-    
+
     # Поиск 'movie' - должно вернуть фильмы с 'movie' в названии
     response1 = await make_get_request(
         '/films', '/search', query_data={'query': 'movie'}
     )
     assert response1['status'] == 200
     assert len(response1['body']) > 0, "Поиск 'movie' должен вернуть результаты"
-    
+
     # Поиск 'Super' - должно вернуть фильмы с 'Super' в описании (не стоп-слово)
     response2 = await make_get_request(
         '/films', '/search', query_data={'query': 'Super'}
     )
     assert response2['status'] == 200
     assert len(response2['body']) > 0, "Поиск 'Super' должен вернуть результаты"
-    
+
     # Поиск 'World' - должно вернуть фильмы с 'World' в описании
     response3 = await make_get_request(
         '/films', '/search', query_data={'query': 'World'}
@@ -443,9 +464,7 @@ async def test_films_search_caching_invalidation(
     response2 = await make_get_request(
         '/films', '/search', query_data={'query': 'Another movie'}
     )
-    response3 = await make_get_request(
-        '/films', '/search', query_data={'query': 'New'}
-    )
+    response3 = await make_get_request('/films', '/search', query_data={'query': 'New'})
 
     assert response1['status'] == 200
     assert response2['status'] == 200

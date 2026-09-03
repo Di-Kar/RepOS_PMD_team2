@@ -5,6 +5,7 @@ Kafka в ClickHouse). Раньше схемы были продублирова�
 разошлись (event_api — строгий вариант, analytics_etl — ослабленный); теперь
 оба сервиса валидируют события одной и той же моделью.
 """
+
 from datetime import datetime, timezone
 from typing import Annotated, Any, Literal, Union
 from uuid import UUID
@@ -136,7 +137,9 @@ TOPIC_BY_EVENT_TYPE: dict[str, str] = {
 }
 
 
-def to_kafka_record(event: "ClickEvent | PageViewStartEvent | PageViewEndEvent | CustomEvent") -> dict:
+def to_kafka_record(
+    event: "ClickEvent | PageViewStartEvent | PageViewEndEvent | CustomEvent",
+) -> dict:
     """Сериализует событие в JSON-совместимый dict для value сообщения Kafka,
     проставляя received_at в момент вызова (раздел 2 контракта, NFR-17)."""
     record = event.model_dump(mode="json")

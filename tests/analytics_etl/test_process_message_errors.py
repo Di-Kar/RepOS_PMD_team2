@@ -3,7 +3,9 @@
 from unittest.mock import MagicMock, patch
 
 
-def _make_msg(value: bytes, topic: str = 'clicks', partition: int = 0, offset: int = 100):
+def _make_msg(
+    value: bytes, topic: str = 'clicks', partition: int = 0, offset: int = 100
+):
     """Создать мокедное сообщение Kafka."""
     msg = MagicMock()
     msg.value.return_value = value
@@ -16,6 +18,7 @@ def _make_msg(value: bytes, topic: str = 'clicks', partition: int = 0, offset: i
 def _make_processor():
     """Создать EventProcessor с моками зависимостей."""
     from processor import EventProcessor
+
     loader = MagicMock()
     loader.bulk_insert.return_value = True
     dlq = MagicMock()
@@ -94,7 +97,9 @@ class TestUnexpectedProcessingError:
         processor, dlq = _make_processor()
         consumer = MagicMock()
 
-        with patch('main.json.loads', side_effect=RuntimeError('parse failed unexpectedly')):
+        with patch(
+            'main.json.loads', side_effect=RuntimeError('parse failed unexpectedly')
+        ):
             _process_message(msg, processor, consumer, dlq)
 
         # DLQ должен быть вызван с PROCESSING_ERROR
@@ -111,7 +116,9 @@ class TestUnexpectedProcessingError:
         processor, dlq = _make_processor()
         consumer = MagicMock()
 
-        with patch('main.json.loads', side_effect=RuntimeError('parse failed unexpectedly')):
+        with patch(
+            'main.json.loads', side_effect=RuntimeError('parse failed unexpectedly')
+        ):
             _process_message(msg, processor, consumer, dlq)
 
         # Смещение должно быть зафиксировано через _track_offset
@@ -138,6 +145,7 @@ class TestValidationVsProcessingError:
             import importlib
 
             import main as main_module
+
             importlib.reload(main_module)
 
             main_module._process_message(msg, processor, consumer, dlq)

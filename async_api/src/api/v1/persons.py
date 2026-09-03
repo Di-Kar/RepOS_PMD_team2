@@ -18,7 +18,7 @@ router = APIRouter()
     response_model=list[PersonSearchResponse],
     summary="Полнотекстовый поиск персон",
     description="Ищет персон (актёров, режиссёров, сценаристов) по имени. Поддерживает пагинацию. "
-                "⚠️ Фильмография в этом запросе не включена. Для получения полной информации используйте `/persons/{id}`.",
+    "⚠️ Фильмография в этом запросе не включена. Для получения полной информации используйте `/persons/{id}`.",
     response_description="Список персон с именем и UUID (без фильмографии)",
     tags=["Персоны"],
 )
@@ -28,7 +28,9 @@ async def persons_search(
     person_service: PersonService = Depends(get_person_service),
     user: Optional[UserContext] = Depends(get_optional_user),
 ) -> list[PersonSearchResponse]:
-    persons = await person_service.search(query, pagination.page_number, pagination.page_size)
+    persons = await person_service.search(
+        query, pagination.page_number, pagination.page_size
+    )
     return [
         PersonSearchResponse(
             uuid=p.id,
@@ -77,4 +79,7 @@ async def person_films(
     films = await person_service.get_films_by_person(str(person_id))
     if films is None:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail='person not found')
-    return [FilmShort(uuid=f['uuid'], title=f['title'], imdb_rating=f.get('imdb_rating')) for f in films]
+    return [
+        FilmShort(uuid=f['uuid'], title=f['title'], imdb_rating=f.get('imdb_rating'))
+        for f in films
+    ]

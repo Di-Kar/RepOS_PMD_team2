@@ -1,4 +1,5 @@
 """Rate limiting configuration and utilities."""
+
 import logging
 
 from fastapi import Request, Response
@@ -16,7 +17,7 @@ if not logger.handlers:
     handler.setFormatter(
         logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
     )
     logger.addHandler(handler)
@@ -30,9 +31,11 @@ def get_client_ip(request: Request) -> str:
     if forwarded_for:
         # Берем первый IP в списке (оригинальный клиент)
         return forwarded_for.split(",")[0].strip()
-    
+
     # Fallback на стандартный метод slowapi или client.host
-    return get_remote_address(request) or (request.client.host if request.client else "unknown")
+    return get_remote_address(request) or (
+        request.client.host if request.client else "unknown"
+    )
 
 
 def get_user_identifier(request: Request) -> str:
@@ -42,12 +45,12 @@ def get_user_identifier(request: Request) -> str:
     Для неавторизованных: ip:{ip_address}
     """
     user_id = getattr(request.state, "user_id", None)
-    
+
     if user_id:
         identifier = f"user:{user_id}"
         logger.debug(f"Rate limit key (auth): {identifier}")
         return identifier
-    
+
     ip_address = get_client_ip(request)
     identifier = f"ip:{ip_address}"
     logger.debug(f"Rate limit key (anon): {identifier}")
@@ -102,12 +105,12 @@ def setup_rate_limit_middleware(app) -> None:
     @app.middleware("http")
     async def rate_limit_logging_middleware(request: Request, call_next):
         response: Response = await call_next(request)
-        
+
         # Логируем только факты блокировки
         if response.status_code == HTTP_429_TOO_MANY_REQUESTS:
             user_id = getattr(request.state, "user_id", "anonymous")
             ip = get_client_ip(request)
-            
+
             logger.warning(
                 f"RATE LIMIT EXCEEDED | "
                 f"user: {user_id} | "
@@ -115,5 +118,5 @@ def setup_rate_limit_middleware(app) -> None:
                 f"method: {request.method} | "
                 f"path: {request.url.path}"
             )
-            
+
         return response

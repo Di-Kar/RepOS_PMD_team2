@@ -1,4 +1,5 @@
 """Реестр OAuth-клиентов (authlib) для входа через соцсети."""
+
 from authlib.integrations.starlette_client import OAuth
 
 from src.core.config import settings

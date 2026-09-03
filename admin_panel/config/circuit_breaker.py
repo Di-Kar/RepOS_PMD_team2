@@ -2,6 +2,7 @@
 -> half-open (пробный запрос) -> CLOSED/OPEN. Состояние в памяти процесса:
 достаточно, т.к. у admin_panel UWSGI_PROCESSES=1.
 """
+
 import time
 from typing import Optional
 

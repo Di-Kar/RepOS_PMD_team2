@@ -1,5 +1,6 @@
 """Вход через соцсети: связка SocialAccount <-> User, без своего OAuth-сервера
 (auth_service выступает потребителем — обмен кода на токен делает authlib)."""
+
 import secrets
 from datetime import datetime
 from typing import Optional
@@ -22,7 +23,9 @@ class OAuthService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def _get_social_account(self, provider: str, provider_user_id: str) -> Optional[SocialAccount]:
+    async def _get_social_account(
+        self, provider: str, provider_user_id: str
+    ) -> Optional[SocialAccount]:
         result = await self._session.execute(
             select(SocialAccount).where(
                 SocialAccount.provider == provider,

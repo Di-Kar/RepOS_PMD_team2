@@ -27,6 +27,7 @@ def configure(
 
 def backoff(exceptions: Tuple[Type[Exception], ...]) -> Callable:
     """Декоратор повтора с экспоненциальной задержкой."""
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -40,15 +41,22 @@ def backoff(exceptions: Tuple[Type[Exception], ...]) -> Callable:
                     if _max_attempts and attempt >= _max_attempts:
                         logger.error(
                             'Функция %s не удалась после %d попыток: %s',
-                            func.__name__, attempt, e,
+                            func.__name__,
+                            attempt,
+                            e,
                         )
                         raise
                     log_fn = logger.error if attempt >= 5 else logger.warning
                     log_fn(
                         'Попытка %d для %s не удалась: %s. Повтор через %.1fs',
-                        attempt, func.__name__, e, sleep_time,
+                        attempt,
+                        func.__name__,
+                        e,
+                        sleep_time,
                     )
                     time.sleep(sleep_time)
                     sleep_time = min(sleep_time * _factor, _border_sleep_time)
+
         return wrapper
+
     return decorator

@@ -1,4 +1,5 @@
 """Точка входа FastAPI-приложения event_api."""
+
 import logging
 import uuid
 from contextlib import asynccontextmanager
@@ -68,7 +69,9 @@ async def before_request(request: Request, call_next):
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_error_handler(
+    _: Request, exc: RequestValidationError
+) -> JSONResponse:
     """400 с {error, message} вместо стандартного 422 FastAPI — единый формат
     ошибок с остальными сервисами проекта."""
     first = exc.errors()[0]
@@ -80,6 +83,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 
 if settings.debug:
+
     @app.get("/api/v1/_sentry_debug")
     async def sentry_debug():
         raise ZeroDivisionError

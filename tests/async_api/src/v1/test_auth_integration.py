@@ -4,6 +4,7 @@
 Bearer-токена не должны влиять на код ответа — это и есть изящная деградация,
 которую проверяют эти тесты.
 """
+
 import asyncio
 import os
 import uuid
@@ -19,12 +20,16 @@ def _is_docker() -> bool:
     return os.path.exists('/.dockerenv')
 
 
-AUTH_API_HOST = os.getenv('AUTH_API_HOST', 'auth_service' if _is_docker() else '127.0.0.1')
+AUTH_API_HOST = os.getenv(
+    'AUTH_API_HOST', 'auth_service' if _is_docker() else '127.0.0.1'
+)
 AUTH_API_PORT = int(os.getenv('AUTH_API_PORT', '8000' if _is_docker() else '8001'))
 AUTH_BASE_URL = f"http://{AUTH_API_HOST}:{AUTH_API_PORT}/api/v1"
 
 
-async def _post_json_with_retry(session: aiohttp.ClientSession, url: str, json_body: dict) -> tuple:
+async def _post_json_with_retry(
+    session: aiohttp.ClientSession, url: str, json_body: dict
+) -> tuple:
     """POST с уважением к 429 Retry-After (RATE_LIMIT_STRICT на auth_service)."""
     while True:
         async with session.post(url, json=json_body) as response:
@@ -53,7 +58,9 @@ async def auth_headers() -> dict:
         assert status == 201, body
 
         status, tokens = await _post_json_with_retry(
-            session, f"{AUTH_BASE_URL}/auth/login", {"email": email, "password": password}
+            session,
+            f"{AUTH_BASE_URL}/auth/login",
+            {"email": email, "password": password},
         )
         assert status == 200, tokens
 
@@ -61,7 +68,9 @@ async def auth_headers() -> dict:
 
 
 @pytest.mark.asyncio
-async def test_genres_list_without_token(es_write_data, es_data_genres, make_get_request):
+async def test_genres_list_without_token(
+    es_write_data, es_data_genres, make_get_request
+):
     """Без заголовка Authorization каталог доступен как обычно."""
     await es_write_data(es_data_genres, test_settings.elastic_settings.es_index_genres)
 

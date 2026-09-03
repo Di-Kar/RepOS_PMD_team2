@@ -41,7 +41,7 @@ async def lifespan(_: FastAPI):
     # Включаем трассировку с учётом debug-режима
     debug = getattr(settings, "debug", False)
     configure_tracer(debug=debug)
-    
+
     await init_redis()
     yield
     await close_redis()
@@ -72,11 +72,12 @@ async def before_request(request: Request, call_next):
     if request.url.path in ['/openapi.json', '/docs', '/redoc', '/health']:
         response = await call_next(request)
         return response
-    
+
     # Генерируем или используем переданный request_id
     request_id = request.headers.get('X-Request-Id')
     if not request_id:
         import uuid
+
         request_id = str(uuid.uuid4())
 
     response = await call_next(request)
@@ -95,7 +96,9 @@ _VALIDATION_ERROR_CODES = {
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_error_handler(
+    _: Request, exc: RequestValidationError
+) -> JSONResponse:
     """Спека требует 400 с {error, message, field} вместо стандартного 422 FastAPI."""
     first = exc.errors()[0]
     # loc = ("body", "<имя поля>", ...); для ошибок всего тела поля может не быть.
@@ -108,7 +111,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
             error_code = f"invalid_{field}"
     else:
         error_code = "invalid_validation_error"
-    
+
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"error": error_code, "message": first["msg"], "field": field},
@@ -116,6 +119,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 
 if settings.debug:
+
     @app.get("/api/v1/_sentry_debug")
     async def sentry_debug():
         raise ZeroDivisionError

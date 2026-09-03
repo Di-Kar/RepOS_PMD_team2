@@ -46,7 +46,9 @@ class ElasticStorage(AbstractStorage):
     Политика повторных попыток инжектируется через конструктор (DIP).
     """
 
-    def __init__(self, elastic: AsyncElasticsearch, retry_policy: RetryPolicy = _ES_RETRY_POLICY):
+    def __init__(
+        self, elastic: AsyncElasticsearch, retry_policy: RetryPolicy = _ES_RETRY_POLICY
+    ):
         self._elastic = elastic
         self._retry = retry_policy
 
@@ -56,13 +58,17 @@ class ElasticStorage(AbstractStorage):
         except NotFoundError:
             return None
         except (ESConnectionError, ESConnectionTimeout) as e:
-            logger.error(f"Elasticsearch unavailable on GET index='{index}' id='{doc_id}': {e}")
+            logger.error(
+                f"Elasticsearch unavailable on GET index='{index}' id='{doc_id}': {e}"
+            )
             raise StorageUnavailableError('Elasticsearch is unavailable') from e
         return doc.get('_source')
 
     async def search(self, index: str, body: dict) -> list[dict]:
         try:
-            result = await self._retry.call(self._elastic.search, index=index, body=body)
+            result = await self._retry.call(
+                self._elastic.search, index=index, body=body
+            )
         except (ESConnectionError, ESConnectionTimeout) as e:
             logger.error(f"Elasticsearch unavailable on search index='{index}': {e}")
             raise StorageUnavailableError('Elasticsearch is unavailable') from e

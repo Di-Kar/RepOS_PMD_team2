@@ -55,7 +55,9 @@ class OffsetStorage:
         Возвращает пустой словарь, если файл не существует или повреждён.
         """
         if not os.path.exists(self.file_path):
-            logger.info('Файл состояния не найден в %s, начинаю с чистого листа', self.file_path)
+            logger.info(
+                'Файл состояния не найден в %s, начинаю с чистого листа', self.file_path
+            )
             return {}
 
         try:
@@ -68,7 +70,8 @@ class OffsetStorage:
             logger.error(
                 'Файл состояния повреждён (%s) — начинаю заново. '
                 'Резервная копия сохранена в %s',
-                e, backup_path,
+                e,
+                backup_path,
             )
             try:
                 os.replace(self.file_path, backup_path)

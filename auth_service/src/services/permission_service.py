@@ -1,4 +1,5 @@
 """Назначение/снятие ролей и проверка прав пользователя (с кэшированием в Redis)."""
+
 import json
 import uuid
 from typing import List, Set, Tuple
@@ -59,7 +60,9 @@ class PermissionService:
         await self._get_role(role_id)
 
         result = await self._session.execute(
-            select(UserRole).where(UserRole.user_id == user_id, UserRole.role_id == role_id)
+            select(UserRole).where(
+                UserRole.user_id == user_id, UserRole.role_id == role_id
+            )
         )
         user_role = result.scalar_one_or_none()
         if user_role is None:
@@ -82,9 +85,9 @@ class PermissionService:
         # до назначения роли в той же сессии), а expire_on_commit=False не сбрасывает
         # такой кэш сам по себе.
         result = await self._session.execute(
-            select(Role.permissions).join(UserRole, UserRole.role_id == Role.id).where(
-                UserRole.user_id == user_id
-            )
+            select(Role.permissions)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(UserRole.user_id == user_id)
         )
 
         permissions: Set[str] = set()

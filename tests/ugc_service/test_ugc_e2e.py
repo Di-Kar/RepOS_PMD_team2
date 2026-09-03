@@ -114,7 +114,7 @@ async def auth_token(aiohttp_session):
         },
     ) as resp:
         pass  # 200 — успешно, 409 — уже существует
-    
+
     # Теперь логинимся
     async with aiohttp_session.post(
         f'{AUTH_BASE_URL}/login',
@@ -126,7 +126,7 @@ async def auth_token(aiohttp_session):
         if resp.status == 200:
             data = await resp.json()
             return data.get('access_token')
-    
+
     return None
 
 
@@ -155,13 +155,17 @@ class TestBookmarksE2E:
             params={'film_id': str(film_id)},
             headers=auth_headers,
         ) as resp:
-            assert resp.status == 201, f"Expected 201, got {resp.status}: {await resp.text()}"
+            assert (
+                resp.status == 201
+            ), f"Expected 201, got {resp.status}: {await resp.text()}"
             data = await resp.json()
             assert 'film_id' in data
             assert data['film_id'] == str(film_id)
             assert 'added_at' in data
 
-    async def test_get_bookmarks(self, aiohttp_session, clean_collections, auth_headers):
+    async def test_get_bookmarks(
+        self, aiohttp_session, clean_collections, auth_headers
+    ):
         """Получение списка закладок."""
         film_id = uuid4()
 
@@ -175,13 +179,17 @@ class TestBookmarksE2E:
             f'{UGC_BASE_URL}/api/v1/bookmarks',
             headers=auth_headers,
         ) as resp:
-            assert resp.status == 200, f"Expected 200, got {resp.status}: {await resp.text()}"
+            assert (
+                resp.status == 200
+            ), f"Expected 200, got {resp.status}: {await resp.text()}"
             data = await resp.json()
             assert isinstance(data, list)
             assert len(data) >= 1
             assert data[0]['film_id'] == str(film_id)
 
-    async def test_remove_bookmark(self, aiohttp_session, clean_collections, auth_headers):
+    async def test_remove_bookmark(
+        self, aiohttp_session, clean_collections, auth_headers
+    ):
         """Удаление закладки."""
         film_id = uuid4()
 
@@ -197,7 +205,14 @@ class TestBookmarksE2E:
         ) as resp:
             assert resp.status == 204
 
-    async def test_bookmark_exists_in_mongodb(self, aiohttp_session, clean_collections, mongo_client, auth_headers, test_user_id):
+    async def test_bookmark_exists_in_mongodb(
+        self,
+        aiohttp_session,
+        clean_collections,
+        mongo_client,
+        auth_headers,
+        test_user_id,
+    ):
         """Проверка, что закладка сохранена в MongoDB."""
         film_id = uuid4()
 
@@ -208,7 +223,9 @@ class TestBookmarksE2E:
         )
 
         # MongoDB хранит film_id как Binary (UUID)
-        bookmark = await mongo_client['bookmarks'].find_one({'film_id': _encode_uuid(film_id)})
+        bookmark = await mongo_client['bookmarks'].find_one(
+            {'film_id': _encode_uuid(film_id)}
+        )
         assert bookmark is not None
         assert 'user_id' in bookmark
 
@@ -231,13 +248,17 @@ class TestLikesE2E:
             params={'film_id': str(film_id), 'rating': rating},
             headers=auth_headers,
         ) as resp:
-            assert resp.status == 201, f"Expected 201, got {resp.status}: {await resp.text()}"
+            assert (
+                resp.status == 201
+            ), f"Expected 201, got {resp.status}: {await resp.text()}"
             data = await resp.json()
             assert 'film_id' in data
             assert data['film_id'] == str(film_id)
             assert data['rating'] == rating
 
-    async def test_get_like_stats(self, aiohttp_session, clean_collections, auth_headers):
+    async def test_get_like_stats(
+        self, aiohttp_session, clean_collections, auth_headers
+    ):
         """Получение статистики лайков."""
         film_id = uuid4()
 
@@ -250,7 +271,9 @@ class TestLikesE2E:
         async with aiohttp_session.get(
             f'{UGC_BASE_URL}/api/v1/likes/{film_id}',
         ) as resp:
-            assert resp.status == 200, f"Expected 200, got {resp.status}: {await resp.text()}"
+            assert (
+                resp.status == 200
+            ), f"Expected 200, got {resp.status}: {await resp.text()}"
             data = await resp.json()
             assert 'total_ratings' in data
             assert data['total_ratings'] >= 1
@@ -271,7 +294,9 @@ class TestLikesE2E:
         ) as resp:
             assert resp.status == 204
 
-    async def test_like_exists_in_mongodb(self, aiohttp_session, clean_collections, mongo_client, auth_headers):
+    async def test_like_exists_in_mongodb(
+        self, aiohttp_session, clean_collections, mongo_client, auth_headers
+    ):
         """Проверка, что лайк сохранён в MongoDB."""
         film_id = uuid4()
         rating = 9
@@ -295,7 +320,9 @@ class TestLikesE2E:
 class TestReviewsE2E:
     """E2E тесты для рецензий."""
 
-    async def test_create_review(self, aiohttp_session, clean_collections, auth_headers):
+    async def test_create_review(
+        self, aiohttp_session, clean_collections, auth_headers
+    ):
         """Создание рецензии."""
         film_id = uuid4()
         title = 'Отличный фильм'
@@ -312,7 +339,9 @@ class TestReviewsE2E:
             },
             headers=auth_headers,
         ) as resp:
-            assert resp.status == 201, f"Expected 201, got {resp.status}: {await resp.text()}"
+            assert (
+                resp.status == 201
+            ), f"Expected 201, got {resp.status}: {await resp.text()}"
             data = await resp.json()
             assert 'id' in data
             assert data['title'] == title
@@ -337,12 +366,16 @@ class TestReviewsE2E:
             f'{UGC_BASE_URL}/api/v1/reviews',
             params={'film_id': str(film_id)},
         ) as resp:
-            assert resp.status == 200, f"Expected 200, got {resp.status}: {await resp.text()}"
+            assert (
+                resp.status == 200
+            ), f"Expected 200, got {resp.status}: {await resp.text()}"
             data = await resp.json()
             assert isinstance(data, list)
             assert len(data) >= 1
 
-    async def test_get_review_detail(self, aiohttp_session, clean_collections, auth_headers):
+    async def test_get_review_detail(
+        self, aiohttp_session, clean_collections, auth_headers
+    ):
         """Получение деталей рецензии."""
         film_id = uuid4()
 
@@ -362,12 +395,16 @@ class TestReviewsE2E:
         async with aiohttp_session.get(
             f'{UGC_BASE_URL}/api/v1/reviews/{review_id}',
         ) as resp:
-            assert resp.status == 200, f"Expected 200, got {resp.status}: {await resp.text()}"
+            assert (
+                resp.status == 200
+            ), f"Expected 200, got {resp.status}: {await resp.text()}"
             data = await resp.json()
             assert data['id'] == review_id
             assert data['text'] == 'Подробный текст'
 
-    async def test_vote_on_review(self, aiohttp_session, clean_collections, auth_headers):
+    async def test_vote_on_review(
+        self, aiohttp_session, clean_collections, auth_headers
+    ):
         """Голосование за рецензию."""
         film_id = uuid4()
 
@@ -389,12 +426,16 @@ class TestReviewsE2E:
             params={'is_like': 'true'},
             headers=auth_headers,
         ) as resp:
-            assert resp.status == 200, f"Expected 200, got {resp.status}: {await resp.text()}"
+            assert (
+                resp.status == 200
+            ), f"Expected 200, got {resp.status}: {await resp.text()}"
             data = await resp.json()
             assert data['is_like'] is True
             assert data['review_id'] == review_id
 
-    async def test_review_exists_in_mongodb(self, aiohttp_session, clean_collections, mongo_client, auth_headers):
+    async def test_review_exists_in_mongodb(
+        self, aiohttp_session, clean_collections, mongo_client, auth_headers
+    ):
         """Проверка, что рецензия сохранена в MongoDB."""
         film_id = uuid4()
         title = 'Проверка MongoDB'
@@ -410,11 +451,15 @@ class TestReviewsE2E:
             headers=auth_headers,
         )
 
-        review = await mongo_client['reviews'].find_one({'film_id': _encode_uuid(film_id)})
+        review = await mongo_client['reviews'].find_one(
+            {'film_id': _encode_uuid(film_id)}
+        )
         assert review is not None
         assert review['title'] == title
 
-    async def test_vote_exists_in_mongodb(self, aiohttp_session, clean_collections, mongo_client, auth_headers):
+    async def test_vote_exists_in_mongodb(
+        self, aiohttp_session, clean_collections, mongo_client, auth_headers
+    ):
         """Проверка, что голос сохранён в MongoDB."""
         film_id = uuid4()
 
@@ -438,6 +483,8 @@ class TestReviewsE2E:
         )
 
         # Ищем голос по review_id (ObjectId string → ObjectId)
-        vote = await mongo_client['review_votes'].find_one({'review_id': _to_objectid(review_id)})
+        vote = await mongo_client['review_votes'].find_one(
+            {'review_id': _to_objectid(review_id)}
+        )
         assert vote is not None
         assert vote['is_like'] is True

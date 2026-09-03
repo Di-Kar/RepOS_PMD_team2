@@ -1,4 +1,5 @@
 """Зависимости авторизации: проверка Bearer-токена и загрузка текущего пользователя."""
+
 import uuid
 
 from fastapi import Depends, HTTPException, Request, status
@@ -34,7 +35,9 @@ async def get_token_payload(
     if credentials is None:
         raise _unauthorized("Authorization header with Bearer token is required")
     try:
-        payload = await TokenService(redis).validate_access_token(credentials.credentials)
+        payload = await TokenService(redis).validate_access_token(
+            credentials.credentials
+        )
     except InvalidTokenError as exc:
         raise _unauthorized(str(exc))
     # Позволяет rate limiter'у лимитировать по пользователю, а не по IP.

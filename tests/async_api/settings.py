@@ -1,4 +1,5 @@
 """Настройки функциональных тестов с вложенной структурой."""
+
 import os
 from typing import Any, Dict
 
@@ -19,15 +20,19 @@ def is_docker() -> bool:
     if os.path.exists('/.dockerenv'):
         return True
 
+
 # Вложенные BaseModel не читают переменные окружения сами (это делает только
 # BaseSettings), поэтому env-переопределения из docker-compose подхватываем здесь.
 DEFAULT_ES_HOST = os.getenv('ES_HOST', 'elasticsearch' if is_docker() else '127.0.0.1')
-DEFAULT_REDIS_HOST = os.getenv('REDIS_HOST', 'async_api_redis' if is_docker() else '127.0.0.1')
+DEFAULT_REDIS_HOST = os.getenv(
+    'REDIS_HOST', 'async_api_redis' if is_docker() else '127.0.0.1'
+)
 DEFAULT_API_HOST = os.getenv('API_HOST', 'async_api' if is_docker() else '127.0.0.1')
 
 
 class ElasticSettings(BaseModel):
     """Настройки Elasticsearch."""
+
     es_host: str = Field(default=DEFAULT_ES_HOST, alias='ES_HOST')
     es_port: int = Field(default=9200, alias='ES_PORT')
     es_index_movies: str = Field(default='movies', alias='ES_INDEX_MOVIES')
@@ -43,6 +48,7 @@ class ElasticSettings(BaseModel):
 
 class RedisSettings(BaseModel):
     """Настройки Redis."""
+
     host: str = Field(default=DEFAULT_REDIS_HOST, alias='REDIS_HOST')
     port: int = Field(default=6379, alias='REDIS_PORT')
 
@@ -51,6 +57,7 @@ class RedisSettings(BaseModel):
 
 class FastAPISettings(BaseModel):
     """Настройки FastAPI-сервиса."""
+
     api_host: str = Field(default=DEFAULT_API_HOST, alias='API_HOST')
     api_port: int = Field(default=8000, alias='API_PORT')
 
@@ -63,10 +70,11 @@ class FastAPISettings(BaseModel):
 
 class TestSettings(BaseSettings):
     """Главный класс настроек тестов."""
+
     elastic_settings: ElasticSettings = Field(default_factory=ElasticSettings)
     redis_settings: RedisSettings = Field(default_factory=RedisSettings)
     fastapi_settings: FastAPISettings = Field(default_factory=FastAPISettings)
-    
+
     http_timeout: float = Field(default=5.0, alias='HTTP_TIMEOUT')
 
     model_config = {
@@ -100,7 +108,9 @@ def print_settings() -> None:
     print(f"  - Индекс фильмов: {test_settings.elastic_settings.es_index_movies}")
     print(f"  - Индекс жанров:  {test_settings.elastic_settings.es_index_genres}")
     print(f"  - Индекс персон:  {test_settings.elastic_settings.es_index_persons}")
-    print(f"Redis: {test_settings.redis_settings.host}:{test_settings.redis_settings.port}")
+    print(
+        f"Redis: {test_settings.redis_settings.host}:{test_settings.redis_settings.port}"
+    )
     print(f"API: {test_settings.fastapi_settings.get_host()}")
     print("=" * 60)
 

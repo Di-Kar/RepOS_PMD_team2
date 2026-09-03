@@ -1,5 +1,6 @@
 """Тесты классификации ответов auth_service: "сервис жив, но отклонил
 запрос" (4xx) не должно считаться "сервис недоступен" (сеть/5xx)."""
+
 import unittest
 from unittest.mock import Mock, patch
 
@@ -47,7 +48,9 @@ class AuthenticateViaAuthServiceTests(unittest.TestCase):
         for _ in range(10):
             authenticate_via_auth_service("not-an-email", "123123")
 
-        self.assertTrue(_breaker.allow_request(), "400 не должен считаться отказом auth_service")
+        self.assertTrue(
+            _breaker.allow_request(), "400 не должен считаться отказом auth_service"
+        )
 
     @patch("config.auth_service_client.requests.post")
     def test_server_error_raises_unavailable(self, mock_post):
@@ -66,10 +69,18 @@ class AuthenticateViaAuthServiceTests(unittest.TestCase):
     @patch("config.auth_service_client.requests.get")
     @patch("config.auth_service_client.requests.post")
     def test_successful_login_fetches_profile(self, mock_post, mock_get):
-        mock_post.return_value = _response(200, {"access_token": "tok", "refresh_token": "r"})
+        mock_post.return_value = _response(
+            200, {"access_token": "tok", "refresh_token": "r"}
+        )
         mock_get.return_value = _response(
             200,
-            {"id": "1", "email": "user@example.com", "full_name": "U", "roles": ["admin"], "is_superuser": False},
+            {
+                "id": "1",
+                "email": "user@example.com",
+                "full_name": "U",
+                "roles": ["admin"],
+                "is_superuser": False,
+            },
         )
 
         result = authenticate_via_auth_service("user@example.com", "pass")

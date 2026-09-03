@@ -54,7 +54,9 @@ class TestClickPayload:
 
     def test_extra_field_forbidden(self):
         with pytest.raises(ValidationError):
-            ClickPayload(element_id='btn', element_type='button', zone='hero', unexpected='x')
+            ClickPayload(
+                element_id='btn', element_type='button', zone='hero', unexpected='x'
+            )
 
 
 class TestPageViewPayloads:
@@ -67,7 +69,9 @@ class TestPageViewPayloads:
             PageViewEndPayload(page_view_id='pv-1', page_type='home')
 
     def test_end_valid(self):
-        p = PageViewEndPayload(page_view_id='pv-1', page_type='home', duration_ms=1000, tab_active=True)
+        p = PageViewEndPayload(
+            page_view_id='pv-1', page_type='home', duration_ms=1000, tab_active=True
+        )
         assert p.duration_ms == 1000
 
 
@@ -88,10 +92,18 @@ class TestCustomEventPayloads:
 
     def test_watch_complete_progress_out_of_range(self):
         with pytest.raises(ValidationError):
-            WatchCompletePayload(custom_event_type='watch_complete', content_id='c1', progress_percent=101)
+            WatchCompletePayload(
+                custom_event_type='watch_complete',
+                content_id='c1',
+                progress_percent=101,
+            )
 
     def test_search_filter_optional_fields(self):
-        p = SearchFilterPayload(custom_event_type='search_filter', filter_type='genre', filter_value='comedy')
+        p = SearchFilterPayload(
+            custom_event_type='search_filter',
+            filter_type='genre',
+            filter_value='comedy',
+        )
         assert p.result_count is None
 
 
@@ -102,33 +114,58 @@ class TestCustomEventPayloads:
 
 class TestUserEventValid:
     def test_click_event(self):
-        raw = _base(event_type='click', payload={
-            'element_id': 'play-button', 'element_type': 'button', 'zone': 'hero',
-        })
+        raw = _base(
+            event_type='click',
+            payload={
+                'element_id': 'play-button',
+                'element_type': 'button',
+                'zone': 'hero',
+            },
+        )
         evt = _event_adapter.validate_python(raw)
         assert str(evt.event_id) == EVENT_ID
 
     def test_custom_event_quality_change(self):
-        raw = _base(event_type='custom_event', payload={
-            'custom_event_type': 'quality_change', 'content_id': 'c1',
-            'watch_session_id': 'ws-1', 'from_quality': '720p', 'to_quality': '1080p',
-        })
+        raw = _base(
+            event_type='custom_event',
+            payload={
+                'custom_event_type': 'quality_change',
+                'content_id': 'c1',
+                'watch_session_id': 'ws-1',
+                'from_quality': '720p',
+                'to_quality': '1080p',
+            },
+        )
         evt = _event_adapter.validate_python(raw)
         assert evt.payload.custom_event_type == 'quality_change'
 
     def test_anonymous_id_accepted_without_user_id(self):
-        raw = _base(event_type='click', user_id=None, anonymous_id='anon-1', payload={
-            'element_id': 'btn', 'element_type': 'button', 'zone': 'hero',
-        })
+        raw = _base(
+            event_type='click',
+            user_id=None,
+            anonymous_id='anon-1',
+            payload={
+                'element_id': 'btn',
+                'element_type': 'button',
+                'zone': 'hero',
+            },
+        )
         evt = _event_adapter.validate_python(raw)
         assert evt.anonymous_id == 'anon-1'
 
 
 class TestUserEventValidationErrors:
     def test_missing_identity(self):
-        raw = _base(event_type='click', user_id=None, anonymous_id=None, payload={
-            'element_id': 'btn', 'element_type': 'button', 'zone': 'hero',
-        })
+        raw = _base(
+            event_type='click',
+            user_id=None,
+            anonymous_id=None,
+            payload={
+                'element_id': 'btn',
+                'element_type': 'button',
+                'zone': 'hero',
+            },
+        )
         with pytest.raises(ValidationError):
             _event_adapter.validate_python(raw)
 
@@ -139,33 +176,55 @@ class TestUserEventValidationErrors:
 
     def test_payload_mismatched_with_event_type(self):
         """payload для click, но event_type page_view_start — discriminator должен отклонить."""
-        raw = _base(event_type='page_view_start', payload={
-            'element_id': 'btn', 'element_type': 'button', 'zone': 'hero',
-        })
+        raw = _base(
+            event_type='page_view_start',
+            payload={
+                'element_id': 'btn',
+                'element_type': 'button',
+                'zone': 'hero',
+            },
+        )
         with pytest.raises(ValidationError):
             _event_adapter.validate_python(raw)
 
     def test_extra_top_level_field_forbidden(self):
-        raw = _base(event_type='click', payload={
-            'element_id': 'btn', 'element_type': 'button', 'zone': 'hero',
-        })
+        raw = _base(
+            event_type='click',
+            payload={
+                'element_id': 'btn',
+                'element_type': 'button',
+                'zone': 'hero',
+            },
+        )
         raw['unexpected'] = 'x'
         with pytest.raises(ValidationError):
             _event_adapter.validate_python(raw)
 
     def test_invalid_event_id_not_uuid(self):
-        raw = _base(event_type='click', event_id='not-a-uuid', payload={
-            'element_id': 'btn', 'element_type': 'button', 'zone': 'hero',
-        })
+        raw = _base(
+            event_type='click',
+            event_id='not-a-uuid',
+            payload={
+                'element_id': 'btn',
+                'element_type': 'button',
+                'zone': 'hero',
+            },
+        )
         with pytest.raises(ValidationError):
             _event_adapter.validate_python(raw)
 
 
 class TestConsentNormalization:
     def _event(self, consent):
-        return _base(event_type='click', consent=consent, payload={
-            'element_id': 'btn', 'element_type': 'button', 'zone': 'hero',
-        })
+        return _base(
+            event_type='click',
+            consent=consent,
+            payload={
+                'element_id': 'btn',
+                'element_type': 'button',
+                'zone': 'hero',
+            },
+        )
 
     def test_int_zero_becomes_false(self):
         evt = _event_adapter.validate_python(self._event(0))

@@ -49,16 +49,35 @@ class PersonService(BaseService[PersonES]):
         query = {
             'bool': {
                 'should': [
-                    {'nested': {'path': 'actors', 'query': {'term': {'actors.id': person_id}}}},
-                    {'nested': {'path': 'directors', 'query': {'term': {'directors.id': person_id}}}},
-                    {'nested': {'path': 'writers', 'query': {'term': {'writers.id': person_id}}}},
+                    {
+                        'nested': {
+                            'path': 'actors',
+                            'query': {'term': {'actors.id': person_id}},
+                        }
+                    },
+                    {
+                        'nested': {
+                            'path': 'directors',
+                            'query': {'term': {'directors.id': person_id}},
+                        }
+                    },
+                    {
+                        'nested': {
+                            'path': 'writers',
+                            'query': {'term': {'writers.id': person_id}},
+                        }
+                    },
                 ],
                 'minimum_should_match': 1,
             }
         }
         sources = await self.storage.search(
             settings.es_movies_index,
-            {'query': query, 'size': 1000, '_source': ['id', 'actors', 'directors', 'writers']},
+            {
+                'query': query,
+                'size': 1000,
+                '_source': ['id', 'actors', 'directors', 'writers'],
+            },
         )
 
         films = []
@@ -76,7 +95,9 @@ class PersonService(BaseService[PersonES]):
             films.append(PersonFilmES(uuid=film_id, roles=roles))
         return films
 
-    async def search(self, query: str, page_number: int, page_size: int) -> list[PersonES]:
+    async def search(
+        self, query: str, page_number: int, page_size: int
+    ) -> list[PersonES]:
         key = self._build_cache_key('search', query, str(page_number), str(page_size))
         cached = await self._get_list_from_cache(key)
         if cached is not None:
@@ -97,9 +118,24 @@ class PersonService(BaseService[PersonES]):
         query = {
             'bool': {
                 'should': [
-                    {'nested': {'path': 'actors', 'query': {'term': {'actors.id': person_id}}}},
-                    {'nested': {'path': 'directors', 'query': {'term': {'directors.id': person_id}}}},
-                    {'nested': {'path': 'writers', 'query': {'term': {'writers.id': person_id}}}},
+                    {
+                        'nested': {
+                            'path': 'actors',
+                            'query': {'term': {'actors.id': person_id}},
+                        }
+                    },
+                    {
+                        'nested': {
+                            'path': 'directors',
+                            'query': {'term': {'directors.id': person_id}},
+                        }
+                    },
+                    {
+                        'nested': {
+                            'path': 'writers',
+                            'query': {'term': {'writers.id': person_id}},
+                        }
+                    },
                 ],
                 'minimum_should_match': 1,
             }
@@ -121,8 +157,8 @@ class PersonService(BaseService[PersonES]):
 
 @lru_cache
 def get_person_service(
-        storage: AbstractStorage = Depends(get_storage),
-        redis: Redis = Depends(get_redis),
+    storage: AbstractStorage = Depends(get_storage),
+    redis: Redis = Depends(get_redis),
 ) -> PersonService:
     cache = RedisCache(redis, PersonES)
     return PersonService(storage, cache)

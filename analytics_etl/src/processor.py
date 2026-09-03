@@ -44,12 +44,18 @@ class EventProcessor:
         """Количество событий без дубликатов в буфере."""
         return len(self._buffer)
 
-    def add_event(self, validated_event: dict, topic: str = None, partition: int = None, offset: int = None) -> None:
+    def add_event(
+        self,
+        validated_event: dict,
+        topic: str = None,
+        partition: int = None,
+        offset: int = None,
+    ) -> None:
         """Добавить проверенное событие в буфер в памяти.
 
         Если ``event_id`` уже существует, новое событие заменяет старое
         только если у него более позднее время ``occurred_at``.
-        
+
         При передаче topic/partition/offset смещение добавляется в
         ``_pending_offsets`` для последующего коммита после успешной
         вставки в ClickHouse.
@@ -65,7 +71,7 @@ class EventProcessor:
             return
 
         self._buffer[event_id] = validated_event
-        
+
         # Отслеживать смещение, ожидающее коммита
         if topic and partition is not None and offset is not None:
             if topic not in self._pending_offsets:
@@ -79,14 +85,16 @@ class EventProcessor:
         Возвращает кортеж ``(count, success)``:
         - ``count`` — количество вставленных строк
         - ``success`` — True только если ВСЕ вставки прошли успешно
-        
+
         Буфер очищается только при успешной вставке; при ошибке события
         остаются в буфере для повторной попытки.
         """
         if not self._buffer:
             return (0, True)
 
-        logger.info('Отправляю %d событий в ClickHouse (без дубликатов)', len(self._buffer))
+        logger.info(
+            'Отправляю %d событий в ClickHouse (без дубликатов)', len(self._buffer)
+        )
 
         self._events_rows = []
         self._movies_rows = []
@@ -111,7 +119,8 @@ class EventProcessor:
             except Exception as e:
                 logger.error(
                     'Ошибка преобразования для event_id=%s: %s. Отправляю в DLQ.',
-                    event_id, e,
+                    event_id,
+                    e,
                 )
                 self._dlq.write(
                     event_id=event_id,
@@ -122,7 +131,7 @@ class EventProcessor:
                 )
 
         total_processed = 0
-        
+
         # Отслеживаем успех каждой вставки
         events_success = True
         movies_success = True
@@ -155,21 +164,23 @@ class EventProcessor:
             self._flushed_count += 1
             logger.info(
                 'Flush #%d завершён: вставлено %d строк всего',
-                self._flushed_count, total_processed,
+                self._flushed_count,
+                total_processed,
             )
             return (total_processed, True)
         else:
             # При ошибке НЕ очищаем буфер — события останутся для повторной попытки
             logger.warning(
                 'Flush #%d НЕ УДАЛСЯ: в буфере %d событий, смещения не коммитим',
-                self._flushed_count + 1, len(self._buffer),
+                self._flushed_count + 1,
+                len(self._buffer),
             )
             return (total_processed, False)
 
     @property
     def pending_offsets(self) -> Dict[str, Dict[int, int]]:
         """Возвращает смещения, ожидающие коммита в Kafka.
-        
+
         Эти смещения будут зафиксированы только после успешной вставки
         всех событий из буфера в ClickHouse.
         """
@@ -191,7 +202,9 @@ class EventProcessor:
         except Exception as e:
             logger.error(
                 'Исчерпаны все попытки вставки %d строк в %s: %s',
-                len(rows), table, e,
+                len(rows),
+                table,
+                e,
             )
             # Направить неудавшиеся строки в DLQ
             for row in rows:
@@ -201,12 +214,15 @@ class EventProcessor:
                         event_type=row.get('event_type', 'unknown'),
                         error_type='INSERT_ERROR',
                         error_message=f'Не удалось вставить в {table}: {e}',
-                        raw_event=row.get('raw_event', json.dumps(row, ensure_ascii=False)),
+                        raw_event=row.get(
+                            'raw_event', json.dumps(row, ensure_ascii=False)
+                        ),
                     )
                 except Exception as dlq_error:
                     logger.critical(
                         'Не удалось записать в DLQ для event_id=%s: %s',
-                        row.get('event_id', 'unknown'), dlq_error,
+                        row.get('event_id', 'unknown'),
+                        dlq_error,
                     )
             return False
 
@@ -220,7 +236,8 @@ class EventProcessor:
             return True
         except Exception as e:
             logger.error(
-                'Исчерпаны все попытки вставки метрик фильмов: %s', e,
+                'Исчерпаны все попытки вставки метрик фильмов: %s',
+                e,
             )
             return False
 
@@ -234,6 +251,7 @@ class EventProcessor:
             return True
         except Exception as e:
             logger.error(
-                'Исчерпаны все попытки вставки сеансов просмотра: %s', e,
+                'Исчерпаны все попытки вставки сеансов просмотра: %s',
+                e,
             )
             return False

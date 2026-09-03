@@ -38,7 +38,9 @@ class ETLSettings(BaseSettings):
     flush_interval: int = Field(default=5, alias='ANALYTICS_ETL_FLUSH_INTERVAL')
     state_dir: str = Field(default='/app/state', alias='ANALYTICS_ETL_STATE_DIR')
     memory_warn_mb: int = Field(default=500, alias='ANALYTICS_ETL_MEMORY_WARN_MB')
-    memory_critical_mb: int = Field(default=800, alias='ANALYTICS_ETL_MEMORY_CRITICAL_MB')
+    memory_critical_mb: int = Field(
+        default=800, alias='ANALYTICS_ETL_MEMORY_CRITICAL_MB'
+    )
     backoff_start: float = Field(default=0.1, alias='ANALYTICS_ETL_BACKOFF_START')
     backoff_border: float = Field(default=10.0, alias='ANALYTICS_ETL_BACKOFF_BORDER')
     backoff_max: int = Field(default=3, alias='ANALYTICS_ETL_BACKOFF_MAX')

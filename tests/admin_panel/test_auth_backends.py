@@ -1,5 +1,6 @@
 """Тесты AuthServiceBackend: вход в /admin/ через auth_service + деградация
 на локальный кэш при недоступности auth_service."""
+
 from unittest.mock import patch
 
 from config.auth_backends import AuthServiceBackend
@@ -17,11 +18,16 @@ class AuthServiceBackendTests(TestCase):
     @patch("config.auth_backends.authenticate_via_auth_service")
     def test_superuser_login_grants_full_admin_access(self, mock_auth):
         mock_auth.return_value = AuthServiceUser(
-            id="1", email="root@example.com", full_name="Root Admin",
-            roles=[], is_superuser=True,
+            id="1",
+            email="root@example.com",
+            full_name="Root Admin",
+            roles=[],
+            is_superuser=True,
         )
 
-        user = self.backend.authenticate(None, username="root@example.com", password="pass123")
+        user = self.backend.authenticate(
+            None, username="root@example.com", password="pass123"
+        )
 
         self.assertIsNotNone(user)
         self.assertTrue(user.is_staff)
@@ -31,11 +37,16 @@ class AuthServiceBackendTests(TestCase):
     @patch("config.auth_backends.authenticate_via_auth_service")
     def test_admin_role_grants_access(self, mock_auth):
         mock_auth.return_value = AuthServiceUser(
-            id="2", email="manager@example.com", full_name="Content Manager",
-            roles=["admin"], is_superuser=False,
+            id="2",
+            email="manager@example.com",
+            full_name="Content Manager",
+            roles=["admin"],
+            is_superuser=False,
         )
 
-        user = self.backend.authenticate(None, username="manager@example.com", password="pass123")
+        user = self.backend.authenticate(
+            None, username="manager@example.com", password="pass123"
+        )
 
         self.assertIsNotNone(user)
         self.assertTrue(user.is_staff)
@@ -44,11 +55,16 @@ class AuthServiceBackendTests(TestCase):
     @patch("config.auth_backends.authenticate_via_auth_service")
     def test_regular_subscriber_is_denied(self, mock_auth):
         mock_auth.return_value = AuthServiceUser(
-            id="3", email="viewer@example.com", full_name="Just A Viewer",
-            roles=["subscriber"], is_superuser=False,
+            id="3",
+            email="viewer@example.com",
+            full_name="Just A Viewer",
+            roles=["subscriber"],
+            is_superuser=False,
         )
 
-        user = self.backend.authenticate(None, username="viewer@example.com", password="pass123")
+        user = self.backend.authenticate(
+            None, username="viewer@example.com", password="pass123"
+        )
 
         self.assertIsNone(user)
         self.assertFalse(User.objects.filter(username="viewer@example.com").exists())
@@ -57,7 +73,9 @@ class AuthServiceBackendTests(TestCase):
     def test_wrong_credentials_rejected(self, mock_auth):
         mock_auth.return_value = None  # auth_service явно отверг креды
 
-        user = self.backend.authenticate(None, username="root@example.com", password="wrong")
+        user = self.backend.authenticate(
+            None, username="root@example.com", password="wrong"
+        )
 
         self.assertIsNone(user)
 
@@ -69,7 +87,9 @@ class AuthServiceBackendTests(TestCase):
         self.assertIsNone(user)
 
     @patch("config.auth_backends.authenticate_via_auth_service")
-    def test_unavailable_auth_service_without_local_cache_denies_access(self, mock_auth):
+    def test_unavailable_auth_service_without_local_cache_denies_access(
+        self, mock_auth
+    ):
         mock_auth.side_effect = AuthServiceUnavailable("timeout")
 
         # Сверяем весь logs.output, не только первую строку — иначе лишняя
@@ -93,12 +113,17 @@ class AuthServiceBackendTests(TestCase):
         # Пользователь уже когда-то успешно логинился через auth_service —
         # локальное зеркало (is_staff/is_superuser + хэш пароля) существует.
         cached = User.objects.create_user(
-            username="root@example.com", password="pass123", is_staff=True, is_superuser=True,
+            username="root@example.com",
+            password="pass123",
+            is_staff=True,
+            is_superuser=True,
         )
 
         mock_auth.side_effect = AuthServiceUnavailable("connection refused")
         with self.assertLogs("config.auth_backends", level="WARNING") as logs:
-            user = self.backend.authenticate(None, username="root@example.com", password="pass123")
+            user = self.backend.authenticate(
+                None, username="root@example.com", password="pass123"
+            )
 
         self.assertEqual(user, cached)
         self.assertEqual(
@@ -110,14 +135,21 @@ class AuthServiceBackendTests(TestCase):
         )
 
     @patch("config.auth_backends.authenticate_via_auth_service")
-    def test_unavailable_auth_service_rejects_wrong_password_against_cache(self, mock_auth):
+    def test_unavailable_auth_service_rejects_wrong_password_against_cache(
+        self, mock_auth
+    ):
         User.objects.create_user(
-            username="root@example.com", password="pass123", is_staff=True, is_superuser=True,
+            username="root@example.com",
+            password="pass123",
+            is_staff=True,
+            is_superuser=True,
         )
 
         mock_auth.side_effect = AuthServiceUnavailable("connection refused")
         with self.assertLogs("config.auth_backends", level="WARNING") as logs:
-            user = self.backend.authenticate(None, username="root@example.com", password="wrong")
+            user = self.backend.authenticate(
+                None, username="root@example.com", password="wrong"
+            )
 
         self.assertIsNone(user)
         self.assertEqual(
@@ -131,7 +163,9 @@ class AuthServiceBackendTests(TestCase):
     @patch("config.auth_backends.authenticate_via_auth_service")
     def test_unavailable_auth_service_rejects_non_staff_cache(self, mock_auth):
         User.objects.create_user(
-            username="viewer@example.com", password="pass123", is_staff=False,
+            username="viewer@example.com",
+            password="pass123",
+            is_staff=False,
         )
 
         mock_auth.side_effect = AuthServiceUnavailable("connection refused")
@@ -156,7 +190,9 @@ class BootstrapSuperuserLoginTests(TestCase):
 
     def test_bootstrap_admin_logs_in_via_degraded_fallback_when_auth_service_down(self):
         User.objects.create_superuser(
-            username="admin@example.com", email="admin@example.com", password="123123",
+            username="admin@example.com",
+            email="admin@example.com",
+            password="123123",
         )
 
         with patch("config.auth_backends.authenticate_via_auth_service") as mock_auth:

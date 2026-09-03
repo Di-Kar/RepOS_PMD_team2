@@ -3,6 +3,7 @@
 Пароль проверяется через POST /login + GET /profile, не локально. Локальный
 Django User — офлайн-кэш на случай недоступности (см. auth_backends.py).
 """
+
 import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -35,7 +36,9 @@ class AuthServiceUnavailable(Exception):
     """auth_service недоступен или не отвечает (таймаут/сеть/breaker открыт)."""
 
 
-def authenticate_via_auth_service(email: str, password: str) -> Optional[AuthServiceUser]:
+def authenticate_via_auth_service(
+    email: str, password: str
+) -> Optional[AuthServiceUser]:
     """Проверяет логин/пароль в auth_service, возвращает данные пользователя.
 
     None — сервис ответил, но отклонил запрос (4xx: неверный пароль, невалидный

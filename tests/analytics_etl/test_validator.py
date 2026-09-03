@@ -63,25 +63,33 @@ class TestValidateEvent:
 
     def test_click_without_zone_returns_none(self):
         """zone обязателен по контракту — раньше ETL молча подставлял ''."""
-        raw = _make_event(payload={'element_id': 'btn', 'element_type': 'button', 'attrs': {}})
+        raw = _make_event(
+            payload={'element_id': 'btn', 'element_type': 'button', 'attrs': {}}
+        )
         assert validate_event(raw) is None
 
     def test_custom_event_with_incomplete_payload_returns_none(self):
         """quality_change без watch_session_id/from_quality/to_quality — раньше проходило."""
-        raw = _make_event(event_type='custom_event', payload={
-            'custom_event_type': 'quality_change',
-            'content_id': 'c1',
-        })
+        raw = _make_event(
+            event_type='custom_event',
+            payload={
+                'custom_event_type': 'quality_change',
+                'content_id': 'c1',
+            },
+        )
         assert validate_event(raw) is None
 
     def test_custom_event_with_full_payload_returns_dict(self):
-        raw = _make_event(event_type='custom_event', payload={
-            'custom_event_type': 'quality_change',
-            'content_id': 'c1',
-            'watch_session_id': 'ws-1',
-            'from_quality': '720p',
-            'to_quality': '1080p',
-        })
+        raw = _make_event(
+            event_type='custom_event',
+            payload={
+                'custom_event_type': 'quality_change',
+                'content_id': 'c1',
+                'watch_session_id': 'ws-1',
+                'from_quality': '720p',
+                'to_quality': '1080p',
+            },
+        )
         result = validate_event(raw)
         assert result is not None
         assert result['event_type'] == 'custom_event'

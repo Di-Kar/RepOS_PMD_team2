@@ -30,8 +30,7 @@ class DeadLetterQueue:
         error_message: str,
         raw_event: str,
     ) -> None:
-        """Записать одно событие в DLQ.
-        """
+        """Записать одно событие в DLQ."""
         self._do_write(event_id, event_type, error_type, error_message, raw_event)
 
     def _do_write(
@@ -48,12 +47,21 @@ class DeadLetterQueue:
         loader.insert(
             DLQ_TABLE,
             data,
-            column_names=['event_id', 'event_type', 'error_type', 'error_message', 'raw_event'],
+            column_names=[
+                'event_id',
+                'event_type',
+                'error_type',
+                'error_message',
+                'raw_event',
+            ],
             database=self._loader.database,
         )
         logger.warning(
             'DLQ: event_id=%s type=%s error=%s: %s',
-            event_id, event_type, error_type, error_message[:100],
+            event_id,
+            event_type,
+            error_type,
+            error_message[:100],
         )
 
     def write_batch(self, events: list[dict]) -> int:
@@ -80,7 +88,13 @@ class DeadLetterQueue:
         loader.insert(
             DLQ_TABLE,
             data,
-            column_names=['event_id', 'event_type', 'error_type', 'error_message', 'raw_event'],
+            column_names=[
+                'event_id',
+                'event_type',
+                'error_type',
+                'error_message',
+                'raw_event',
+            ],
             database=self._loader.database,
         )
         logger.info('DLQ: записано %d событий', len(events))

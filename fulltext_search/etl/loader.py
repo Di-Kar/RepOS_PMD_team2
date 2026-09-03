@@ -18,7 +18,10 @@ MOVIES_INDEX_SETTINGS = {
             "filter": {
                 "english_stop": {"type": "stop", "stopwords": "_english_"},
                 "english_stemmer": {"type": "stemmer", "language": "english"},
-                "english_possessive_stemmer": {"type": "stemmer", "language": "possessive_english"},
+                "english_possessive_stemmer": {
+                    "type": "stemmer",
+                    "language": "possessive_english",
+                },
                 "russian_stop": {"type": "stop", "stopwords": "_russian_"},
                 "russian_stemmer": {"type": "stemmer", "language": "russian"},
             },
@@ -94,7 +97,10 @@ GENRES_INDEX_SETTINGS = {
             "filter": {
                 "english_stop": {"type": "stop", "stopwords": "_english_"},
                 "english_stemmer": {"type": "stemmer", "language": "english"},
-                "english_possessive_stemmer": {"type": "stemmer", "language": "possessive_english"},
+                "english_possessive_stemmer": {
+                    "type": "stemmer",
+                    "language": "possessive_english",
+                },
                 "russian_stop": {"type": "stop", "stopwords": "_russian_"},
                 "russian_stemmer": {"type": "stemmer", "language": "russian"},
             },
@@ -134,7 +140,10 @@ PERSONS_INDEX_SETTINGS = {
             "filter": {
                 "english_stop": {"type": "stop", "stopwords": "_english_"},
                 "english_stemmer": {"type": "stemmer", "language": "english"},
-                "english_possessive_stemmer": {"type": "stemmer", "language": "possessive_english"},
+                "english_possessive_stemmer": {
+                    "type": "stemmer",
+                    "language": "possessive_english",
+                },
                 "russian_stop": {"type": "stop", "stopwords": "_russian_"},
                 "russian_stemmer": {"type": "stemmer", "language": "russian"},
             },
@@ -232,7 +241,10 @@ class ElasticsearchLoader:
         if errors:
             logger.error(
                 'Ошибки при bulk-загрузке в %s: %d из %d документов не приняты. Первые 3: %s',
-                index_name, len(errors), len(docs), errors[:3],
+                index_name,
+                len(errors),
+                len(docs),
+                errors[:3],
             )
             raise RuntimeError(
                 f'Bulk-загрузка в {index_name} завершилась с {len(errors)} ошибками из {len(docs)} документов'

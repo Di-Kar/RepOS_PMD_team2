@@ -1,4 +1,5 @@
 """Валидация и публикация одного события в Kafka."""
+
 import logging
 
 from event_schemas import TOPIC_BY_EVENT_TYPE, UserEvent, to_kafka_record
@@ -20,8 +21,15 @@ async def process_event(raw: dict) -> EventResult:
         event = _event_adapter.validate_python(raw)
     except ValidationError as exc:
         event_id = raw.get("event_id") if isinstance(raw, dict) else None
-        errors = [f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}" for err in exc.errors()]
-        return EventResult(event_id=str(event_id) if event_id else None, status="rejected", errors=errors)
+        errors = [
+            f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}"
+            for err in exc.errors()
+        ]
+        return EventResult(
+            event_id=str(event_id) if event_id else None,
+            status="rejected",
+            errors=errors,
+        )
 
     if not event.consent:
         logger.info(f"Event {event.event_id} skipped: consent=false")
@@ -33,6 +41,10 @@ async def process_event(raw: dict) -> EventResult:
         await publish_event(topic_key, key=str(event.session_id), value=record)
     except Exception as exc:
         logger.error(f"Failed to publish event {event.event_id} to Kafka: {exc}")
-        return EventResult(event_id=str(event.event_id), status="rejected", errors=["kafka_publish_failed"])
+        return EventResult(
+            event_id=str(event.event_id),
+            status="rejected",
+            errors=["kafka_publish_failed"],
+        )
 
     return EventResult(event_id=str(event.event_id), status="accepted")

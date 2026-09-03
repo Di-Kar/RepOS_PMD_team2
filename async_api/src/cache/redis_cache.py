@@ -28,7 +28,12 @@ class RedisCache(CacheInterface[T]):
     конструктор (DIP), что позволяет подменять её без изменения класса.
     """
 
-    def __init__(self, redis: Redis, model_class: type[T], retry_policy: RetryPolicy = _REDIS_RETRY_POLICY):
+    def __init__(
+        self,
+        redis: Redis,
+        model_class: type[T],
+        retry_policy: RetryPolicy = _REDIS_RETRY_POLICY,
+    ):
         self.redis = redis
         self.model_class = model_class
         self._retry = retry_policy
@@ -57,7 +62,9 @@ class RedisCache(CacheInterface[T]):
         if not self.redis:
             return
         try:
-            await self._retry.call(self.redis.set, key, value.model_dump_json(), ex=expire)
+            await self._retry.call(
+                self.redis.set, key, value.model_dump_json(), ex=expire
+            )
         except Exception as e:
             logger.warning(f"Redis SET failed for key='{key}': {e}")
 
@@ -75,7 +82,9 @@ class RedisCache(CacheInterface[T]):
             return None
 
         try:
-            return [self.model_class.model_validate(item) for item in json.loads(cached)]
+            return [
+                self.model_class.model_validate(item) for item in json.loads(cached)
+            ]
         except Exception as e:
             logger.warning(f"Failed to parse cached list JSON for key='{key}': {e}")
             return None
@@ -110,7 +119,9 @@ class RedisCache(CacheInterface[T]):
         try:
             cursor = 0
             while True:
-                cursor, keys = await self._retry.call(self.redis.scan, cursor, match=pattern, count=100)
+                cursor, keys = await self._retry.call(
+                    self.redis.scan, cursor, match=pattern, count=100
+                )
                 if keys:
                     await self._retry.call(self.redis.delete, *keys)
                 if cursor == 0:

@@ -2,6 +2,7 @@
 Модуль подключения к базе данных Redis.
 Предоставляет асинхронный клиент Redis и утилиты для управления токенами/кэшем.
 """
+
 import logging
 from typing import AsyncGenerator, Optional
 
@@ -16,6 +17,7 @@ redis_pool: Optional[ConnectionPool] = None
 
 # Глобальный экземпляр клиента Redis
 redis_client: Optional[Redis] = None
+
 
 async def get_redis_pool() -> ConnectionPool:
     """
@@ -33,7 +35,8 @@ async def get_redis_pool() -> ConnectionPool:
         )
         logger.info("Redis connection pool initialized.")
     return redis_pool
- 
+
+
 async def get_redis() -> AsyncGenerator[Redis, None]:
     """
     Зависимость FastAPI, предоставляющая клиент Redis для обработки одного HTTP-запроса.
@@ -44,7 +47,8 @@ async def get_redis() -> AsyncGenerator[Redis, None]:
         yield client
     finally:
         await client.aclose()
- 
+
+
 async def init_redis() -> None:
     """
     Инициализирует подключение к Redis и проверяет его доступность.
@@ -59,7 +63,8 @@ async def init_redis() -> None:
     except Exception as e:
         logger.error(f"Failed to connect to Redis on startup: {e}")
         raise
- 
+
+
 async def close_redis() -> None:
     """
     Корректно закрывает соединения с Redis.

@@ -1,4 +1,5 @@
 """Роуты приёма пользовательских событий — /api/v1/events (FR-22)."""
+
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -9,7 +10,9 @@ from src.core.rate_limiter import limiter
 from src.models.responses import BatchRequest, BatchResponse, EventResult
 from src.services.event_service import process_event
 
-router = APIRouter(prefix="/api/v1/events", tags=["Events"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(
+    prefix="/api/v1/events", tags=["Events"], dependencies=[Depends(verify_api_key)]
+)
 
 
 @router.post("", response_model=EventResult, status_code=status.HTTP_202_ACCEPTED)
@@ -23,9 +26,13 @@ async def collect_event(request: Request, payload: dict) -> EventResult:
     return await process_event(payload)
 
 
-@router.post("/batch", response_model=BatchResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/batch", response_model=BatchResponse, status_code=status.HTTP_202_ACCEPTED
+)
 @limiter.limit(settings.rate_limit_events)
-async def collect_events_batch(request: Request, payload: BatchRequest) -> BatchResponse:
+async def collect_events_batch(
+    request: Request, payload: BatchRequest
+) -> BatchResponse:
     """Пакетная отправка событий (NFR-5). Каждое событие валидируется и
     публикуется независимо — ошибка в одном не блокирует остальные."""
     if len(payload.events) > settings.batch_max_size:

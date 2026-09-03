@@ -65,7 +65,9 @@ def run_etl():
     # Управление состоянием
     storage = OffsetStorage(etl_settings.state_dir)
     storage.load_state()  # инициализировать кэш состояния
-    logger.info('Директория для хранения текущего состояния: %s', etl_settings.state_dir)
+    logger.info(
+        'Директория для хранения текущего состояния: %s', etl_settings.state_dir
+    )
 
     # Загрузчик ClickHouse
     loader = ClickHouseLoader(
@@ -82,7 +84,9 @@ def run_etl():
     try:
         loader.init_schema(schema_file)
     except Exception as e:
-        logger.warning('Инициализация схемы вызвала проблемы (может уже существует): %s', e)
+        logger.warning(
+            'Инициализация схемы вызвала проблемы (может уже существует): %s', e
+        )
 
     # DLQ
     dlq = DeadLetterQueue(loader)
@@ -151,7 +155,9 @@ def run_etl():
                 if msg.error().code() == KafkaError._PARTITION_EOF:
                     logger.debug(
                         'Конец раздела [%s]://%d на offset %d',
-                        msg.topic(), msg.partition(), msg.offset(),
+                        msg.topic(),
+                        msg.partition(),
+                        msg.offset(),
                     )
                 else:
                     logger.error('Ошибка Kafka: %s', msg.error())
@@ -182,7 +188,9 @@ def run_etl():
     except KeyboardInterrupt:
         logger.info('Прервано клавиатурой — завершение работы')
     finally:
-        logger.info('Финальная отправка %d буферизованных событий', processor.buffer_size)
+        logger.info(
+            'Финальная отправка %d буферизованных событий', processor.buffer_size
+        )
         processed, success = processor.flush()
         if processed and success:
             _commit_offsets(consumer, processor)
@@ -212,7 +220,10 @@ def _process_message(msg, processor, consumer, dlq):
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
         logger.warning(
             'Не удалось декодировать сообщение в [%s]://%d offset %d: %s',
-            msg.topic(), msg.partition(), msg.offset(), e,
+            msg.topic(),
+            msg.partition(),
+            msg.offset(),
+            e,
         )
         # Событие некорректно — направляем в DLQ и фиксируем смещение,
         # так как оно не попадёт в буфер и не потребится повторно
@@ -220,46 +231,66 @@ def _process_message(msg, processor, consumer, dlq):
             raw_payload_str = (
                 raw_value.decode('utf-8', errors='replace')
                 if isinstance(raw_value, bytes) and raw_value
-                else str(raw_value) if raw_value else ''
+                else str(raw_value)
+                if raw_value
+                else ''
             )
         except Exception:
             raw_payload_str = ''
-        _route_to_dlq(msg, {
-            'raw_message': raw_payload_str,
-            'error_type': 'DECODE_ERROR',
-            'error_message': str(e),
-        }, dlq)
+        _route_to_dlq(
+            msg,
+            {
+                'raw_message': raw_payload_str,
+                'error_type': 'DECODE_ERROR',
+                'error_message': str(e),
+            },
+            dlq,
+        )
         _track_offset(processor, msg)
         return
     except Exception as e:
-        logger.error('Ошибка обработки сообщения в [%s]://%d offset %d: %s',
-                     msg.topic(), msg.partition(), msg.offset(), e)
+        logger.error(
+            'Ошибка обработки сообщения в [%s]://%d offset %d: %s',
+            msg.topic(),
+            msg.partition(),
+            msg.offset(),
+            e,
+        )
         # Отправляем сырое сообщение в DLQ — данные не должны теряться
         try:
             raw_payload_str = (
                 raw_value.decode('utf-8', errors='replace')
                 if isinstance(raw_value, bytes) and raw_value
-                else str(raw_value) if raw_value else ''
+                else str(raw_value)
+                if raw_value
+                else ''
             )
         except Exception:
             raw_payload_str = ''
-        _route_to_dlq(msg, {
-            'raw_message': raw_payload_str,
-            'error_type': 'PROCESSING_ERROR',
-            'error_message': str(e),
-        }, dlq)
+        _route_to_dlq(
+            msg,
+            {
+                'raw_message': raw_payload_str,
+                'error_type': 'PROCESSING_ERROR',
+                'error_message': str(e),
+            },
+            dlq,
+        )
         _track_offset(processor, msg)
         return
 
     # Валидация
     from validator import validate_event
+
     validated = validate_event(raw_event)
 
     if validated is None:
         # Недопустимое событие — направить в DLQ
         logger.warning(
             'Недопустимое событие в [%s]://%d offset %d — отправка в DLQ',
-            msg.topic(), msg.partition(), msg.offset(),
+            msg.topic(),
+            msg.partition(),
+            msg.offset(),
         )
         _route_to_dlq(msg, raw_event, dlq)
         # Событие отправлено в DLQ — фиксируем смещение немедленно
@@ -304,10 +335,10 @@ def _route_to_dlq(msg, raw_event, dlq):
 
 def _commit_offsets(consumer, processor):
     """Зафиксировать pending смещения в Kafka и сохранить в файл состояния.
-    
+
     Вызывается ТОЛЬКО после успешной вставки всех событий в ClickHouse.
     Смещения коммитятся только для тех событий, которые были реально записаны.
-    
+
     Использует consumer.assignment() для получения корректного списка
     назначенных партиций и валидации topic-partition перед коммитом.
     """
@@ -318,7 +349,7 @@ def _commit_offsets(consumer, processor):
 
         # Получаем назначенные партиции через consumer.assignment()
         assigned_partitions = consumer.assignment()
-        
+
         # Фильтруем смещения: коммитим только для назначенных партиций
         commit_list = []
         for tp in assigned_partitions:
@@ -326,7 +357,7 @@ def _commit_offsets(consumer, processor):
                 if tp.partition in offsets_to_commit[tp.topic]:
                     offset = offsets_to_commit[tp.topic][tp.partition]
                     commit_list.append(TopicPartition(tp.topic, tp.partition, offset))
-        
+
         if commit_list:
             consumer.commit(offsets=commit_list)
 
@@ -341,10 +372,16 @@ def _commit_offsets(consumer, processor):
 if __name__ == '__main__':
     logger.info('Запускаю сервис Analytics ETL')
     logger.info('Серверы Kafka: %s', kafka_settings.bootstrap_servers)
-    logger.info('ClickHouse: %s:%d/%s',
-                clickhouse_settings.host, clickhouse_settings.port,
-                clickhouse_settings.database)
+    logger.info(
+        'ClickHouse: %s:%d/%s',
+        clickhouse_settings.host,
+        clickhouse_settings.port,
+        clickhouse_settings.database,
+    )
     logger.info('Темы: %s', ', '.join(kafka_settings.topics_list))
-    logger.info('Размер пакета: %d, Интервал отправки: %ds',
-                etl_settings.batch_size, etl_settings.flush_interval)
+    logger.info(
+        'Размер пакета: %d, Интервал отправки: %ds',
+        etl_settings.batch_size,
+        etl_settings.flush_interval,
+    )
     run_etl()
