@@ -13,7 +13,9 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
 from django.contrib import admin
+from django.http import HttpRequest
 from django.urls import include, path
 
 from movies.search import SearchView
@@ -23,3 +25,9 @@ urlpatterns = [
     path('api/', include('movies.api.urls')),
     path('search/', SearchView.as_view(), name='search'),
 ]
+
+if settings.DEBUG:
+    def sentry_debug(request: HttpRequest):
+        division_by_zero = 1 / 0
+
+    urlpatterns += [path('api/v1/_sentry_debug/', sentry_debug)]

@@ -30,6 +30,10 @@ class Settings(BaseSettings):
 
     auth_request_timeout: float = Field(default=1.5, alias='AUTH_REQUEST_TIMEOUT')
 
+    # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
+    sentry_dsn: str = Field(default='', alias='SENTRY_DSN')
+    debug: bool = Field(default=False, alias='DEBUG')
+
     base_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 

@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 import uvicorn
 from elasticsearch import AsyncElasticsearch
 from fastapi import FastAPI, Request, status
@@ -12,6 +13,12 @@ from core import config
 from core.exceptions import StorageUnavailableError
 from core.logger import LOGGING
 from db.auth_client import AuthServiceClient
+
+if config.settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=config.settings.sentry_dsn,
+        traces_sample_rate=0.01,
+    )
 
 
 class _HealthcheckAccessLogFilter(logging.Filter):
@@ -73,6 +80,13 @@ async def storage_unavailable_handler(_: Request, exc: StorageUnavailableError) 
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={'detail': 'Storage is temporarily unavailable'},
     )
+
+
+if config.settings.debug:
+    @app.get('/api/v1/_sentry_debug')
+    async def sentry_debug():
+        division_by_zero = 1 / 0
+
 
 if __name__ == '__main__':
     # Приложение может запускаться командой

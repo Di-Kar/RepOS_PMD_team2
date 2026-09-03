@@ -4,6 +4,7 @@ uvicorn[standard]==0.24.0
 gunicorn==23.0.0
 pydantic==2.7.1
 pydantic-settings==2.12.0
+sentry-sdk==2.44.0
 
 # Database
 sqlalchemy==2.0.23

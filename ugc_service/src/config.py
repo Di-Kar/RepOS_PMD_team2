@@ -33,5 +33,8 @@ class Settings(BaseSettings):
     # Debug
     debug: bool = Field(default=False, alias='DEBUG')
 
+    # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
+    sentry_dsn: str = Field(default='', alias='SENTRY_DSN')
+
 
 settings = Settings()

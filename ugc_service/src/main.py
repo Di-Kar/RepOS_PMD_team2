@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from logging import config as logging_config
 
+import sentry_sdk
 from api.v1.auth_proxy import router as auth_proxy_router
 from api.v1.bookmarks import router as bookmarks_router
 from api.v1.likes import router as likes_router
@@ -17,6 +18,9 @@ from logger import LOGGING
 
 logging_config.dictConfig(LOGGING)
 logger = logging.getLogger(__name__)
+
+if settings.sentry_dsn:
+    sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.01)
 
 
 # ==================================================================== #
@@ -98,3 +102,9 @@ app.include_router(reviews_router)
 async def health() -> dict:
     """Healthcheck для Docker."""
     return {'status': 'ok'}
+
+
+if settings.debug:
+    @app.get('/api/v1/_sentry_debug')
+    async def sentry_debug():
+        division_by_zero = 1 / 0

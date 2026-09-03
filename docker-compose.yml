@@ -53,6 +53,8 @@ services:
       - "8000"
     env_file:
       - ./.env
+    environment:
+      - SENTRY_DSN=${SENTRY_DSN_ADMIN_PANEL}
     volumes:
       - static_volume:/opt/app/static
     depends_on:
@@ -160,6 +162,7 @@ services:
       - .env
     environment:
       - REDIS_HOST=async_api_redis
+      - SENTRY_DSN=${SENTRY_DSN_ASYNC_API}
     ports:
       - "8000:8000"
     healthcheck:
@@ -253,6 +256,7 @@ services:
     environment:
       - AUTH_POSTGRES_HOST=auth_postgres
       - AUTH_REDIS_HOST=auth_redis
+      - SENTRY_DSN=${SENTRY_DSN_AUTH_SERVICE}
     ports:
       - "8001:8000"
     healthcheck:
@@ -379,6 +383,7 @@ services:
     environment:
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - PYTHONPATH=/opt/app/shared
+      - SENTRY_DSN=${SENTRY_DSN_EVENT_API}
     volumes:
       - ./shared:/opt/app/shared:ro
     ports:
@@ -723,12 +728,16 @@ services:
       - MONGO_URI=mongodb://mongo_mongos-0:27017,mongo_mongos-1:27017
       - MONGO_DB=ugc_service
       - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
+      - SENTRY_DSN=${SENTRY_DSN_UGC_SERVICE}
     ports:
       - "8003:8000"
     depends_on:
-      - mongo_mongos-0
-      - mongo_init
-      - auth_service
+      mongo_mongos-0:
+        condition: service_started
+      mongo_init:
+        condition: service_completed_successfully
+      auth_service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
       interval: 10s
@@ -762,7 +771,7 @@ services:
       pytest /tests -rs --ignore=/tests/admin_panel
       && cd /admin_panel && python manage.py test /tests/admin_panel"
     environment:
-      - PYTHONPATH=/analytics_etl:/
+      - PYTHONPATH=/analytics_etl:/ugc_service/src:/
       - REDIS_HOST=async_api_redis
       - API_HOST=async_api
       - AUTH_API_HOST=auth_service

@@ -86,27 +86,27 @@ class LikeStatsSchema(BaseModel):
         examples=['550e8400-e29b-41d4-a716-446655440000'],
     )
     total_likes: int = Field(
-        150,
+        0,
         description='Количество лайков (rating > 5)',
         examples=[150],
     )
     total_dislikes: int = Field(
-        30,
+        0,
         description='Количество дизлайков (rating < 3)',
         examples=[30],
     )
     average_rating: float = Field(
-        7.5,
+        0.0,
         description='Средняя оценка',
         examples=[7.5],
     )
     total_ratings: int = Field(
-        180,
+        0,
         description='Всего оценок',
         examples=[180],
     )
     rating_distribution: dict = Field(
-        {0: 5, 1: 3, 2: 8, 3: 14, 4: 20, 5: 25, 6: 20, 7: 25, 8: 22, 9: 15, 10: 23},
+        default_factory=dict,
         description='Распределение оценок {0: N, 1: N, ..., 10: N}',
         examples=[{0: 5, 1: 3, 2: 8, 3: 14, 4: 20, 5: 25, 6: 20, 7: 25, 8: 22, 9: 15, 10: 23}],
     )

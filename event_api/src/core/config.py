@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = Field(default="Event API", alias="EVENTS_APP_NAME")
-    debug: bool = Field(default=False, alias="EVENTS_DEBUG")
+    debug: bool = Field(default=False, alias="DEBUG")
 
     # Kafka
     kafka_bootstrap_servers: str = Field(default="localhost:9092", alias="EVENTS_KAFKA_BOOTSTRAP_SERVERS")
@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="EVENTS_LOG_LEVEL")
 
     jaeger_endpoint: str = Field(default="", alias="JAEGER_ENDPOINT")
+
+    # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
 
 
 settings = Settings()

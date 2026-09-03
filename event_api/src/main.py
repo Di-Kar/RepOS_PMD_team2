@@ -3,6 +3,7 @@ import logging
 import uuid
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -16,6 +17,9 @@ from src.core.config import settings
 from src.core.kafka_producer import close_producer, init_producer
 from src.core.rate_limiter import limiter
 from src.core.tracer import configure_tracer
+
+if settings.sentry_dsn:
+    sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.01)
 
 
 class _HealthcheckAccessLogFilter(logging.Filter):
@@ -73,3 +77,9 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"error": "validation_error", "message": first["msg"], "field": field},
     )
+
+
+if settings.debug:
+    @app.get("/api/v1/_sentry_debug")
+    async def sentry_debug():
+        division_by_zero = 1 / 0

@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Все переменные с префиксом AUTH_: .env общий на весь проект,
     # и без префикса auth перехватывал бы POSTGRES_*/SECRET_KEY других сервисов.
     app_name: str = Field(default="Auth Service", alias="AUTH_APP_NAME")
-    debug: bool = Field(default=False, alias="AUTH_DEBUG")
+    debug: bool = Field(default=False, alias="DEBUG")
 
     # PostgreSQL Configuration
     postgres_host: str = Field(default="localhost", alias="AUTH_POSTGRES_HOST")
@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     # Jaeger Configuration
     jaeger_endpoint: str = Field(alias='JAEGER_ENDPOINT')
     #error[mypy]: Missing named argument "JAEGER_ENDPOINT" for "Settings"  [call-arg]
+
+    # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
+    sentry_dsn: str = Field(default='', alias='SENTRY_DSN')
 
     @property
     def postgres_dsn(self) -> str:

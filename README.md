@@ -21,7 +21,7 @@
 cp .env.example .env  # заполнить значения (но проще взять готовый в чате команды и подложить)
 docker compose up -d --build
 -----------------------------
-docker compose up -d --build; if ($?) { docker compose run --rm tests }
+docker compose up -d --build; if ($?) { docker compose --profile tests build --no-cache tests; docker compose --profile tests run --rm tests }
 ```
 
 ## Остановка и очистка всего проекта (включая тесты)
@@ -95,6 +95,16 @@ pip install -r requirements.txt
 ```bash
 ruff check . --fix
 ```
+
+## Sentry
+
+Мониторинг необработанных исключений — облачный [Sentry](https://sentry.io/) (бесплатный Developer-план). Подключён к сервисам с HTTP API — `async_api`, `auth_service`, `event_api`, `ugc_service`, `admin_panel` — у каждого свой проект и свой DSN (issue #81). `analytics_etl` (фоновый Kafka-консьюмер, не API) сознательно не подключён.
+
+1. На sentry.io завести отдельный проект под каждый сервис (Platform → Python/FastAPI для `async_api`/`auth_service`/`event_api`/`ugc_service`, Python/Django для `admin_panel`).
+2. В настройках каждого проекта Settings → Client Keys скопировать DSN.
+3. Вставить DSN'ы в `.env` (`SENTRY_DSN_ASYNC_API`, `SENTRY_DSN_AUTH_SERVICE`, `SENTRY_DSN_EVENT_API`, `SENTRY_DSN_UGC_SERVICE`, `SENTRY_DSN_ADMIN_PANEL`) и перезапустить стек:
+
+Без DSN конкретный сервис работает как обычно — просто не шлёт события в Sentry.
 
 ## OAuth Google
 

@@ -1,9 +1,16 @@
 import os
 from pathlib import Path
 
+import sentry_sdk
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'secret_key')
+
+# Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
+SENTRY_DSN = os.getenv('SENTRY_DSN', '')
+if SENTRY_DSN:
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.01)
 
 DEBUG = os.getenv('DEBUG', False) == 'True'
 
