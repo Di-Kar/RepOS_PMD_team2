@@ -1,9 +1,6 @@
 """Tests for _process_message: unexpected processing errors route to DLQ."""
 
-import json
-import pytest
 from unittest.mock import MagicMock, patch
-import json as json_module
 
 
 def _make_msg(value: bytes, topic: str = 'clicks', partition: int = 0, offset: int = 100):
@@ -108,7 +105,7 @@ class TestUnexpectedProcessingError:
 
     def test_processing_error_fixes_offset(self):
         """При PROCESSING_ERROR смещение фиксируется (сообщение не повторно)."""
-        from main import _process_message, _track_offset
+        from main import _process_message
 
         msg = _make_msg(b'{"valid": "json"}')
         processor, dlq = _make_processor()
@@ -127,7 +124,6 @@ class TestValidationVsProcessingError:
 
     def test_validation_error_uses_original_event(self):
         """VALIDATION_ERROR получает оригинальное событие."""
-        from main import _process_message
 
         msg = _make_msg(b'{"event_id": "123", "bad_field": "x"}')
         processor, dlq = _make_processor()
@@ -140,6 +136,7 @@ class TestValidationVsProcessingError:
         with patch.dict('sys.modules', {'validator': fake_validator}):
             # Перезагружаем main чтобы он использовал мок
             import importlib
+
             import main as main_module
             importlib.reload(main_module)
 

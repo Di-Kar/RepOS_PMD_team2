@@ -10,15 +10,14 @@ import json
 import logging
 import os
 import signal
-import sys
 import time
 
+from backoff_utils import configure as configure_backoff
 from config import (
     clickhouse_settings,
     etl_settings,
     kafka_settings,
 )
-from backoff_utils import configure as configure_backoff
 from confluent_kafka import TopicPartition
 from dlq import DeadLetterQueue
 from loader import ClickHouseLoader
@@ -98,7 +97,7 @@ def run_etl():
     )
 
     # Импортировать потребителя Kafka здесь, чтобы он загружался только во время выполнения
-    from confluent_kafka import Consumer, KafkaError, Message
+    from confluent_kafka import Consumer, KafkaError
 
     # Потребитель Kafka — ручная фиксация смещений
     kafka_conf = {
@@ -309,7 +308,7 @@ def _commit_offsets(consumer, processor):
     Вызывается ТОЛЬКО после успешной вставки всех событий в ClickHouse.
     Смещения коммитятся только для тех событий, которые были реально записаны.
     
-    Использует consumer.assignment() для получения корректного списка 
+    Использует consumer.assignment() для получения корректного списка
     назначенных партиций и валидации topic-partition перед коммитом.
     """
     try:

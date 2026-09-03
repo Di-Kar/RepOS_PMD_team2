@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import clickhouse_connect
-from clickhouse_connect.driver.exceptions import DatabaseError, OperationalError
 from backoff_utils import backoff
-from config import clickhouse_settings, etl_settings
+from clickhouse_connect.driver.exceptions import DatabaseError, OperationalError
+from config import clickhouse_settings
 
 if TYPE_CHECKING:
     from clickhouse_connect.driver.client import Client
@@ -101,7 +100,7 @@ class ClickHouseLoader:
             raise FileNotFoundError(f'Файл схемы не найден: {schema_file}')
         client = self._get_client()
         try:
-            with open(schema_file, 'r', encoding='utf-8') as f:
+            with open(schema_file, encoding='utf-8') as f:
                 sql = f.read()
             statements = sql.split(';')
             logger.info('Найдено %d операторов (разделено по ;)', len(statements))
@@ -124,7 +123,7 @@ class ClickHouseLoader:
     # ------------------------------------------------------------------ #
 
     @backoff(exceptions=_CLICKHOUSE_EXCEPTIONS)
-    def bulk_insert(self, table: str, rows: List[dict]) -> bool:
+    def bulk_insert(self, table: str, rows: list[dict]) -> bool:
         """Вставить пакет строк в указанную таблицу.
 
         Возвращает true при успехе, false если пакет пустой.
@@ -146,7 +145,7 @@ class ClickHouseLoader:
         return True
 
     @backoff(exceptions=_CLICKHOUSE_EXCEPTIONS)
-    def bulk_insert_movies_metrics(self, rows: List[dict]) -> bool:
+    def bulk_insert_movies_metrics(self, rows: list[dict]) -> bool:
         """Вставить агрегированные строки метрик фильмов.
 
         Использует специализированный запрос merge для семантики SummingMergeTree.
@@ -156,7 +155,7 @@ class ClickHouseLoader:
 
         client = self._get_client()
 
-        aggregated: Dict[str, dict] = {}
+        aggregated: dict[str, dict] = {}
         for row in rows:
             cid = row['content_id']
             if cid not in aggregated:
@@ -206,7 +205,7 @@ class ClickHouseLoader:
         return True
 
     @backoff(exceptions=_CLICKHOUSE_EXCEPTIONS)
-    def bulk_insert_watch_sessions(self, rows: List[dict]) -> bool:
+    def bulk_insert_watch_sessions(self, rows: list[dict]) -> bool:
         """Вставить строки сеансов просмотра в таблицу watch_sessions."""
         if not rows:
             return True

@@ -1,5 +1,6 @@
+from typing import Any, Optional
 from uuid import UUID
-from typing import Optional, Any
+
 from pydantic import BaseModel, Field, model_validator
 
 

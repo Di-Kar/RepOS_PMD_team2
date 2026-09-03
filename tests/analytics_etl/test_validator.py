@@ -7,7 +7,6 @@ ValueError на структурно неисправимый ввод.
 """
 
 import pytest
-
 from validator import validate_event
 
 EVENT_ID = 'b3f1c2a4-9e3a-4b7a-8b1a-7e2d3f4a5b6c'

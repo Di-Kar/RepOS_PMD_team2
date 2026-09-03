@@ -4,7 +4,6 @@ import unittest
 from unittest.mock import Mock, patch
 
 import requests
-
 from config.auth_service_client import (
     AuthServiceUnavailable,
     _breaker,

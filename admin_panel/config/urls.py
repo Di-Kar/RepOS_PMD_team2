@@ -17,7 +17,6 @@ from django.conf import settings
 from django.contrib import admin
 from django.http import HttpRequest
 from django.urls import include, path
-
 from movies.search import SearchView
 
 urlpatterns = [
@@ -28,6 +27,6 @@ urlpatterns = [
 
 if settings.DEBUG:
     def sentry_debug(request: HttpRequest):
-        division_by_zero = 1 / 0
+        raise ZeroDivisionError
 
     urlpatterns += [path('api/v1/_sentry_debug/', sentry_debug)]

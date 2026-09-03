@@ -1,7 +1,8 @@
 """Tests for _pending_offsets: topic-partition keying, offset lifecycle, and clear_committed_offsets."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from processor import EventProcessor
 
 

@@ -1,7 +1,7 @@
 import json
 import logging
-from typing import List
 from collections import defaultdict
+from typing import List
 
 from models import Genre, GenreShort, Movie, Person, PersonFilm, PersonShort
 

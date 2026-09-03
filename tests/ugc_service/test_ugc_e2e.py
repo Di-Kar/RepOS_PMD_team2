@@ -9,7 +9,6 @@ import pytest
 from bson import Binary, ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 
-
 # ==================================================================== #
 #  Фикстуры event loop                                                   #
 # ==================================================================== #
@@ -150,7 +149,6 @@ class TestBookmarksE2E:
     async def test_add_bookmark(self, aiohttp_session, clean_collections, auth_headers):
         """Добавление закладки."""
         film_id = uuid4()
-        user_id = uuid4()
 
         async with aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/bookmarks',
@@ -165,7 +163,6 @@ class TestBookmarksE2E:
 
     async def test_get_bookmarks(self, aiohttp_session, clean_collections, auth_headers):
         """Получение списка закладок."""
-        user_id = uuid4()
         film_id = uuid4()
 
         await aiohttp_session.post(
@@ -186,7 +183,6 @@ class TestBookmarksE2E:
 
     async def test_remove_bookmark(self, aiohttp_session, clean_collections, auth_headers):
         """Удаление закладки."""
-        user_id = uuid4()
         film_id = uuid4()
 
         await aiohttp_session.post(
@@ -228,7 +224,6 @@ class TestLikesE2E:
     async def test_add_like(self, aiohttp_session, clean_collections, auth_headers):
         """Добавление лайка."""
         film_id = uuid4()
-        user_id = uuid4()
         rating = 8
 
         async with aiohttp_session.post(
@@ -245,7 +240,6 @@ class TestLikesE2E:
     async def test_get_like_stats(self, aiohttp_session, clean_collections, auth_headers):
         """Получение статистики лайков."""
         film_id = uuid4()
-        user_id = uuid4()
 
         await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/likes',
@@ -264,7 +258,6 @@ class TestLikesE2E:
     async def test_remove_like(self, aiohttp_session, clean_collections, auth_headers):
         """Удаление лайка."""
         film_id = uuid4()
-        user_id = uuid4()
 
         await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/likes',
@@ -305,7 +298,6 @@ class TestReviewsE2E:
     async def test_create_review(self, aiohttp_session, clean_collections, auth_headers):
         """Создание рецензии."""
         film_id = uuid4()
-        user_id = uuid4()
         title = 'Отличный фильм'
         text = 'Прекрасная история'
         rating = 9
@@ -329,7 +321,6 @@ class TestReviewsE2E:
     async def test_get_reviews(self, aiohttp_session, clean_collections, auth_headers):
         """Получение списка рецензий."""
         film_id = uuid4()
-        user_id = uuid4()
 
         await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',
@@ -354,7 +345,6 @@ class TestReviewsE2E:
     async def test_get_review_detail(self, aiohttp_session, clean_collections, auth_headers):
         """Получение деталей рецензии."""
         film_id = uuid4()
-        user_id = uuid4()
 
         create_resp = await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',
@@ -380,7 +370,6 @@ class TestReviewsE2E:
     async def test_vote_on_review(self, aiohttp_session, clean_collections, auth_headers):
         """Голосование за рецензию."""
         film_id = uuid4()
-        user_id = uuid4()
 
         create_resp = await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',

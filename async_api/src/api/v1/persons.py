@@ -2,13 +2,13 @@ from http import HTTPStatus
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-
-from api.v1.dependencies import PaginationParams, get_optional_user
 from db.auth_client import UserContext
+from fastapi import APIRouter, Depends, HTTPException, Query
 from models.film import FilmShort
 from models.person import PersonFilmResponse, PersonResponse, PersonSearchResponse
 from services.person import PersonService, get_person_service
+
+from api.v1.dependencies import PaginationParams, get_optional_user
 
 router = APIRouter()
 

@@ -1,9 +1,8 @@
 """Unit-tests для analytics_etl.processor — EventProcessor с моками."""
 
-import pytest
-import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
+import pytest
 from processor import EventProcessor
 
 # --------------------------------------------------------------------------- #

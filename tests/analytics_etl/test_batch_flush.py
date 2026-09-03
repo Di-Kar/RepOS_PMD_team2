@@ -7,9 +7,10 @@
 4. Буфер защищён от переполнения памяти.
 """
 
-import pytest
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+import pytest
 
 # Используем реальный EventProcessor с моками зависимостей
 from processor import EventProcessor

@@ -1,6 +1,6 @@
 
-from redis.asyncio import Redis
 from fastapi import Request
+from redis.asyncio import Redis
 
 
 def get_redis(request: Request) -> Redis:

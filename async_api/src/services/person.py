@@ -1,17 +1,17 @@
+import logging
 from functools import lru_cache
 from typing import Optional
-
-from fastapi import Depends
-from redis.asyncio import Redis
 
 from cache.redis_cache import RedisCache
 from core.config import settings
 from core.exceptions import StorageUnavailableError
 from db.redis_db import get_redis
 from db.storage import AbstractStorage, get_storage
+from fastapi import Depends
 from models.person import PersonES, PersonFilmES
+from redis.asyncio import Redis
+
 from services.base import BaseService
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ class PersonService(BaseService[PersonES]):
         ]
 
 
-@lru_cache()
+@lru_cache
 def get_person_service(
         storage: AbstractStorage = Depends(get_storage),
         redis: Redis = Depends(get_redis),

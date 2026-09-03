@@ -14,9 +14,9 @@ import uuid
 from datetime import datetime, timezone
 
 import clickhouse_connect
-from clickhouse_connect.driver.asyncclient import Client
 import pytest_asyncio
 from aiokafka import AIOKafkaProducer
+from clickhouse_connect.driver.asyncclient import Client
 
 # --- Config from env ---
 
@@ -137,7 +137,8 @@ async def wait_for_data(
         data_checker: callback(rows) -> bool. If None, checks len(rows) > 0.
     """
     if data_checker is None:
-        data_checker = lambda rows: len(rows) > 0
+        def data_checker(rows):
+            return len(rows) > 0
     
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
@@ -176,7 +177,7 @@ async def test_events_table_populated(
         clickhouse_client, query, data_checker=lambda rows: rows[0][0] > 0
     )
 
-    assert rows[0][0] >= 1, f'Expected at least 1 click event in ClickHouse'
+    assert rows[0][0] >= 1, 'Expected at least 1 click event in ClickHouse'
 
 
 async def test_movies_metrics_aggregated(
@@ -246,7 +247,7 @@ async def test_multiple_events_batch(
     await kafka_producer.flush()
 
     # Ждём все 5 записей
-    placeholders = ','.join(["'{0}'".format(eid) for eid in event_ids])
+    placeholders = ','.join([f"'{eid}'" for eid in event_ids])
     query = f"SELECT event_id FROM events WHERE event_id IN ({placeholders})"
 
     # Poll until we have 5 rows

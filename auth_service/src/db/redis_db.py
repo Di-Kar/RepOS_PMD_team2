@@ -3,9 +3,10 @@
 Предоставляет асинхронный клиент Redis и утилиты для управления токенами/кэшем.
 """
 import logging
- 
 from typing import AsyncGenerator, Optional
-from redis.asyncio import Redis, ConnectionPool
+
+from redis.asyncio import ConnectionPool, Redis
+
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ async def init_redis() -> None:
     global redis_client
     try:
         pool = await get_redis_pool()
-        redis_client = Redis(connection_pool=pool)   
+        redis_client = Redis(connection_pool=pool)
         await redis_client.ping()
         logger.info("Redis connection established and verified successfully.")
     except Exception as e:

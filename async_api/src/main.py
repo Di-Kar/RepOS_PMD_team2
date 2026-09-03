@@ -3,16 +3,15 @@ from contextlib import asynccontextmanager
 
 import sentry_sdk
 import uvicorn
-from elasticsearch import AsyncElasticsearch
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
-from redis.asyncio import Redis, ConnectionPool
-
 from api.v1 import films, genres, persons
 from core import config
 from core.exceptions import StorageUnavailableError
 from core.logger import LOGGING
 from db.auth_client import AuthServiceClient
+from elasticsearch import AsyncElasticsearch
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
+from redis.asyncio import ConnectionPool, Redis
 
 if config.settings.sentry_dsn:
     sentry_sdk.init(
@@ -85,7 +84,7 @@ async def storage_unavailable_handler(_: Request, exc: StorageUnavailableError) 
 if config.settings.debug:
     @app.get('/api/v1/_sentry_debug')
     async def sentry_debug():
-        division_by_zero = 1 / 0
+        raise ZeroDivisionError
 
 
 if __name__ == '__main__':

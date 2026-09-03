@@ -6,7 +6,6 @@ import urllib.request
 from django.shortcuts import render
 from django.views import View
 
-
 ES_URL = 'http://{}:{}'.format(
     os.getenv('ES_HOST', 'localhost'),
     os.getenv('ES_PORT', '9200'),

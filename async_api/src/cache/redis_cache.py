@@ -2,11 +2,12 @@ import json
 import logging
 from typing import List, Optional, TypeVar
 
+from core.backoff import ExponentialBackoffRetryPolicy, RetryPolicy
 from redis.asyncio import Redis
-from redis.exceptions import ConnectionError as RedisConnectionError, TimeoutError as RedisTimeoutError
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from cache.interface import CacheInterface
-from core.backoff import ExponentialBackoffRetryPolicy, RetryPolicy
 
 logger = logging.getLogger(__name__)
 

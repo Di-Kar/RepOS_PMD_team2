@@ -1,10 +1,16 @@
 import logging
 from datetime import datetime, timezone
-from apscheduler.schedulers.blocking import BlockingScheduler
+
 import backoff_utils
-from config import etl_settings, postgres_settings, es_settings
+from apscheduler.schedulers.blocking import BlockingScheduler
+from config import es_settings, etl_settings, postgres_settings
 from extractor import PostgresExtractor
-from loader import ElasticsearchLoader, MOVIES_INDEX_SETTINGS, GENRES_INDEX_SETTINGS, PERSONS_INDEX_SETTINGS
+from loader import (
+    GENRES_INDEX_SETTINGS,
+    MOVIES_INDEX_SETTINGS,
+    PERSONS_INDEX_SETTINGS,
+    ElasticsearchLoader,
+)
 from state import JsonFileStorage, State
 from transformer import DataTransformer
 

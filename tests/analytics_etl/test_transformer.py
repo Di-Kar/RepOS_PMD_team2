@@ -1,17 +1,16 @@
 """Unit-tests для analytics_etl.transformer — преобразование событий в строки ClickHouse."""
 
-import pytest
 from datetime import datetime, timezone
 
 from transformer import (
-    transform_for_events,
-    extract_content_id,
-    transform_for_movies_metrics,
-    transform_for_watch_sessions,
+    _empty_str,
     _format_timestamp,
     _nullable,
-    _empty_str,
     _safe_float,
+    extract_content_id,
+    transform_for_events,
+    transform_for_movies_metrics,
+    transform_for_watch_sessions,
 )
 
 # --------------------------------------------------------------------------- #

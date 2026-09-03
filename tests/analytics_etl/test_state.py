@@ -1,12 +1,10 @@
 """Unit-tests для analytics_etl.state — OffsetStorage."""
 
-import json
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-
 from state import OffsetStorage
-
 
 # --------------------------------------------------------------------------- #
 #  Фикстуры                                                                   #

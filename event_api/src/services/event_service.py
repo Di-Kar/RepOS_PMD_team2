@@ -1,11 +1,11 @@
 """Валидация и публикация одного события в Kafka."""
 import logging
 
+from event_schemas import TOPIC_BY_EVENT_TYPE, UserEvent, to_kafka_record
 from pydantic import TypeAdapter, ValidationError
 
 from src.core.kafka_producer import publish_event
 from src.models.responses import EventResult
-from event_schemas import TOPIC_BY_EVENT_TYPE, UserEvent, to_kafka_record
 
 logger = logging.getLogger(__name__)
 

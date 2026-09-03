@@ -2,12 +2,12 @@ from http import HTTPStatus
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
-
-from api.v1.dependencies import get_optional_user
 from db.auth_client import UserContext
+from fastapi import APIRouter, Depends, HTTPException
 from models.genre import GenreResponse
 from services.genre import GenreService, get_genre_service
+
+from api.v1.dependencies import get_optional_user
 
 router = APIRouter()
 

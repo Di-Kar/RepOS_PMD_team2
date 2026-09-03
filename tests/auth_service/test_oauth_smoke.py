@@ -1,6 +1,5 @@
 """HTTP-смоук-тесты /api/v1/auth/oauth. Без реальных Google-креденшлов —
 только проверка формы редиректа и защиты unlink-эндпоинта."""
-import uuid
 
 from .conftest import BASE_URL, bearer
 

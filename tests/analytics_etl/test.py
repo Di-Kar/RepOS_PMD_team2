@@ -8,7 +8,7 @@ client = clickhouse_connect.get_client(
         password='secret',
     )
 
-query = f'SELECT count() FROM events WHERE event_type = \'click\' AND event_id=\'click-test-06c508aa\''
+query = 'SELECT count() FROM events WHERE event_type = \'click\' AND event_id=\'click-test-06c508aa\''
     
 
 result = client.query(query)

@@ -8,7 +8,7 @@ import json
 import logging
 import os
 import tempfile
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class OffsetStorage:
             return {}
 
         try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
+            with open(self.file_path, encoding='utf-8') as f:
                 data = json.load(f)
             logger.debug('Состояние загружено из %s', self.file_path)
             return data

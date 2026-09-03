@@ -3,12 +3,12 @@ from http import HTTPStatus
 from typing import Optional
 from uuid import UUID
 
+from db.auth_client import UserContext
 from fastapi import APIRouter, Depends, HTTPException, Query
+from models.film import FilmDetail, FilmGenre, FilmPerson, FilmShort
+from services.film import FilmService, get_film_service
 
 from api.v1.dependencies import PaginationParams, get_optional_user
-from db.auth_client import UserContext
-from models.film import FilmShort, FilmDetail, FilmGenre, FilmPerson
-from services.film import FilmService, get_film_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

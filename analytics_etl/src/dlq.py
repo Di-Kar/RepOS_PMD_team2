@@ -4,13 +4,10 @@
 для последующего расследования.
 """
 
-import json
 import logging
-import time
-from typing import Optional
 
 from backoff_utils import backoff
-from loader import ClickHouseLoader, _CLICKHOUSE_EXCEPTIONS
+from loader import _CLICKHOUSE_EXCEPTIONS, ClickHouseLoader
 
 logger = logging.getLogger(__name__)
 

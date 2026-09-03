@@ -38,7 +38,7 @@ class JsonFileStorage(BaseStorage):
         if not os.path.exists(self.file_path):
             return {}
         try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
+            with open(self.file_path, encoding='utf-8') as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             backup_path = self.file_path + '.bak'

@@ -1,8 +1,7 @@
 from typing import Annotated, Optional
 
-from fastapi import Depends, Query, Request
-
 from db.auth_client import AuthServiceClient, UserContext, get_auth_client
+from fastapi import Depends, Query, Request
 
 
 class PaginationParams:

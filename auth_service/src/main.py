@@ -7,22 +7,20 @@ import sentry_sdk
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from starlette.middleware.sessions import SessionMiddleware
-
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.v1.auth import router as auth_router
 from src.api.v1.idm import router as idm_router
 from src.api.v1.oauth import router as oauth_router
 from src.core.config import settings
-from src.db.postgres import close_db
-from src.db.redis_db import close_redis, init_redis
 from src.core.rate_limiter import limiter, setup_rate_limit_middleware
 from src.core.tracer import configure_tracer
-
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from src.db.postgres import close_db
+from src.db.redis_db import close_redis, init_redis
 
 if settings.sentry_dsn:
     sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.01)
@@ -52,7 +50,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
-FastAPIInstrumentor.instrument_app(app) 
+FastAPIInstrumentor.instrument_app(app)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -120,4 +118,4 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 if settings.debug:
     @app.get("/api/v1/_sentry_debug")
     async def sentry_debug():
-        division_by_zero = 1 / 0
+        raise ZeroDivisionError

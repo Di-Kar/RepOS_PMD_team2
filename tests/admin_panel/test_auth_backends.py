@@ -2,11 +2,10 @@
 на локальный кэш при недоступности auth_service."""
 from unittest.mock import patch
 
-from django.contrib.auth import authenticate, get_user_model
-from django.test import TestCase
-
 from config.auth_backends import AuthServiceBackend
 from config.auth_service_client import AuthServiceUnavailable, AuthServiceUser
+from django.contrib.auth import authenticate, get_user_model
+from django.test import TestCase
 
 User = get_user_model()
 

@@ -2,12 +2,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from elasticsearch import AsyncElasticsearch, ConnectionError as ESConnectionError
-from elasticsearch import ConnectionTimeout as ESConnectionTimeout, NotFoundError
-from fastapi import Depends
-
 from core.backoff import ExponentialBackoffRetryPolicy, RetryPolicy
 from core.exceptions import StorageUnavailableError
+from elasticsearch import AsyncElasticsearch, NotFoundError
+from elasticsearch import ConnectionError as ESConnectionError
+from elasticsearch import ConnectionTimeout as ESConnectionTimeout
+from fastapi import Depends
+
 from db.elastic_db import get_elastic
 
 logger = logging.getLogger(__name__)

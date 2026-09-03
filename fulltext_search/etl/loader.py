@@ -1,11 +1,13 @@
 import logging
 from typing import List
-from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import ConnectionError as ESConnectionError, TransportError, ConnectionTimeout
-from elasticsearch.helpers import bulk
-from pydantic import BaseModel
+
 from backoff_utils import backoff
 from config import ElasticsearchSettings
+from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import ConnectionError as ESConnectionError
+from elasticsearch.exceptions import ConnectionTimeout, TransportError
+from elasticsearch.helpers import bulk
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 

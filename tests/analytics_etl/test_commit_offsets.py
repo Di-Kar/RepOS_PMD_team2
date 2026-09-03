@@ -1,9 +1,8 @@
 """Tests for _commit_offsets: partition assignment filtering and state saving."""
 
 import sys
-import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 # Ensure src is importable
 _SRC_ROOT = Path(__file__).parent.parent.parent / 'analytics_etl' / 'src'
@@ -12,7 +11,6 @@ if _SRC_ROOT.is_dir() and str(_SRC_ROOT) not in sys.path:
 
 import pytest
 from confluent_kafka import TopicPartition
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

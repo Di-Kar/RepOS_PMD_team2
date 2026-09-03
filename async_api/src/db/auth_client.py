@@ -9,10 +9,9 @@ import logging
 from typing import List, Optional
 
 import httpx
+from core.circuit_breaker import CircuitBreaker
 from fastapi import Request
 from pydantic import BaseModel
-
-from core.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 

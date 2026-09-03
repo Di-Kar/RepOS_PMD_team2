@@ -12,7 +12,10 @@ from django.contrib.auth.backends import ModelBackend
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
-from config.auth_service_client import AuthServiceUnavailable, authenticate_via_auth_service
+from config.auth_service_client import (
+    AuthServiceUnavailable,
+    authenticate_via_auth_service,
+)
 
 logger = logging.getLogger(__name__)
 

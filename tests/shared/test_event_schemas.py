@@ -3,18 +3,17 @@
 """
 
 import pytest
-from pydantic import TypeAdapter, ValidationError
-
 from event_schemas import (
+    TOPIC_BY_EVENT_TYPE,
     ClickPayload,
     PageViewEndPayload,
     PageViewStartPayload,
     QualityChangePayload,
     SearchFilterPayload,
-    TOPIC_BY_EVENT_TYPE,
     UserEvent,
     WatchCompletePayload,
 )
+from pydantic import TypeAdapter, ValidationError
 
 _event_adapter = TypeAdapter(UserEvent)
 

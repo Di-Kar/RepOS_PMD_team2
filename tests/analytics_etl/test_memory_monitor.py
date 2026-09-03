@@ -1,11 +1,8 @@
 """Unit-tests для analytics_etl.memory_monitor — MemoryMonitor."""
 
-import gc
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from memory_monitor import MemoryMonitor
 
 # --------------------------------------------------------------------------- #
@@ -23,7 +20,6 @@ def monitor():
 def monitor_with_mocked_memory(monitor, monkeypatch):
     """Монитор с контролируемым значением RSS через monkeypatch."""
     def mock_track(rss_mb):
-        original = monitor.track_memory
         def _mocked():
             return {'rss_mb': rss_mb, 'vms_mb': 0, 'percent': 0}
         return _mocked()

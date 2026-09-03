@@ -6,7 +6,6 @@
 
 import gc
 import logging
-import os
 import resource
 import sys
 from typing import Any, Dict
@@ -40,7 +39,7 @@ class MemoryMonitor:
 
         # Попробовать /proc/self/status в качестве резервного варианта
         try:
-            with open('/proc/self/status', 'r') as f:
+            with open('/proc/self/status') as f:
                 for line in f:
                     if line.startswith('VmRSS:'):
                         rss_mb = int(line.split()[1]) / 1024.0

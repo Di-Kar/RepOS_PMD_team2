@@ -135,7 +135,7 @@ async def refresh(
 
 
 @router.post("/logout", tags=["Tokens"], status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit(settings.rate_limit_standard) 
+@limiter.limit(settings.rate_limit_standard)
 async def logout(
     request: Request,
     token_payload: TokenPayload = Depends(get_token_payload),
@@ -146,7 +146,7 @@ async def logout(
 
 
 @router.post("/logout-all", tags=["Tokens"], status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit(settings.rate_limit_moderate) 
+@limiter.limit(settings.rate_limit_moderate)
 async def logout_all(
     request: Request,
     token_payload: TokenPayload = Depends(get_token_payload),
@@ -211,7 +211,7 @@ async def change_password(
 
 
 @router.get("/history", tags=["Profile"], response_model=LoginHistoryResponse)
-@limiter.limit(settings.rate_limit_relaxed) 
+@limiter.limit(settings.rate_limit_relaxed)
 async def login_history(
     request: Request,
     page: int = Query(default=1, ge=1),

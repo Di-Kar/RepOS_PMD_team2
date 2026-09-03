@@ -82,4 +82,4 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 if settings.debug:
     @app.get("/api/v1/_sentry_debug")
     async def sentry_debug():
-        division_by_zero = 1 / 0
+        raise ZeroDivisionError

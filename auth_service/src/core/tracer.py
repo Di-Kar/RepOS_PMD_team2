@@ -1,10 +1,11 @@
 """Модуль инициализации OpenTelemetry-трассировки."""
 
 import logging
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.propagate import set_global_textmap
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -32,7 +33,7 @@ def configure_tracer(debug: bool = False) -> None:
     """
     resource = Resource.create(attributes={
         SERVICE_NAME: "auth_service"
-    }) 
+    })
     # Установка провайдера трассировки
     tracer_provider = TracerProvider(resource=resource)
     trace.set_tracer_provider(tracer_provider)

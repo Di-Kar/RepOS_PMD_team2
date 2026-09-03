@@ -1,9 +1,10 @@
 import logging
 from typing import Generator, List, Tuple
+
 import psycopg
-from psycopg.rows import dict_row
 from backoff_utils import backoff
 from config import PostgresSettings
+from psycopg.rows import dict_row
 
 logger = logging.getLogger(__name__)
 

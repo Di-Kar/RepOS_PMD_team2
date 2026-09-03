@@ -4,7 +4,6 @@ import time
 from pathlib import Path
 
 import psycopg2
-
 from config import POSTGRES_DSN
 
 
@@ -28,7 +27,7 @@ def main():
     start = time.perf_counter()
 
     for file_path in files:
-        with open(file_path, "r", encoding="utf-8") as fh:
+        with open(file_path, encoding="utf-8") as fh:
             cur.copy_expert(
                 """
                 COPY bench.events (

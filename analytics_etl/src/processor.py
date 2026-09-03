@@ -2,17 +2,11 @@
 
 import json
 import logging
-import time
-from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-from backoff_utils import backoff
-from config import etl_settings
 from loader import ClickHouseLoader
 from transformer import (
     EVENTS_TABLE,
-    MOVIES_METRICS_TABLE,
-    WATCH_SESSIONS_TABLE,
     transform_for_events,
     transform_for_movies_metrics,
     transform_for_watch_sessions,
@@ -56,8 +50,8 @@ class EventProcessor:
         Если ``event_id`` уже существует, новое событие заменяет старое
         только если у него более позднее время ``occurred_at``.
         
-        При передаче topic/partition/offset смещение добавляется в 
-        ``_pending_offsets`` для последующего коммита после успешной 
+        При передаче topic/partition/offset смещение добавляется в
+        ``_pending_offsets`` для последующего коммита после успешной
         вставки в ClickHouse.
         """
         event_id = str(validated_event['event_id'])

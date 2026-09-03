@@ -1,9 +1,8 @@
 """Unit-tests для analytics_etl.backoff_utils — декоратор backoff."""
 
-import time
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
+import pytest
 from backoff_utils import backoff, configure
 
 # --------------------------------------------------------------------------- #

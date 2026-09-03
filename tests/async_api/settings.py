@@ -1,12 +1,13 @@
 """Настройки функциональных тестов с вложенной структурой."""
 import os
 from typing import Any, Dict
+
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 from tests.async_api.testdata.es_mapping import (
-    MOVIES_INDEX_SETTINGS,
     GENRES_INDEX_SETTINGS,
+    MOVIES_INDEX_SETTINGS,
     PERSONS_INDEX_SETTINGS,
 )
 

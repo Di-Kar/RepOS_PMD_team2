@@ -1,11 +1,9 @@
 import logging
 from typing import Generic, Optional, TypeVar
 
-from pydantic import BaseModel
-
 from cache.interface import CacheInterface
-
 from db.storage import AbstractStorage
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
