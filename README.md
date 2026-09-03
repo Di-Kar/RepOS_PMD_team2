@@ -9,7 +9,11 @@
 - `fulltext_search` — сервис для полнотекстового поиска (ETL переноса данных из PostgreSQL в Elasticsearch).
 - `async_api` — асинхронное API для онлайн-кинотеатра.
 - `auth_service` — сервис авторизации (JWT, роли/RBAC; свои PostgreSQL и Redis, все env-переменные с префиксом `AUTH_`).
-- `tests` — все тесты проекта (HTTP-тесты async_api и auth_service, smoke-тесты аналитического ETL `analytics_etl`, образ собирается из `tests/Dockerfile` с кэшированием зависимостей).
+- `event_api` — приём пользовательских событий (клики, просмотры страниц, кастомные события) и публикация их в Kafka; контракт событий — `docs/user_events_contract.md`, env-переменные с префиксом `EVENTS_`.
+- `analytics_etl` — ETL, вычитывающий события из Kafka и загружающий их в ClickHouse (схема БД — `clickhouse_init/init.sql`), env-переменные с префиксом `ANALYTICS_`.
+- `shared` — общий код, используемый несколькими сервисами (сейчас — схемы событий `shared/event_schemas.py`, единая точка валидации для `event_api` и `analytics_etl`).
+- `ugc_service` — сервис пользовательского контента: закладки, лайки и рецензии к фильмам; хранилище — шардированный кластер MongoDB (конфиг — `docker/setup_mongo_cluster.sh`), авторизация — JWT от `auth_service` (`ugc_service` его не выпускает, а проксирует `/api/v1/auth/login`).
+- `tests` — все тесты проекта, образ собирается из `tests/Dockerfile` с кэшированием зависимостей.
 
 ## Запуск проекта (без тестов и с тестами)
 
@@ -37,6 +41,10 @@ docker compose --profile tests down -v --remove-orphans
   - Swagger (http://localhost:8000/docs)
 - auth_service:
   - Swagger (http://localhost:8001/docs)
+- event_api:
+  - Swagger (http://localhost:8002/docs)
+- ugc_service:
+  - Swagger (http://localhost:8003/docs)
 - jaeger: http://localhost:16686
 - kafka-ui: http://localhost:8090
 
@@ -44,7 +52,7 @@ docker compose --profile tests down -v --remove-orphans
 
 ## Тесты
 
-Все тесты живут в папке `tests/` (HTTP-тесты, подпапка = тестируемый сервис: `async_api`, `auth_service`, аналитический ETL: `analytics_etl`) и запускаются одним контейнером. Нужен запущенный проект:
+Все тесты живут в папке `tests/` (подпапка = тестируемый сервис: `admin_panel`, `async_api`, `auth_service`, `event_api`, `analytics_etl`, `shared`, `ugc_service`) и запускаются одним контейнером. Нужен запущенный проект:
 
 ### Запуск всех тестов
 
