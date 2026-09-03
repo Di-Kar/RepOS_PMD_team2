@@ -106,6 +106,14 @@ ruff check . --fix
 
 Без DSN конкретный сервис работает как обычно — просто не шлёт события в Sentry.
 
+Запросы для проверки (только при DEBUG=True):
+
+- async_api — http://localhost:8000/api/v1/_sentry_debug
+- auth_service — http://localhost:8001/api/v1/_sentry_debug
+- event_api — http://localhost:8002/api/v1/_sentry_debug
+- ugc_service — http://localhost:8003/api/v1/_sentry_debug
+- admin_panel — http://localhost/api/v1/_sentry_debug/
+
 ## OAuth Google
 
 https://console.cloud.google.com/apis/credentials?project=repospmd-80560
