@@ -1,11 +1,16 @@
 """API endpoints для рецензий."""
 
 import logging
+from typing import Annotated
 from uuid import UUID
 
-from api.dependencies import PaginationParams, get_optional_user
+from api.dependencies import (
+    PaginationParams,
+    get_optional_user,
+    get_validated_object_id,
+)
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from services import review_service
 
@@ -170,13 +175,9 @@ async def get_reviews(
     response_model=ReviewDetailResponse,
 )
 async def get_review(
-    review_id: str = Path(
-        ...,
-        example='550e8400e29b41d4a7164466',
-        description='ObjectId рецензии',
-    ),
+    review_id: Annotated[ObjectId, Depends(get_validated_object_id)],
 ):
-    review = await review_service.get_review_by_id(ObjectId(review_id))
+    review = await review_service.get_review_by_id(review_id)
     if not review:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -203,11 +204,7 @@ async def get_review(
     response_model=ReviewUpdateResponse,
 )
 async def update_review(
-    review_id: str = Path(
-        ...,
-        example='550e8400e29b41d4a7164466',
-        description='ObjectId рецензии',
-    ),
+    review_id: Annotated[ObjectId, Depends(get_validated_object_id)],
     title: str | None = Query(
         None,
         min_length=1,
@@ -235,7 +232,7 @@ async def update_review(
         )
 
     review = await review_service.update_review(
-        ObjectId(review_id), UUID(user.user_id), title=title, text=text, rating=rating
+        review_id, UUID(user.user_id), title=title, text=text, rating=rating
     )
     if not review:
         raise HTTPException(
@@ -257,11 +254,7 @@ async def update_review(
     description='Удалить рецензию (только автор).',
 )
 async def delete_review(
-    review_id: str = Path(
-        ...,
-        example='550e8400e29b41d4a7164466',
-        description='ObjectId рецензии',
-    ),
+    review_id: Annotated[ObjectId, Depends(get_validated_object_id)],
     user=Depends(get_optional_user),
 ):
     if user is None:
@@ -271,7 +264,7 @@ async def delete_review(
         )
 
     success = await review_service.delete_review(
-        ObjectId(review_id), UUID(user.user_id)
+        review_id, UUID(user.user_id)
     )
     if not success:
         raise HTTPException(
@@ -287,11 +280,7 @@ async def delete_review(
     response_model=ReviewVoteResponse,
 )
 async def vote_on_review(
-    review_id: str = Path(
-        ...,
-        example='550e8400e29b41d4a7164466',
-        description='ObjectId рецензии',
-    ),
+    review_id: Annotated[ObjectId, Depends(get_validated_object_id)],
     is_like: bool = Query(
         True,
         example=True,
@@ -306,7 +295,7 @@ async def vote_on_review(
         )
 
     vote = await review_service.vote_on_review(
-        UUID(user.user_id), ObjectId(review_id), is_like
+        UUID(user.user_id), review_id, is_like
     )
     return ReviewVoteResponse(
         review_id=str(vote.review_id),

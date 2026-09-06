@@ -1,10 +1,36 @@
-"""Зависимости API: аутентификация и пагинация."""
+"""Зависимости API: аутентификация, пагинация и валидация ObjectId."""
 
 from typing import Annotated
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from config import settings
-from fastapi import Depends, Query, Request
+from fastapi import Depends, HTTPException, Query, Request, status
 from httpx import AsyncClient, HTTPError
+
+
+def _validate_object_id(review_id: str) -> ObjectId:
+    """Валидировать и преобразовать строку в ObjectId."""
+    try:
+        return ObjectId(review_id)
+    except InvalidId:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f'Невалидный ObjectId: {review_id}',
+        )
+
+
+def get_validated_object_id(review_id: str) -> ObjectId:
+    """FastAPI-зависимость для валидации ObjectId в path-параметрах.
+
+    Возвращает ObjectId при валидном значении.
+    Бросает HTTPException(422) при невалидном формате.
+    Срабатывает ДО проверки авторизации.
+
+    FastAPI автоматически подставит значение path-параметра
+    по имени аргумента (review_id).
+    """
+    return _validate_object_id(review_id)
 
 
 class PaginationParams:
