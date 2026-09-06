@@ -4,22 +4,24 @@ import logging
 from uuid import UUID
 
 from models.bookmark import Bookmark
+from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
 
 async def add_bookmark(user_id: UUID, film_id: UUID) -> Bookmark:
     """Добавить фильм в закладки пользователя."""
-    # Проверяем, нет ли уже такой закладки
-    existing = await Bookmark.find_one(
-        Bookmark.user_id == user_id,
-        Bookmark.film_id == film_id,
-    )
-    if existing:
+    try:
+        bookmark = Bookmark(user_id=user_id, film_id=film_id)
+        await bookmark.insert()
+    except DuplicateKeyError:
+        # Уникальный индекс гарантирует отсутствие дубликатов
+        existing = await Bookmark.find_one(
+            Bookmark.user_id == user_id,
+            Bookmark.film_id == film_id,
+        )
         return existing
 
-    bookmark = Bookmark(user_id=user_id, film_id=film_id)
-    await bookmark.insert()
     logger.info('Закладка создана: user=%s film=%s', user_id, film_id)
     return bookmark
 

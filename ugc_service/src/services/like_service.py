@@ -5,6 +5,7 @@ from datetime import datetime
 from uuid import UUID
 
 from models.like import Like
+from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -15,21 +16,25 @@ async def add_or_update_like(
     rating: int,
 ) -> Like:
     """Добавить или обновить лайк (оценка 0-10)."""
-    existing = await Like.find_one(
-        Like.user_id == user_id,
-        Like.film_id == film_id,
-    )
-    if existing:
-        existing.rating = rating
-        existing.updated_at = datetime.utcnow()
-        await existing.save()
-        logger.info(
-            'Лайк обновлён: user=%s film=%s rating=%d', user_id, film_id, rating
+    try:
+        like = Like(user_id=user_id, film_id=film_id, rating=rating)
+        await like.insert()
+    except DuplicateKeyError:
+        # Уникальный индекс сработал — обновляем существующий лайк
+        existing = await Like.find_one(
+            Like.user_id == user_id,
+            Like.film_id == film_id,
         )
-        return existing
+        if existing:
+            existing.rating = rating
+            existing.updated_at = datetime.utcnow()
+            await existing.save()
+            logger.info(
+                'Лайк обновлён: user=%s film=%s rating=%d',
+                user_id, film_id, rating,
+            )
+            return existing
 
-    like = Like(user_id=user_id, film_id=film_id, rating=rating)
-    await like.insert()
     logger.info('Лайк создан: user=%s film=%s rating=%d', user_id, film_id, rating)
     return like
 

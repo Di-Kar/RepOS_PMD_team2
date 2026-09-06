@@ -49,7 +49,7 @@ class ReviewVote(Document):
         indexes = [
             'user_id',
             'review_id',
-            [('user_id', 1), ('review_id', 1)],  # уникальный индекс
+            [('user_id', 1), ('review_id', 1), {'unique': True}],
         ]
 
     class Config:

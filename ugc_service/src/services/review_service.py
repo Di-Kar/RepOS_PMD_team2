@@ -5,6 +5,7 @@ from uuid import UUID
 
 from bson import ObjectId
 from models.review import Review, ReviewVote
+from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -103,21 +104,23 @@ async def vote_on_review(
     is_like: bool,
 ) -> ReviewVote:
     """Проголосовать за/против рецензии."""
-    existing = await ReviewVote.find_one(
-        ReviewVote.user_id == user_id,
-        ReviewVote.review_id == review_id,
-    )
+    try:
+        vote = ReviewVote(user_id=user_id, review_id=review_id, is_like=is_like)
+        await vote.insert()
+    except DuplicateKeyError:
+        # Уникальный индекс сработал — обновляем существующий голос
+        existing = await ReviewVote.find_one(
+            ReviewVote.user_id == user_id,
+            ReviewVote.review_id == review_id,
+        )
+        if existing:
+            old_is_like = existing.is_like
+            existing.is_like = is_like
+            await existing.save()
 
-    if existing:
-        # Обновляем голос
-        old_is_like = existing.is_like
-        existing.is_like = is_like
-        await existing.save()
-
-        # Обновляем счётчики
-        review = await Review.get(review_id)
-        if review:
-            if old_is_like != is_like:
+            # Обновляем счётчики
+            review = await Review.get(review_id)
+            if review and old_is_like != is_like:
                 if old_is_like:
                     review.likes_count -= 1
                     review.dislikes_count += 1
@@ -125,13 +128,9 @@ async def vote_on_review(
                     review.dislikes_count -= 1
                     review.likes_count += 1
                 await review.save()
-        return existing
+            return existing
 
-    # Новый голос
-    vote = ReviewVote(user_id=user_id, review_id=review_id, is_like=is_like)
-    await vote.insert()
-
-    # Обновляем счётчики
+    # Новый голос — обновляем счётчики
     review = await Review.get(review_id)
     if review:
         if is_like:

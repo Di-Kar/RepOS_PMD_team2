@@ -42,6 +42,23 @@ async def init_cluster():
                 shard_key,
             )
 
+        # Создаём уникальные индексы для составных полей
+        unique_indexes = {
+            'bookmarks': {'user_id': 1, 'film_id': 1},
+            'likes': {'user_id': 1, 'film_id': 1},
+            'review_votes': {'user_id': 1, 'review_id': 1},
+        }
+
+        for collection_name, index_keys in unique_indexes.items():
+            await db[collection_name].create_index(
+                list(index_keys.items()), unique=True
+            )
+            logger.info(
+                'Уникальный индекс создан для коллекции %s: %s',
+                collection_name,
+                index_keys,
+            )
+
         logger.info('Инициализация кластера MongoDB завершена')
 
     except Exception as e:

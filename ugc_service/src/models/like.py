@@ -21,7 +21,7 @@ class Like(Document):
         indexes = [
             'user_id',
             'film_id',
-            [('user_id', 1), ('film_id', 1)],  # уникальный индекс
+            [('user_id', 1), ('film_id', 1), {'unique': True}],
         ]
 
     class Config:
