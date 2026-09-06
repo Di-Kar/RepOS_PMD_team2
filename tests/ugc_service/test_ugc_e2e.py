@@ -49,9 +49,7 @@ AUTH_API_HOST = os.getenv('AUTH_API_HOST', 'auth_service')
 AUTH_API_PORT = int(os.getenv('AUTH_API_PORT', '8000'))
 AUTH_BASE_URL = f'http://{AUTH_API_HOST}:{AUTH_API_PORT}/api/v1/auth'
 
-MONGO_HOST = os.getenv('MONGO_HOST', 'mongo_mongos-0')
-MONGO_PORT = int(os.getenv('MONGO_PORT', '27017'))
-MONGO_URL = f'mongodb://{MONGO_HOST}:{MONGO_PORT}'
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin')
 MONGO_DB = 'ugc_service'
 
 
@@ -63,7 +61,7 @@ MONGO_DB = 'ugc_service'
 @pytest.fixture(scope='function')
 async def mongo_client():
     """Клиент MongoDB."""
-    client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=5000)
+    client = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     await client.admin.command('ping')
     db = client.get_database(MONGO_DB)
     yield db

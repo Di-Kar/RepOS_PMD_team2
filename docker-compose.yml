@@ -476,6 +476,11 @@ services:
       - "27017"
     volumes:
       - mongo_config_data_0:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--host", "localhost:27017", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - backend
     restart: unless-stopped
@@ -488,6 +493,11 @@ services:
       - "27017"
     volumes:
       - mongo_config_data_1:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--host", "localhost:27017", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - backend
     restart: unless-stopped
@@ -500,6 +510,11 @@ services:
       - "27017"
     volumes:
       - mongo_config_data_2:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--host", "localhost:27017", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - backend
     restart: unless-stopped
@@ -582,15 +597,18 @@ services:
   mongo_mongos-0:
     image: mongo:6.0
     container_name: mongo_mongos-0
-    command: mongos --configdb config/mongo_config-0:27017,mongo_config-1:27017,mongo_config-2:27017 --port 27017 --bind_ip_all
+    command: mongos --configdb config/mongo_config-0:27017,mongo_config-1:27017,mongo_config-2:27017 --port 27017 --bind_ip 0.0.0.0
     expose:
       - "27017"
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     depends_on:
-      - mongo_config-0
-      - mongo_config-1
-      - mongo_config-2
+      mongo_config-0:
+        condition: service_started
+      mongo_config-1:
+        condition: service_started
+      mongo_config-2:
+        condition: service_started
     networks:
       - backend
     restart: unless-stopped
@@ -598,15 +616,18 @@ services:
   mongo_mongos-1:
     image: mongo:6.0
     container_name: mongo_mongos-1
-    command: mongos --configdb config/mongo_config-0:27017,mongo_config-1:27017,mongo_config-2:27017 --port 27017 --bind_ip_all
+    command: mongos --configdb config/mongo_config-0:27017,mongo_config-1:27017,mongo_config-2:27017 --port 27017 --bind_ip 0.0.0.0
     expose:
       - "27017"
     ports:
-      - "27018:27017"
+      - "127.0.0.1:27018:27017"
     depends_on:
-      - mongo_config-0
-      - mongo_config-1
-      - mongo_config-2
+      mongo_config-0:
+        condition: service_started
+      mongo_config-1:
+        condition: service_started
+      mongo_config-2:
+        condition: service_started
     networks:
       - backend
     restart: unless-stopped
@@ -615,6 +636,13 @@ services:
   mongo_init:
     image: mongo:6.0
     container_name: mongo_init
+    env_file:
+      - ./.env
+    depends_on:
+      mongo_mongos-0:
+        condition: service_started
+      mongo_mongos-1:
+        condition: service_started
     entrypoint:
       - sh
       - -c
@@ -658,42 +686,67 @@ services:
         ' 2>/dev/null || echo "Shard2 replica set already initialized"
 
         echo "Waiting for all primaries to be elected (up to 90s)..."
-        for i in $(seq 1 45); do
-          CONFIG_PRIMARY=$(mongosh --host mongo_config-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
-          SHARD1_PRIMARY=$(mongosh --host mongo_shard1-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
-          SHARD2_PRIMARY=$(mongosh --host mongo_shard2-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
-          if [ "$CONFIG_PRIMARY" = "true" ] && [ "$SHARD1_PRIMARY" = "true" ] && [ "$SHARD2_PRIMARY" = "true" ]; then
+        for i in $$(seq 1 45); do
+          CONFIG_PRIMARY=$$(mongosh --host mongo_config-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
+          SHARD1_PRIMARY=$$(mongosh --host mongo_shard1-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
+          SHARD2_PRIMARY=$$(mongosh --host mongo_shard2-0:27017 --quiet --eval "print(rs.isMaster().ismaster)" 2>/dev/null || echo "false")
+          if [ "$$CONFIG_PRIMARY" = "true" ] && [ "$$SHARD1_PRIMARY" = "true" ] && [ "$$SHARD2_PRIMARY" = "true" ]; then
             echo "All primaries elected!"
             break
           fi
-          if [ $((i % 10)) -eq 0 ]; then
-            echo "Waiting for primaries... ($i/45)"
+          if [ $$(($$i % 10)) -eq 0 ]; then
+            echo "Waiting for primaries... ($$i/45)"
           fi
           sleep 2
         done
 
-        echo "Waiting for mongos to be ready..."
-        for i in $(seq 1 30); do
+        echo "Waiting for mongos to be ready (up to 180s)..."
+        for i in $$(seq 1 90); do
           if mongosh --host mongo_mongos-0:27017 --eval "db.adminCommand('ping')" >/dev/null 2>&1; then
             echo "Mongos is ready!"
             break
           fi
+          if [ $$(($$i % 10)) -eq 0 ]; then
+            echo "Waiting for mongos... ($$i/90)"
+          fi
           sleep 2
         done
 
-        echo "Adding shards to cluster..."
+        echo "Creating MongoDB users..."
+        # Create root user in admin database (no auth yet)
         mongosh --host mongo_mongos-0:27017 --eval '
+          db.getSiblingDB("admin").createUser({
+            user: "'"$MONGO_ROOT_USER"'",
+            pwd: "'"$MONGO_ROOT_PASSWORD"'",
+            roles: [{ role: "root", db: "admin" }]
+          })
+        ' 2>/dev/null || echo "Root user already exists"
+
+        # Create ugc_service user with readWrite access to ugc_service database (now using root auth)
+        mongosh --host mongo_mongos-0:27017 -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD" --authenticationDatabase admin --eval '
+          db.getSiblingDB("admin").createUser({
+            user: "'"$MONGO_UGC_USER"'",
+            pwd: "'"$MONGO_UGC_PASSWORD"'",
+            roles: [
+              { role: "readWrite", db: "ugc_service" },
+              { role: "dbAdmin", db: "ugc_service" }
+            ]
+          })
+        ' 2>/dev/null || echo "ugc_service user already exists"
+
+        echo "Adding shards to cluster..."
+        mongosh --host mongo_mongos-0:27017 -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD" --authenticationDatabase admin --eval '
           sh.addShard("shard1/mongo_shard1-0:27017,mongo_shard1-1:27017,mongo_shard1-2:27017");
           sh.addShard("shard2/mongo_shard2-0:27017,mongo_shard2-1:27017,mongo_shard2-2:27017");
         '
 
         echo "Enabling sharding for database ugc_service..."
-        mongosh --host mongo_mongos-0:27017 --eval '
+        mongosh --host mongo_mongos-0:27017 -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD" --authenticationDatabase admin --eval '
           sh.enableSharding("ugc_service");
         '
 
         echo "Setting shard keys..."
-        mongosh --host mongo_mongos-0:27017 --eval '
+        mongosh --host mongo_mongos-0:27017 -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD" --authenticationDatabase admin --eval '
           sh.shardCollection("ugc_service.bookmarks", { user_id: "hashed" });
           sh.shardCollection("ugc_service.likes", { user_id: "hashed" });
           sh.shardCollection("ugc_service.reviews", { film_id: 1 });
@@ -701,18 +754,6 @@ services:
         '
 
         echo "MongoDB cluster initialization complete!"
-    depends_on:
-      - mongo_config-0
-      - mongo_config-1
-      - mongo_config-2
-      - mongo_shard1-0
-      - mongo_shard1-1
-      - mongo_shard1-2
-      - mongo_shard2-0
-      - mongo_shard2-1
-      - mongo_shard2-2
-      - mongo_mongos-0
-      - mongo_mongos-1
     networks:
       - backend
 
@@ -725,7 +766,7 @@ services:
     env_file:
       - ./.env
     environment:
-      - MONGO_URI=mongodb://mongo_mongos-0:27017,mongo_mongos-1:27017
+      - MONGO_URI=mongodb://${MONGO_UGC_USER}:${MONGO_UGC_PASSWORD}@mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin
       - MONGO_DB=ugc_service
       - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
       - SENTRY_DSN=${SENTRY_DSN_UGC_SERVICE}
@@ -783,8 +824,7 @@ services:
       - ANALYTICS_CLICKHOUSE_HOST=clickhouse
       - ANALYTICS_CLICKHOUSE_PORT=8123
       - ANALYTICS_CLICKHOUSE_NATIVE_PORT=9000
-      - MONGO_HOST=mongo_mongos-0
-      - MONGO_PORT=27017
+      - MONGO_URI=mongodb://${MONGO_UGC_USER}:${MONGO_UGC_PASSWORD}@mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin
     env_file:
       - ./.env
     depends_on:
