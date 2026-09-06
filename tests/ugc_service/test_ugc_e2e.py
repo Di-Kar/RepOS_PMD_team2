@@ -329,7 +329,7 @@ class TestReviewsE2E:
 
         async with aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',
-            params={
+            json={
                 'film_id': str(film_id),
                 'title': title,
                 'text': text,
@@ -351,7 +351,7 @@ class TestReviewsE2E:
 
         await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',
-            params={
+            json={
                 'film_id': str(film_id),
                 'title': 'Тестовая рецензия',
                 'text': 'Текст рецензии',
@@ -379,7 +379,7 @@ class TestReviewsE2E:
 
         create_resp = await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',
-            params={
+            json={
                 'film_id': str(film_id),
                 'title': 'Детали рецензии',
                 'text': 'Подробный текст',
@@ -408,7 +408,7 @@ class TestReviewsE2E:
 
         create_resp = await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',
-            params={
+            json={
                 'film_id': str(film_id),
                 'title': 'Рецензия для голосования',
                 'text': 'Текст',
@@ -440,9 +440,9 @@ class TestReviewsE2E:
 
         await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',
-            params={
+            json={
                 'film_id': str(film_id),
-                'title': title,
+                'title': 'Проверка MongoDB',
                 'text': 'Текст для проверки',
                 'rating': 8,
             },
@@ -463,7 +463,7 @@ class TestReviewsE2E:
 
         create_resp = await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/reviews',
-            params={
+            json={
                 'film_id': str(film_id),
                 'title': 'Рецензия для проверки голоса',
                 'text': 'Текст',

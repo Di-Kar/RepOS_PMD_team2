@@ -10,9 +10,11 @@ from api.dependencies import (
     get_validated_object_id,
 )
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from services import review_service
+
+from .schemas import ReviewCreateRequest, ReviewUpdateRequest
 
 router = APIRouter(prefix='/api/v1/reviews', tags=['Рецензии'])
 logger = logging.getLogger(__name__)
@@ -72,32 +74,7 @@ class ReviewVoteResponse(BaseModel):
     response_model=ReviewResponse,
 )
 async def create_review(
-    film_id: UUID = Query(
-        ...,
-        example=str(EXAMPLE_FILM_ID),
-        description='UUID фильма',
-    ),
-    title: str = Query(
-        ...,
-        min_length=1,
-        max_length=200,
-        example='Отличный фильм',
-        description='Заголовок рецензии',
-    ),
-    text: str = Query(
-        ...,
-        min_length=1,
-        max_length=10000,
-        example='Прекрасная история с глубокими персонажами и отличным сюжетом.',
-        description='Текст рецензии',
-    ),
-    rating: int = Query(
-        9,
-        ge=0,
-        le=10,
-        example=9,
-        description='Оценка от 0 до 10',
-    ),
+    body: ReviewCreateRequest,
     user=Depends(get_optional_user),
 ):
     if user is None:
@@ -108,7 +85,11 @@ async def create_review(
 
     try:
         review = await review_service.create_review(
-            UUID(user.user_id), film_id, title, text, rating
+            UUID(user.user_id),
+            body.film_id,
+            body.title,
+            body.text,
+            body.rating,
         )
         return ReviewResponse(
             id=str(review.id),
@@ -205,24 +186,7 @@ async def get_review(
 )
 async def update_review(
     review_id: Annotated[ObjectId, Depends(get_validated_object_id)],
-    title: str | None = Query(
-        None,
-        min_length=1,
-        max_length=200,
-        example='Отличный фильм (обновлено)',
-    ),
-    text: str | None = Query(
-        None,
-        min_length=1,
-        max_length=10000,
-        example='Обновлённый текст рецензии.',
-    ),
-    rating: int | None = Query(
-        None,
-        ge=0,
-        le=10,
-        example=10,
-    ),
+    body: ReviewUpdateRequest = Body(default=None),
     user=Depends(get_optional_user),
 ):
     if user is None:
@@ -230,6 +194,10 @@ async def update_review(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Требуется авторизация',
         )
+
+    title = body.title if body else None
+    text = body.text if body else None
+    rating = body.rating if body else None
 
     review = await review_service.update_review(
         review_id, UUID(user.user_id), title=title, text=text, rating=rating
