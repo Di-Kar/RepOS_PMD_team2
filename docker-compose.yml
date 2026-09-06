@@ -812,7 +812,7 @@ services:
       pytest /tests -rs --ignore=/tests/admin_panel
       && cd /admin_panel && python manage.py test /tests/admin_panel"
     environment:
-      - PYTHONPATH=/analytics_etl:/ugc_service/src:/
+      - PYTHONPATH=/ugc_service/src:/analytics_etl:/
       - REDIS_HOST=async_api_redis
       - API_HOST=async_api
       - AUTH_API_HOST=auth_service

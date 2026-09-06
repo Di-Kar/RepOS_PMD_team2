@@ -1,12 +1,21 @@
 """Зависимости API: аутентификация, пагинация и валидация ObjectId."""
 
+import sys
+from pathlib import Path
 from typing import Annotated
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from config import settings
 from fastapi import Depends, HTTPException, Query, Request, status
 from httpx import AsyncClient, HTTPError
+
+# Гарантируем, что ugc_service/src в sys.path — независимо от порядка
+# PYTHONPATH в docker-compose (конфликтует с analytics_etl/src/config.py).
+_UGC_SRC = str(Path(__file__).resolve().parent.parent)
+if _UGC_SRC not in sys.path:
+    sys.path.insert(0, _UGC_SRC)
+
+from config import settings
 
 
 def _validate_object_id(review_id: str) -> ObjectId:
