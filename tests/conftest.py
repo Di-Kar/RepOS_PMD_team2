@@ -1,6 +1,10 @@
 """Общий conftest для всех тестов проекта: делает пакет shared/event_schemas
 импортируемым независимо от того, где запущены тесты.
 
+Путь к shared добавляется здесь, а пути к analytics_etl/src и ugc_service/src
+установлены в PYTHONPATH в docker-compose.yml (чтобы избежать конфликта
+имён модулей config.py между сервисами).
+
 Кандидаты пути:
   1. /shared              — docker-путь (смонтированный volume, см. docker-compose.yml)
   2. ../shared от этого файла — локальный запуск (репозиторий на диске)

@@ -13,7 +13,7 @@ import signal
 import time
 
 from backoff_utils import configure as configure_backoff
-from config import (
+from etl_config import (
     clickhouse_settings,
     etl_settings,
     kafka_settings,

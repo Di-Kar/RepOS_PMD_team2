@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import clickhouse_connect
 from backoff_utils import backoff
 from clickhouse_connect.driver.exceptions import DatabaseError, OperationalError
-from config import clickhouse_settings
+from etl_config import clickhouse_settings
 
 if TYPE_CHECKING:
     from clickhouse_connect.driver.client import Client

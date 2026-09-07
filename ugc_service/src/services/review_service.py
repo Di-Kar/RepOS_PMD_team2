@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 from bson import ObjectId
-from models.review import Review, ReviewVote
+from models.review import Review, ReviewVote, review_vote_id
 from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
@@ -104,23 +104,28 @@ async def vote_on_review(
     is_like: bool,
 ) -> ReviewVote:
     """Проголосовать за/против рецензии."""
+    review = await Review.get(review_id)
+    if not review:
+        raise ValueError(f'Review {review_id} not found')
+
     try:
-        vote = ReviewVote(user_id=user_id, review_id=review_id, is_like=is_like)
+        vote = ReviewVote(
+            id=review_vote_id(user_id, review_id),
+            user_id=user_id,
+            review_id=review_id,
+            is_like=is_like,
+        )
         await vote.insert()
     except DuplicateKeyError:
-        # Уникальный индекс сработал — обновляем существующий голос
-        existing = await ReviewVote.find_one(
-            ReviewVote.user_id == user_id,
-            ReviewVote.review_id == review_id,
-        )
+        # Голос уже есть (в т.ч. гонка параллельных запросов) — обновляем.
+        existing = await ReviewVote.get(review_vote_id(user_id, review_id))
         if existing:
             old_is_like = existing.is_like
             existing.is_like = is_like
             await existing.save()
 
             # Обновляем счётчики
-            review = await Review.get(review_id)
-            if review and old_is_like != is_like:
+            if old_is_like != is_like:
                 if old_is_like:
                     review.likes_count -= 1
                     review.dislikes_count += 1
@@ -131,13 +136,11 @@ async def vote_on_review(
             return existing
 
     # Новый голос — обновляем счётчики
-    review = await Review.get(review_id)
-    if review:
-        if is_like:
-            review.likes_count += 1
-        else:
-            review.dislikes_count += 1
-        await review.save()
+    if is_like:
+        review.likes_count += 1
+    else:
+        review.dislikes_count += 1
+    await review.save()
 
     logger.info(
         'Голос добавлен: user=%s review=%s like=%s', user_id, review_id, is_like
@@ -145,12 +148,9 @@ async def vote_on_review(
     return vote
 
 
-async def remove_vote(user_id: UUID, review_id: UUID) -> bool:
+async def remove_vote(user_id: UUID, review_id: ObjectId) -> bool:
     """Удалить голос."""
-    vote = await ReviewVote.find_one(
-        ReviewVote.user_id == user_id,
-        ReviewVote.review_id == review_id,
-    )
+    vote = await ReviewVote.get(review_vote_id(user_id, review_id))
     if not vote:
         return False
 

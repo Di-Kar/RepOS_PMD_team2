@@ -8,6 +8,7 @@ from models.bookmark import Bookmark
 from models.like import Like
 from models.review import Review, ReviewVote
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import MongoClient
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,10 @@ async def get_client() -> AsyncIOMotorClient:
     """Получить клиент MongoDB (ленивая инициализация)."""
     global _client
     if _client is None:
-        _client = AsyncIOMotorClient(settings.mongo_uri)
+        _client = AsyncIOMotorClient(
+            settings.mongo_uri,
+            uuidRepresentation='standard',
+        )
         logger.info('Подключено к MongoDB: %s', settings.mongo_uri)
     return _client
 

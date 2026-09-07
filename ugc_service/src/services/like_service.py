@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from models.like import Like
+from models.like import Like, like_id
 from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
@@ -16,15 +16,17 @@ async def add_or_update_like(
     rating: int,
 ) -> Like:
     """Добавить или обновить лайк (оценка 0-10)."""
+    like = Like(
+        id=like_id(user_id, film_id),
+        user_id=user_id,
+        film_id=film_id,
+        rating=rating,
+    )
     try:
-        like = Like(user_id=user_id, film_id=film_id, rating=rating)
         await like.insert()
     except DuplicateKeyError:
-        # Уникальный индекс сработал — обновляем существующий лайк
-        existing = await Like.find_one(
-            Like.user_id == user_id,
-            Like.film_id == film_id,
-        )
+        # Оценка уже есть (в т.ч. гонка параллельных запросов) — обновляем.
+        existing = await Like.get(like_id(user_id, film_id))
         if existing:
             existing.rating = rating
             existing.updated_at = datetime.utcnow()
@@ -41,10 +43,7 @@ async def add_or_update_like(
 
 async def remove_like(user_id: UUID, film_id: UUID) -> bool:
     """Удалить лайк."""
-    like = await Like.find_one(
-        Like.user_id == user_id,
-        Like.film_id == film_id,
-    )
+    like = await Like.get(like_id(user_id, film_id))
     if like:
         await like.delete()
         logger.info('Лайк удалён: user=%s film=%s', user_id, film_id)
@@ -59,7 +58,9 @@ async def get_film_like_stats(film_id: UUID) -> dict:
     на стороне базы данных — в память попадает один документ с результатами.
     """
     pipeline = [
-        # Фильтрация по фильму
+        # Фильтрация по фильму. Передаём UUID как есть — motor кодирует его
+        # согласно uuidRepresentation клиента (standard), совпадая с тем,
+        # как Beanie хранит поле film_id.
         {"$match": {"film_id": film_id}},
 
         # Параллельный расчёт метрик и распределения
@@ -109,10 +110,11 @@ async def get_film_like_stats(film_id: UUID) -> dict:
         },
     ]
 
-    result = await Like.collection.aggregate(pipeline).to_list(length=1)
+    result = await Like.get_motor_collection().aggregate(pipeline).to_list(length=1)
     doc = result[0] if result else None
 
-    summary = doc.get("summary", [{}])[0] if doc else {}
+    summary = doc.get("summary", [{}])
+    summary = summary[0] if summary else {}
 
     # Распределение: словарь {0: count, 1: count, ..., 10: count}
     distribution: dict[int, int] = dict.fromkeys(range(11), 0)

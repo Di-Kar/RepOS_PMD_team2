@@ -745,6 +745,10 @@ services:
           sh.enableSharding("ugc_service");
         '
 
+        # Ждём инициализации sharding для базы данных
+        echo "Waiting for sharding to initialize..."
+        sleep 5
+
         echo "Setting shard keys..."
         mongosh --host mongo_mongos-0:27017 -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD" --authenticationDatabase admin --eval '
           sh.shardCollection("ugc_service.bookmarks", { user_id: "hashed" });
@@ -809,10 +813,10 @@ services:
       - ./shared:/shared
       - ./ugc_service:/ugc_service
     command: sh -c "
-      pytest /tests -rs --ignore=/tests/admin_panel
+      pytest /tests -rs --ignore=/tests/admin_panel --import-mode=importlib
       && cd /admin_panel && python manage.py test /tests/admin_panel"
     environment:
-      - PYTHONPATH=/ugc_service/src:/analytics_etl:/
+      - PYTHONPATH=/analytics_etl/src:/ugc_service/src:/tests:/shared:/
       - REDIS_HOST=async_api_redis
       - API_HOST=async_api
       - AUTH_API_HOST=auth_service

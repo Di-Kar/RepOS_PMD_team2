@@ -262,9 +262,16 @@ async def vote_on_review(
             detail='Требуется авторизация',
         )
 
-    vote = await review_service.vote_on_review(
-        UUID(user.user_id), review_id, is_like
-    )
+    try:
+        vote = await review_service.vote_on_review(
+            UUID(user.user_id), review_id, is_like
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Рецензия не найдена',
+        )
+
     return ReviewVoteResponse(
         review_id=str(vote.review_id),
         is_like=vote.is_like,

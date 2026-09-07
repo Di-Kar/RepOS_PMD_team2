@@ -8,6 +8,15 @@ from bson import ObjectId
 from pydantic import Field
 
 
+def review_vote_id(user_id: UUID, review_id: ObjectId) -> str:
+    """Детерминированный _id голоса из пары идентификаторов.
+
+    Уникальность пары (user_id, review_id) гарантируется первичным ключом _id —
+    он всегда уникален, в том числе в шардированной коллекции с любым shard key.
+    """
+    return f'{user_id}:{review_id}'
+
+
 class Review(Document):
     """Рецензия пользователя на фильм."""
 
@@ -39,6 +48,7 @@ class Review(Document):
 class ReviewVote(Document):
     """Голос за/против рецензии."""
 
+    id: str
     user_id: UUID
     review_id: ObjectId
     is_like: bool
@@ -49,7 +59,6 @@ class ReviewVote(Document):
         indexes = [
             'user_id',
             'review_id',
-            [('user_id', 1), ('review_id', 1), {'unique': True}],
         ]
 
     class Config:

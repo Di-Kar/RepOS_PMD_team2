@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # MongoDB
     mongo_uri: str = Field(
-        default='mongodb://mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin',
+        default='mongodb://ugc_service:ugc_service_secret_pass_2024@mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin',
         alias='MONGO_URI',
     )
     mongo_db: str = Field(default='ugc_service', alias='MONGO_DB')

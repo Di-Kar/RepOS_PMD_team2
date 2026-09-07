@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from shared.ugc_schemas import (
+from ugc_schemas import (
     BookmarkSchema,
     LikeSchema,
     LikeStatsSchema,

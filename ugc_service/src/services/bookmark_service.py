@@ -3,24 +3,24 @@
 import logging
 from uuid import UUID
 
-from models.bookmark import Bookmark
+from models.bookmark import Bookmark, bookmark_id
 from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
 
 async def add_bookmark(user_id: UUID, film_id: UUID) -> Bookmark:
-    """Добавить фильм в закладки пользователя."""
+    """Добавить фильм в закладки пользователя (идемпотентно)."""
+    bookmark = Bookmark(
+        id=bookmark_id(user_id, film_id),
+        user_id=user_id,
+        film_id=film_id,
+    )
     try:
-        bookmark = Bookmark(user_id=user_id, film_id=film_id)
         await bookmark.insert()
     except DuplicateKeyError:
-        # Уникальный индекс гарантирует отсутствие дубликатов
-        existing = await Bookmark.find_one(
-            Bookmark.user_id == user_id,
-            Bookmark.film_id == film_id,
-        )
-        return existing
+        # Гонка двух параллельных запросов: закладка уже создана — возвращаем её.
+        return await Bookmark.get(bookmark_id(user_id, film_id))
 
     logger.info('Закладка создана: user=%s film=%s', user_id, film_id)
     return bookmark
@@ -28,10 +28,7 @@ async def add_bookmark(user_id: UUID, film_id: UUID) -> Bookmark:
 
 async def remove_bookmark(user_id: UUID, film_id: UUID) -> bool:
     """Удалить фильм из закладок пользователя."""
-    bookmark = await Bookmark.find_one(
-        Bookmark.user_id == user_id,
-        Bookmark.film_id == film_id,
-    )
+    bookmark = await Bookmark.get(bookmark_id(user_id, film_id))
     if bookmark:
         await bookmark.delete()
         logger.info('Закладка удалена: user=%s film=%s', user_id, film_id)
@@ -55,7 +52,4 @@ async def get_user_bookmarks(
 
 async def get_bookmark_by_film(user_id: UUID, film_id: UUID) -> Bookmark | None:
     """Проверить, есть ли фильм в закладках."""
-    return await Bookmark.find_one(
-        Bookmark.user_id == user_id,
-        Bookmark.film_id == film_id,
-    )
+    return await Bookmark.get(bookmark_id(user_id, film_id))

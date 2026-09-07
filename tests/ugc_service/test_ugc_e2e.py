@@ -486,3 +486,24 @@ class TestReviewsE2E:
         )
         assert vote is not None
         assert vote['is_like'] is True
+
+    async def test_vote_on_nonexistent_review_returns_404(
+        self, aiohttp_session, clean_collections, auth_headers, mongo_client
+    ):
+        """Голосование за несуществующую рецензию → 404, без осиротевшей записи."""
+        fake_review_id = '550e8400e29b41d4a7164466'
+
+        async with aiohttp_session.post(
+            f'{UGC_BASE_URL}/api/v1/reviews/{fake_review_id}/vote',
+            params={'is_like': 'true'},
+            headers=auth_headers,
+        ) as resp:
+            assert resp.status == 404
+            data = await resp.json()
+            assert data['detail'] == 'Рецензия не найдена'
+
+        # Проверка: в review_votes нет осиротевшей записи
+        vote_count = await mongo_client['review_votes'].count_documents(
+            {'review_id': _to_objectid(fake_review_id)}
+        )
+        assert vote_count == 0
