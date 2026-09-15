@@ -119,7 +119,7 @@ async def get_film_like_stats(film_id: UUID) -> dict:
     result = await Like.get_motor_collection().aggregate(pipeline).to_list(length=1)
     doc = result[0] if result else None
 
-    summary = doc.get("summary", [{}])
+    summary = doc.get("summary", [{}]) if doc else [{}]
     summary = summary[0] if summary else {}
 
     # Распределение: словарь {0: count, 1: count, ..., 10: count}
