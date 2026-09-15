@@ -15,21 +15,17 @@ async def _wait_for_sharding_init(admin_db, db_name, max_retries=10):
     for attempt in range(max_retries):
         try:
             # Проверяем статус sharding через listDatabases
-            result = await admin_db.command(
-                {'listDatabases': 1, 'name': db_name}
-            )
+            result = await admin_db.command({'listDatabases': 1, 'name': db_name})
             for db in result.get('databases', []):
                 if db.get('name') == db_name:
-                    logger.info(
-                        'Sharding инициализирован для базы: %s', db_name
-                    )
+                    logger.info('Sharding инициализирован для базы: %s', db_name)
                     return
             # Если база не найдена в списке, ждём
             if attempt < max_retries - 1:
                 logger.debug(
-                    'Ожидание инициализации sharding... '
-                    '(попытка %d/%d)',
-                    attempt + 1, max_retries,
+                    'Ожидание инициализации sharding... ' '(попытка %d/%d)',
+                    attempt + 1,
+                    max_retries,
                 )
                 await asyncio.sleep(2)
         except Exception:
@@ -58,7 +54,8 @@ async def _create_shard_key_with_retry(
             )
             logger.info(
                 'Shard key создан для коллекции %s: %s',
-                collection_name, shard_key,
+                collection_name,
+                shard_key,
             )
             return
         except Exception as e:
@@ -69,7 +66,9 @@ async def _create_shard_key_with_retry(
                     logger.debug(
                         'Sharding ещё не инициализирован для коллекции %s. '
                         'Повторная попытка %d/%d',
-                        collection_name, attempt + 1, max_retries,
+                        collection_name,
+                        attempt + 1,
+                        max_retries,
                     )
                     await asyncio.sleep(3)
                 else:

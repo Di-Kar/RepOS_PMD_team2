@@ -33,7 +33,9 @@ async def add_or_update_like(
             await existing.save()
             logger.info(
                 'Лайк обновлён: user=%s film=%s rating=%d',
-                user_id, film_id, rating,
+                user_id,
+                film_id,
+                rating,
             )
             return existing
 
@@ -62,7 +64,6 @@ async def get_film_like_stats(film_id: UUID) -> dict:
         # согласно uuidRepresentation клиента (standard), совпадая с тем,
         # как Beanie хранит поле film_id.
         {"$match": {"film_id": film_id}},
-
         # Параллельный расчёт метрик и распределения
         {
             "$facet": {
@@ -93,7 +94,12 @@ async def get_film_like_stats(film_id: UUID) -> dict:
                                         "$cond": [
                                             {"$eq": ["$total_ratings", 0]},
                                             0,
-                                            {"$divide": ["$rating_sum", "$total_ratings"]}
+                                            {
+                                                "$divide": [
+                                                    "$rating_sum",
+                                                    "$total_ratings",
+                                                ]
+                                            },
                                         ]
                                     },
                                     2,

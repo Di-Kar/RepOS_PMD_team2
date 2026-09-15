@@ -89,7 +89,17 @@ class TestGetLikeStats:
                 'average_rating': 7.5,
                 'total_ratings': 12,
                 'rating_distribution': {
-                    0: 0, 1: 0, 2: 0, 3: 1, 4: 0, 5: 1, 6: 0, 7: 3, 8: 4, 9: 2, 10: 1
+                    0: 0,
+                    1: 0,
+                    2: 0,
+                    3: 1,
+                    4: 0,
+                    5: 1,
+                    6: 0,
+                    7: 3,
+                    8: 4,
+                    9: 2,
+                    10: 1,
                 },
             }
         )

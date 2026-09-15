@@ -1,0 +1,69 @@
+"""Конфигурация notification_api из переменных окружения."""
+
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+ENV_FILE = BASE_DIR / ".env"
+
+
+class Settings(BaseSettings):
+    """Настройки приложения. Префикс NOTIFICATIONS_ — .env общий на весь
+    проект, без префикса перехватывал бы переменные других сервисов."""
+
+    model_config = SettingsConfigDict(
+        env_file=str(ENV_FILE),
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    app_name: str = Field(default="Notification API", alias="NOTIFICATIONS_APP_NAME")
+    debug: bool = Field(default=False, alias="DEBUG")
+
+    # Kafka
+    kafka_bootstrap_servers: str = Field(
+        default="localhost:9092", alias="NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS"
+    )
+    kafka_topic_requests: str = Field(
+        default="notifications.requests.v1",
+        alias="NOTIFICATIONS_KAFKA_TOPIC_REQUESTS",
+    )
+    # Ждать подтверждения от всех ISR-реплик перед ack клиенту (по аналогии с
+    # event_api — durability принятых заявок).
+    kafka_acks: str = Field(default="all", alias="NOTIFICATIONS_KAFKA_ACKS")
+
+    # Авторизация вызывающих сервисов. Пустая строка — проверка выключена
+    # (локальная разработка). Один общий ключ на все источники (docs/
+    # notification_requests_contract.md §2) — per-service ключи можно
+    # добавить позже без изменения схемы.
+    api_key: str = Field(default="", alias="NOTIFICATIONS_API_KEY")
+
+    # Пакетная отправка (POST /api/v1/notifications/batch)
+    batch_max_size: int = Field(default=100, alias="NOTIFICATIONS_BATCH_MAX_SIZE")
+
+    # Максимум получателей в одной заявке (контракт §3) — ограничивает фан-аут
+    # одного HTTP-запроса в Kafka-сообщения.
+    max_recipients: int = Field(default=1000, alias="NOTIFICATIONS_MAX_RECIPIENTS")
+
+    # Rate limiting. Как и у event_api, лимитер in-memory — per-instance, а не
+    # общий на все реплики при горизонтальном масштабировании.
+    rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    rate_limit_notifications: str = Field(
+        default="200/minute", alias="NOTIFICATIONS_RATE_LIMIT_NOTIFICATIONS"
+    )
+    rate_limit_default: str = Field(
+        default="300/minute", alias="NOTIFICATIONS_RATE_LIMIT_DEFAULT"
+    )
+
+    log_level: str = Field(default="INFO", alias="NOTIFICATIONS_LOG_LEVEL")
+
+    jaeger_endpoint: str = Field(default="", alias="JAEGER_ENDPOINT")
+
+    # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
+
+
+settings = Settings()

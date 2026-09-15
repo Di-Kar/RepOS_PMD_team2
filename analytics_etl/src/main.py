@@ -13,13 +13,13 @@ import signal
 import time
 
 from backoff_utils import configure as configure_backoff
+from confluent_kafka import TopicPartition
+from dlq import DeadLetterQueue
 from etl_config import (
     clickhouse_settings,
     etl_settings,
     kafka_settings,
 )
-from confluent_kafka import TopicPartition
-from dlq import DeadLetterQueue
 from loader import ClickHouseLoader
 from memory_monitor import MemoryMonitor
 from processor import EventProcessor

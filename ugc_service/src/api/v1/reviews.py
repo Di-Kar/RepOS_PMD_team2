@@ -231,9 +231,7 @@ async def delete_review(
             detail='Требуется авторизация',
         )
 
-    success = await review_service.delete_review(
-        review_id, UUID(user.user_id)
-    )
+    success = await review_service.delete_review(review_id, UUID(user.user_id))
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

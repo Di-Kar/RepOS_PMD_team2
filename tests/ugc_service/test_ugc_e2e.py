@@ -49,7 +49,10 @@ AUTH_API_HOST = os.getenv('AUTH_API_HOST', 'auth_service')
 AUTH_API_PORT = int(os.getenv('AUTH_API_PORT', '8000'))
 AUTH_BASE_URL = f'http://{AUTH_API_HOST}:{AUTH_API_PORT}/api/v1/auth'
 
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin')
+MONGO_URI = os.getenv(
+    'MONGO_URI',
+    'mongodb://mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin',
+)
 MONGO_DB = 'ugc_service'
 
 

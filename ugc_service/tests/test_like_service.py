@@ -59,7 +59,9 @@ class TestGetFilmLikeStats:
     """Тесты функции get_film_like_stats."""
 
     @pytest.mark.asyncio
-    async def test_returns_correct_stats_with_ratings(self, sample_film_id, mock_aggregate_result_with_data):
+    async def test_returns_correct_stats_with_ratings(
+        self, sample_film_id, mock_aggregate_result_with_data
+    ):
         """Проверяет корректный расчёт метрик при наличии оценок."""
         from services.like_service import get_film_like_stats
 
@@ -96,7 +98,9 @@ class TestGetFilmLikeStats:
         assert result['rating_distribution'][10] == 0
 
     @pytest.mark.asyncio
-    async def test_returns_zero_stats_when_no_ratings(self, sample_film_id, mock_aggregate_result_empty):
+    async def test_returns_zero_stats_when_no_ratings(
+        self, sample_film_id, mock_aggregate_result_empty
+    ):
         """Проверяет нулевые метрики при отсутствии оценок."""
         from services.like_service import get_film_like_stats
 
@@ -143,12 +147,22 @@ class TestGetFilmLikeStats:
         from services.like_service import get_film_like_stats
 
         mock_cursor = AsyncMock()
-        mock_cursor.to_list = AsyncMock(return_value=[
-            {
-                "summary": [{"total_ratings": 1, "rating_sum": 5, "total_likes": 0, "total_dislikes": 0, "average_rating": 5.0}],
-                "distribution": [{"_id": 5, "count": 1}],
-            }
-        ])
+        mock_cursor.to_list = AsyncMock(
+            return_value=[
+                {
+                    "summary": [
+                        {
+                            "total_ratings": 1,
+                            "rating_sum": 5,
+                            "total_likes": 0,
+                            "total_dislikes": 0,
+                            "average_rating": 5.0,
+                        }
+                    ],
+                    "distribution": [{"_id": 5, "count": 1}],
+                }
+            ]
+        )
 
         mock_collection = MagicMock()
         mock_collection.aggregate = MagicMock(return_value=mock_cursor)

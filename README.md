@@ -13,6 +13,7 @@
 - `analytics_etl` — ETL, вычитывающий события из Kafka и загружающий их в ClickHouse (схема БД — `clickhouse_init/init.sql`), env-переменные с префиксом `ANALYTICS_`.
 - `shared` — общий код, используемый несколькими сервисами (сейчас — схемы событий `shared/event_schemas.py`, единая точка валидации для `event_api` и `analytics_etl`).
 - `ugc_service` — сервис пользовательского контента: закладки, лайки и рецензии к фильмам; хранилище — шардированный кластер MongoDB (конфиг — `docker/setup_mongo_cluster.sh`), авторизация — JWT от `auth_service` (`ugc_service` его не выпускает, а проксирует `/api/v1/auth/login`).
+- `notification_api` — приём заявок на создание уведомлений (от `admin_panel` и других сервисов), фан-аут по получателям и публикация в Kafka; сам не рендерит и не отправляет — доставка (`notification_worker`, S10_T3) будет отдельным сервисом. Контракт — `docs/notification_requests_contract.md`, env-переменные с префиксом `NOTIFICATIONS_`.
 - `tests` — все тесты проекта, образ собирается из `tests/Dockerfile` с кэшированием зависимостей.
 
 ## Запуск проекта (без тестов и с тестами)
@@ -45,6 +46,8 @@ docker compose --profile tests down -v --remove-orphans
   - Swagger (http://localhost:8002/docs)
 - ugc_service:
   - Swagger (http://localhost:8003/docs)
+- notification_api:
+  - Swagger (http://localhost:8004/docs)
 - jaeger: http://localhost:16686
 - kafka-ui: http://localhost:8090
 
@@ -52,7 +55,7 @@ docker compose --profile tests down -v --remove-orphans
 
 ## Тесты
 
-Все тесты живут в папке `tests/` (подпапка = тестируемый сервис: `admin_panel`, `async_api`, `auth_service`, `event_api`, `analytics_etl`, `shared`, `ugc_service`) и запускаются одним контейнером. Нужен запущенный проект:
+Все тесты живут в папке `tests/` (подпапка = тестируемый сервис: `admin_panel`, `async_api`, `auth_service`, `event_api`, `notification_api`, `analytics_etl`, `shared`, `ugc_service`) и запускаются одним контейнером. Нужен запущенный проект:
 
 ### Запуск всех тестов
 
@@ -98,11 +101,11 @@ ruff check . --fix
 
 ## Sentry
 
-Мониторинг необработанных исключений — облачный [Sentry](https://sentry.io/) (бесплатный Developer-план). Подключён к сервисам с HTTP API — `async_api`, `auth_service`, `event_api`, `ugc_service`, `admin_panel` — у каждого свой проект и свой DSN (issue #81). `analytics_etl` (фоновый Kafka-консьюмер, не API) сознательно не подключён.
+Мониторинг необработанных исключений — облачный [Sentry](https://sentry.io/) (бесплатный Developer-план). Подключён к сервисам с HTTP API — `async_api`, `auth_service`, `event_api`, `ugc_service`, `admin_panel`, `notification_api` — у каждого свой проект и свой DSN (issue #81). `analytics_etl` (фоновый Kafka-консьюмер, не API) сознательно не подключён.
 
-1. На sentry.io завести отдельный проект под каждый сервис (Platform → Python/FastAPI для `async_api`/`auth_service`/`event_api`/`ugc_service`, Python/Django для `admin_panel`).
+1. На sentry.io завести отдельный проект под каждый сервис (Platform → Python/FastAPI для `async_api`/`auth_service`/`event_api`/`ugc_service`/`notification_api`, Python/Django для `admin_panel`).
 2. В настройках каждого проекта Settings → Client Keys скопировать DSN.
-3. Вставить DSN'ы в `.env` (`SENTRY_DSN_ASYNC_API`, `SENTRY_DSN_AUTH_SERVICE`, `SENTRY_DSN_EVENT_API`, `SENTRY_DSN_UGC_SERVICE`, `SENTRY_DSN_ADMIN_PANEL`) и перезапустить стек:
+3. Вставить DSN'ы в `.env` (`SENTRY_DSN_ASYNC_API`, `SENTRY_DSN_AUTH_SERVICE`, `SENTRY_DSN_EVENT_API`, `SENTRY_DSN_UGC_SERVICE`, `SENTRY_DSN_ADMIN_PANEL`, `SENTRY_DSN_NOTIFICATION_API`) и перезапустить стек:
 
 Без DSN конкретный сервис работает как обычно — просто не шлёт события в Sentry.
 
@@ -113,6 +116,7 @@ ruff check . --fix
 - event_api — http://localhost:8002/api/v1/_sentry_debug
 - ugc_service — http://localhost:8003/api/v1/_sentry_debug
 - admin_panel — http://localhost/api/v1/_sentry_debug/
+- notification_api — http://localhost:8004/api/v1/_sentry_debug
 
 ## OAuth Google
 

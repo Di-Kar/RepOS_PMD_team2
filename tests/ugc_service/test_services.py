@@ -1,8 +1,9 @@
 """Тесты сервисов ugc_service (без MongoDB)."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
+
+import pytest
 
 
 class TestBookmarkService:
@@ -128,14 +129,25 @@ class TestLikeService:
         """Получение статистики лайков."""
         mock_aggregation_cursor = AsyncMock()
         mock_aggregation_cursor.to_list = AsyncMock(
-            return_value=[{
-                'summary': [{'total_ratings': 2, 'total_likes': 1, 'total_dislikes': 1, 'average_rating': 5.0}],
-                'distribution': [{'_id': 8, 'count': 1}, {'_id': 2, 'count': 1}],
-            }]
+            return_value=[
+                {
+                    'summary': [
+                        {
+                            'total_ratings': 2,
+                            'total_likes': 1,
+                            'total_dislikes': 1,
+                            'average_rating': 5.0,
+                        }
+                    ],
+                    'distribution': [{'_id': 8, 'count': 1}, {'_id': 2, 'count': 1}],
+                }
+            ]
         )
 
         with patch('services.like_service.Like') as MockLike:
-            MockLike.get_motor_collection.return_value.aggregate.return_value = mock_aggregation_cursor
+            MockLike.get_motor_collection.return_value.aggregate.return_value = (
+                mock_aggregation_cursor
+            )
 
             from services.like_service import get_film_like_stats
 

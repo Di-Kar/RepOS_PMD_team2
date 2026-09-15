@@ -8,7 +8,6 @@ from models.bookmark import Bookmark
 from models.like import Like
 from models.review import Review, ReviewVote
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import MongoClient
 
 logger = logging.getLogger(__name__)
 

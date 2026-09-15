@@ -340,7 +340,7 @@ services:
       - -c
       - |
         set -e
-        for topic in "$$EVENTS_KAFKA_TOPIC_CLICKS" "$$EVENTS_KAFKA_TOPIC_PAGEVIEWS" "$$EVENTS_KAFKA_TOPIC_CUSTOM_EVENTS"; do
+        for topic in "$$EVENTS_KAFKA_TOPIC_CLICKS" "$$EVENTS_KAFKA_TOPIC_PAGEVIEWS" "$$EVENTS_KAFKA_TOPIC_CUSTOM_EVENTS" "$$NOTIFICATIONS_KAFKA_TOPIC_REQUESTS"; do
           echo "Creating topic: $$topic"
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
             --create --if-not-exists --topic "$$topic" \
@@ -388,6 +388,39 @@ services:
       - ./shared:/opt/app/shared:ro
     ports:
       - "8002:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka_init:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # API приёма заявок на уведомления (FastAPI): валидирует заявки по
+  # контракту docs/notification_requests_contract.md, разворачивает
+  # получателей и публикует в Kafka. Сам не рендерит и не отправляет —
+  # доставка (notification_worker, S10_T3) появится отдельным сервисом позже.
+  notification_api:
+    build:
+      context: ./notification_api
+      dockerfile: Dockerfile
+    container_name: notification_api
+    env_file:
+      - ./.env
+    environment:
+      - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SENTRY_DSN=${SENTRY_DSN_NOTIFICATION_API}
+    ports:
+      - "8004:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 5s
@@ -792,9 +825,10 @@ services:
     networks:
       - backend
 
-  # Все тесты проекта (tests/): HTTP-тесты async_api, auth_service, event_api
-  # (event_api смоук-тесты дополнительно вычитывают Kafka-топики через
-  # aiokafka, чтобы подтвердить доставку опубликованных событий)
+  # Все тесты проекта (tests/): HTTP-тесты async_api, auth_service, event_api,
+  # notification_api (event_api и notification_api смоук-тесты дополнительно
+  # вычитывают Kafka-топики через aiokafka, чтобы подтвердить доставку
+  # опубликованных событий/заявок)
   # + Django-тесты admin_panel (tests/admin_panel/: AuthServiceBackend) —
   # тому нужен сам Django (ORM, тестовая БД в Postgres), поэтому вдобавок к
   # requirements.txt тестов ставим requirements.txt admin_panel и гоняем
@@ -823,7 +857,9 @@ services:
       - EVENT_API_HOST=event_api
       - UGC_API_HOST=ugc_service
       - UGC_API_PORT=8000
+      - NOTIFICATION_API_HOST=notification_api
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ANALYTICS_CLICKHOUSE_HOST=clickhouse
       - ANALYTICS_CLICKHOUSE_PORT=8123
@@ -847,6 +883,8 @@ services:
       kafka_init:
         condition: service_completed_successfully
       event_api:
+        condition: service_healthy
+      notification_api:
         condition: service_healthy
       kafka_ui:
         condition: service_started
