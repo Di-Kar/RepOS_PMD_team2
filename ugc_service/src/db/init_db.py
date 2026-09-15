@@ -23,7 +23,7 @@ async def _wait_for_sharding_init(admin_db, db_name, max_retries=10):
             # Если база не найдена в списке, ждём
             if attempt < max_retries - 1:
                 logger.debug(
-                    'Ожидание инициализации sharding... ' '(попытка %d/%d)',
+                    'Ожидание инициализации sharding... (попытка %d/%d)',
                     attempt + 1,
                     max_retries,
                 )
