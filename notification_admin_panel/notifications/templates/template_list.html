@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Шаблоны{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>Шаблоны сообщений</h2>
+  <a href="{% url 'template_create' %}" class="btn btn-primary">+ Новый шаблон</a>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Название</th>
+      <th>Канал</th>
+      <th>Активен</th>
+      <th>Обновлён</th>
+      <th>Действия</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for t in templates %}
+    <tr>
+      <td>{{ t.id }}</td>
+      <td>{{ t.name }}</td>
+      <td>{{ t.get_channel_display }}</td>
+      <td>{% if t.is_active %}✅ Да{% else %}❌ Нет{% endif %}</td>
+      <td>{{ t.updated_at|date:"d.m.Y H:i" }}</td>
+      <td>
+        <a href="{% url 'template_edit' t.pk %}" class="btn btn-sm btn-primary">Изменить</a>
+        <a href="{% url 'template_delete' t.pk %}" class="btn btn-sm btn-danger">Удалить</a>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" style="text-align: center; color: #6c757d;">Нет шаблонов</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

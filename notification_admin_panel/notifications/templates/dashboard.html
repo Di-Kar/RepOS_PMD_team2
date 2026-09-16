@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Дашборд{% endblock %}
+{% block content %}
+<h2 class="mb-4">Дашборд</h2>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <h3>{{ templates_count }}</h3>
+    <p>Активных шаблонов</p>
+  </div>
+  <div class="stat-card">
+    <h3>{{ campaigns_count }}</h3>
+    <p>Всего рассылок</p>
+  </div>
+  <div class="stat-card">
+    <h3 style="color: var(--warning-color);">{{ pending_count }}</h3>
+    <p>В очереди на отправку</p>
+  </div>
+  <div class="stat-card">
+    <h3 style="color: var(--success-color);">{{ sent_today }}</h3>
+    <p>Отправлено сегодня</p>
+  </div>
+</div>
+
+<h3 class="mb-3">Последние рассылки</h3>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Название</th>
+      <th>Шаблон</th>
+      <th>Тип</th>
+      <th>Статус</th>
+      <th>Дата</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for c in recent_campaigns %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td>{{ c.template.name }}</td>
+      <td>{{ c.get_schedule_type_display }}</td>
+      <td><span class="badge badge-secondary">{{ c.get_status_display }}</span></td>
+      <td>{{ c.created_at|date:"d.m.Y H:i" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" style="text-align: center; color: #6c757d;">Пока нет рассылок</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

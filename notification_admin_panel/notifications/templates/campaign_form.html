@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h2 class="mb-4">{{ title }}</h2>
+
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="form-group">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}
+          <div class="form-text">{{ field.help_text }}</div>
+        {% endif %}
+        {% for err in field.errors %}
+          <div class="text-danger">{{ err }}</div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">
+        {% for e in form.non_field_errors %}{{ e }}<br>{% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="alert alert-info" style="margin-top: 1rem;">
+      <strong>Подсказки по cron-выражениям:</strong><br>
+      <code>0 10 * * 5</code> — каждую пятницу в 10:00<br>
+      <code>0 0 1 1 *</code> — каждый Новый год в полночь<br>
+      <code>0 9 * * 1-5</code> — каждый будний день в 9:00
+    </div>
+
+    <div style="margin-top: 1.5rem;">
+      <button type="submit" class="btn btn-success">Создать рассылку</button>
+      <a href="{% url 'campaign_list' %}" class="btn btn-secondary">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h2 class="mb-4">{{ title }}</h2>
+
+{% if delete_obj %}
+  <div class="alert alert-danger">
+    <span>Вы уверены, что хотите удалить шаблон «{{ delete_obj.name }}»?</span>
+    <form method="post" style="display: inline; margin-left: 1rem;">
+      {% csrf_token %}
+      <button class="btn btn-danger btn-sm">Да, удалить</button>
+    </form>
+    <a href="{% url 'template_list' %}" class="btn btn-secondary btn-sm" style="margin-left: 0.5rem;">Отмена</a>
+  </div>
+{% elif form %}
+  <div class="card">
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="form-group">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}
+            <div class="form-text">{{ field.help_text }}</div>
+          {% endif %}
+          {% for err in field.errors %}
+            <div class="text-danger">{{ err }}</div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+          {% for e in form.non_field_errors %}{{ e }}<br>{% endfor %}
+        </div>
+      {% endif %}
+
+      <div style="margin-top: 1.5rem;">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a href="{% url 'template_list' %}" class="btn btn-secondary">Отмена</a>
+      </div>
+    </form>
+  </div>
+{% endif %}
+{% endblock %}
