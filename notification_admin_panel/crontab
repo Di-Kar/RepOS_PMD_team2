@@ -1,0 +1,7 @@
+# Обработка кампаний (немедленные и отложенные) — каждую минуту
+* * * * * cd /app && /usr/local/bin/python manage.py process_campaigns >> /var/log/cron.log 2>&1
+
+# Обработка повторяющихся рассылок — каждую минуту
+* * * * * cd /app && /usr/local/bin/python manage.py process_recurring >> /var/log/cron.log 2>&1
+
+

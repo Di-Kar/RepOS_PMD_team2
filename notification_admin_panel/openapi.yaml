@@ -1,0 +1,565 @@
+openapi: 3.0.3
+info:
+  title: Notification Admin Panel API
+  description: |
+    REST API для административной панели системы уведомлений.
+    Интеграция с внешним сервисом пользователей (user_id в формате UUID).
+  version: 1.0.0
+  contact:
+    name: Notification Service Team
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Локальный сервер разработки
+
+tags:
+  - name: auth
+    description: Аутентификация
+  - name: dashboard
+    description: Статистика
+  - name: templates
+    description: Шаблоны сообщений
+  - name: campaigns
+    description: Рассылки
+  - name: notifications
+    description: Уведомления и история
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    templateId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer }
+    campaignId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer }
+    notificationId:
+      in: path
+      name: notification_id
+      required: true
+      schema: { type: string, format: uuid }
+    userId:
+      in: query
+      name: user_id
+      schema: { type: string, format: uuid }
+      description: UUID пользователя из внешнего сервиса
+    pageParam:
+      in: query
+      name: page
+      schema: { type: integer, minimum: 1, default: 1 }
+    pageSizeParam:
+      in: query
+      name: page_size
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true, nullable: true }
+
+    ValidationError:
+      type: object
+      required: [code, message, details]
+      properties:
+        code: { type: string, example: "validation_error" }
+        message: { type: string, example: "Ошибка валидации данных" }
+        details:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+
+    PaginatedResponse:
+      type: object
+      properties:
+        meta:
+          type: object
+          properties:
+            page: { type: integer }
+            page_size: { type: integer }
+            total: { type: integer }
+            total_pages: { type: integer }
+        results:
+          type: array
+          items: {}
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+
+    TokenResponse:
+      type: object
+      required: [access, refresh]
+      properties:
+        access: { type: string }
+        refresh: { type: string }
+
+    MessageTemplate:
+      type: object
+      required: [name, channel, body]
+      properties:
+        id: { type: integer, readOnly: true }
+        name: { type: string, maxLength: 255 }
+        channel: { $ref: '#/components/schemas/Channel' }
+        subject: { type: string, maxLength: 500, default: "" }
+        body: { type: string }
+        available_variables:
+          type: array
+          items: { type: string }
+        is_active: { type: boolean, default: true }
+        created_at: { type: string, format: date-time, readOnly: true }
+        updated_at: { type: string, format: date-time, readOnly: true }
+
+    MessageTemplateCreate:
+      type: object
+      required: [name, channel, body]
+      properties:
+        name: { type: string, maxLength: 255 }
+        channel: { $ref: '#/components/schemas/Channel' }
+        subject: { type: string, maxLength: 500 }
+        body: { type: string }
+        available_variables:
+          type: array
+          items: { type: string }
+        is_active: { type: boolean }
+
+    MessageTemplateUpdate:
+      type: object
+      properties:
+        name: { type: string, maxLength: 255 }
+        channel: { $ref: '#/components/schemas/Channel' }
+        subject: { type: string, maxLength: 500 }
+        body: { type: string }
+        available_variables:
+          type: array
+          items: { type: string }
+        is_active: { type: boolean }
+
+    TemplateValidationRequest:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string }
+        subject: { type: string }
+
+    TemplateValidationResponse:
+      type: object
+      properties:
+        valid: { type: boolean }
+        rendered_preview:
+          type: object
+          properties:
+            subject: { type: string }
+            body: { type: string }
+
+    Campaign:
+      type: object
+      required: [name, template_id, delivery_channel, schedule_type, recipient_ids]
+      properties:
+        id: { type: integer, readOnly: true }
+        name: { type: string, maxLength: 255 }
+        template_id: { type: integer }
+        delivery_channel: { $ref: '#/components/schemas/Channel' }
+        schedule_type: { $ref: '#/components/schemas/ScheduleType' }
+        delay_hours:
+          type: integer
+          minimum: 1
+          nullable: true
+        cron_expression:
+          type: string
+          maxLength: 100
+          nullable: true
+        recurrence_description:
+          type: string
+          maxLength: 255
+          nullable: true
+        # ИЗМЕНЕНО: теперь массив UUID
+        recipient_ids:
+          type: array
+          items: { type: string, format: uuid }
+          description: "Массив UUID пользователей из внешнего сервиса"
+          minItems: 1
+        status: { $ref: '#/components/schemas/CampaignStatus', readOnly: true }
+        created_by:
+          type: object
+          readOnly: true
+          properties:
+            id: { type: integer }
+            username: { type: string }
+        created_at: { type: string, format: date-time, readOnly: true }
+        updated_at: { type: string, format: date-time, readOnly: true }
+
+    CampaignUpdate:
+      type: object
+      properties:
+        name: { type: string, maxLength: 255 }
+        delay_hours: { type: integer, minimum: 1, nullable: true }
+        cron_expression: { type: string, maxLength: 100, nullable: true }
+        recurrence_description: { type: string, maxLength: 255, nullable: true }
+        # ИЗМЕНЕНО: массив UUID
+        recipient_ids:
+          type: array
+          items: { type: string, format: uuid }
+
+    Notification:
+      type: object
+      properties:
+        notification_id: { type: string, format: uuid, readOnly: true }
+        content_id: { type: string, format: uuid, readOnly: true }
+        campaign_id: { type: integer, nullable: true, readOnly: true }
+        # ИЗМЕНЕНО: user_id теперь UUID
+        user_id: { type: string, format: uuid, readOnly: true }
+        channel: { $ref: '#/components/schemas/Channel', readOnly: true }
+        status: { $ref: '#/components/schemas/NotificationStatus', readOnly: true }
+        scheduled_at: { type: string, format: date-time, readOnly: true }
+        sent_at: { type: string, format: date-time, nullable: true, readOnly: true }
+        last_update: { type: string, format: date-time, readOnly: true }
+        last_notification_send: { type: string, format: date-time, nullable: true, readOnly: true }
+
+    NotificationHistory:
+      type: object
+      properties:
+        id: { type: integer, readOnly: true }
+        notification_id: { type: string, format: uuid, readOnly: true }
+        status: { type: string, readOnly: true }
+        sent_at: { type: string, format: date-time, readOnly: true }
+        error_message: { type: string, readOnly: true }
+        delivery_provider: { type: string, readOnly: true }
+
+    DashboardStats:
+      type: object
+      properties:
+        templates_count: { type: integer }
+        campaigns_count: { type: integer }
+        pending_count: { type: integer }
+        sent_today: { type: integer }
+
+    Channel:
+      type: string
+      enum: [email, sms, push]
+
+    ScheduleType:
+      type: string
+      enum: [immediate, delayed, recurring]
+
+    CampaignStatus:
+      type: string
+      enum: [draft, scheduled, sending, sent, cancelled]
+
+    NotificationStatus:
+      type: string
+      enum: [pending, sending, sent, failed]
+
+paths:
+  /auth/login/:
+    post:
+      tags: [auth]
+      summary: Получение JWT-токенов
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Успешная аутентификация
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401':
+          description: Неверные учётные данные
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /dashboard/:
+    get:
+      tags: [dashboard]
+      summary: Статистика для главной панели
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardStats' }
+
+  /templates/:
+    get:
+      tags: [templates]
+      summary: Список шаблонов
+      parameters:
+        - { $ref: '#/components/parameters/pageParam' }
+        - { $ref: '#/components/parameters/pageSizeParam' }
+        - in: query
+          name: channel
+          schema: { $ref: '#/components/schemas/Channel' }
+        - in: query
+          name: is_active
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      results:
+                        type: array
+                        items: { $ref: '#/components/schemas/MessageTemplate' }
+    post:
+      tags: [templates]
+      summary: Создание шаблона
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessageTemplateCreate' }
+      responses:
+        '201':
+          description: Шаблон создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageTemplate' }
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationError' }
+
+  /templates/validate/:
+    post:
+      tags: [templates]
+      summary: Предварительная валидация шаблона
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateValidationRequest' }
+      responses:
+        '200':
+          description: Шаблон валиден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateValidationResponse' }
+        '400':
+          description: Шаблон невалиден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationError' }
+
+  /templates/{id}/:
+    parameters:
+      - { $ref: '#/components/parameters/templateId' }
+    get:
+      tags: [templates]
+      summary: Получить шаблон
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageTemplate' }
+    put:
+      tags: [templates]
+      summary: Полное обновление
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessageTemplateCreate' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageTemplate' }
+    patch:
+      tags: [templates]
+      summary: Частичное обновление
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessageTemplateUpdate' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageTemplate' }
+    delete:
+      tags: [templates]
+      summary: Удалить шаблон
+      responses:
+        '204': { description: Удалён }
+        '409':
+          description: Конфликт
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /campaigns/:
+    get:
+      tags: [campaigns]
+      summary: Список рассылок
+      parameters:
+        - { $ref: '#/components/parameters/pageParam' }
+        - { $ref: '#/components/parameters/pageSizeParam' }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/CampaignStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      results:
+                        type: array
+                        items: { $ref: '#/components/schemas/Campaign' }
+    post:
+      tags: [campaigns]
+      summary: Создать рассылку
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Campaign' }
+      responses:
+        '201':
+          description: Рассылка создана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Campaign' }
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationError' }
+
+  /campaigns/{id}/:
+    parameters:
+      - { $ref: '#/components/parameters/campaignId' }
+    get:
+      tags: [campaigns]
+      summary: Получить рассылку
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Campaign' }
+    patch:
+      tags: [campaigns]
+      summary: Обновить рассылку
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CampaignUpdate' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Campaign' }
+    delete:
+      tags: [campaigns]
+      summary: Отменить рассылку
+      responses:
+        '204': { description: Отменена }
+
+  /campaigns/{id}/notifications/:
+    parameters:
+      - { $ref: '#/components/parameters/campaignId' }
+    get:
+      tags: [campaigns]
+      summary: Уведомления рассылки
+      parameters:
+        - { $ref: '#/components/parameters/pageParam' }
+        - { $ref: '#/components/parameters/pageSizeParam' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      results:
+                        type: array
+                        items: { $ref: '#/components/schemas/Notification' }
+
+  /notifications/:
+    get:
+      tags: [notifications]
+      summary: Список уведомлений
+      parameters:
+        - { $ref: '#/components/parameters/pageParam' }
+        - { $ref: '#/components/parameters/pageSizeParam' }
+        - { $ref: '#/components/parameters/userId' }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/NotificationStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      results:
+                        type: array
+                        items: { $ref: '#/components/schemas/Notification' }
+
+  /notifications/{notification_id}/history/:
+    parameters:
+      - { $ref: '#/components/parameters/notificationId' }
+    get:
+      tags: [notifications]
+      summary: История отправки уведомления
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notification_id: { type: string, format: uuid }
+                  history:
+                    type: array
+                    items: { $ref: '#/components/schemas/NotificationHistory' }

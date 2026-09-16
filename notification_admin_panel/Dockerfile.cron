@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev cron && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+COPY crontab /etc/cron.d/notifications
+
+RUN chmod 0644 /etc/cron.d/notifications && \
+    crontab /etc/cron.d/notifications && \
+    touch /var/log/cron.log
+
+CMD cron -f && tail -f /var/log/cron.log
