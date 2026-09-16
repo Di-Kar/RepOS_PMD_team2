@@ -6,10 +6,11 @@ volumes:
   async_api_redis_data:
   auth_postgres_data:
   auth_redis_data:
-  notification_postgres_data:
   clickhouse_data:
   kafka_data:
   etl_analytics_state:
+  notification_postgres_data:
+  notification_static_volume:
   # MongoDB Cluster data
   mongo_config_data_0:
   mongo_config_data_1:
@@ -406,48 +407,10 @@ services:
     networks:
       - backend
 
-  # PostgreSQL сервиса уведомлений (лог заявок, отправленных в Kafka —
-  # docs/notification_requests_contract.md §9). Своя БД, отдельная от auth_service.
-  notification_postgres:
-    image: postgres:16-alpine
-    container_name: notification_postgres
-    environment:
-      POSTGRES_USER: ${NOTIFICATIONS_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${NOTIFICATIONS_POSTGRES_PASSWORD}
-      POSTGRES_DB: ${NOTIFICATIONS_POSTGRES_DB}
-    ports:
-      - "127.0.0.1:5434:5432"
-    volumes:
-      - notification_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - backend
-
-  # Миграции notification_api (alembic upgrade head) перед стартом сервиса.
-  notification_migrations:
-    build: ./notification_api
-    container_name: notification_migrations
-    command: ["alembic", "upgrade", "head"]
-    env_file:
-      - ./.env
-    environment:
-      - NOTIFICATIONS_POSTGRES_HOST=notification_postgres
-    depends_on:
-      notification_postgres:
-        condition: service_healthy
-    networks:
-      - backend
-
   # API приёма заявок на уведомления (FastAPI): валидирует заявки по
   # контракту docs/notification_requests_contract.md, разворачивает
-  # получателей и публикует в Kafka, пишет лог заявок в свою БД (§9). Сам не
-  # рендерит и не отправляет — доставка (notification_worker, S10_T3)
-  # появится отдельным сервисом позже и будет обновлять статус в этом логе.
+  # получателей и публикует в Kafka. Сам не рендерит и не отправляет —
+  # доставка (notification_worker, S10_T3) появится отдельным сервисом позже.
   notification_api:
     build:
       context: ./notification_api
@@ -457,7 +420,6 @@ services:
       - ./.env
     environment:
       - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - NOTIFICATIONS_POSTGRES_HOST=notification_postgres
       - SENTRY_DSN=${SENTRY_DSN_NOTIFICATION_API}
     ports:
       - "8004:8000"
@@ -474,10 +436,6 @@ services:
         condition: service_completed_successfully
       jaeger:
         condition: service_started
-      notification_postgres:
-        condition: service_healthy
-      notification_migrations:
-        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - backend
@@ -536,6 +494,86 @@ services:
         condition: service_completed_successfully
       clickhouse:
         condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ============================================================================
+  #  Notification Admin Panel (Django) + PostgreSQL + Cron
+  # ============================================================================
+
+  # База данных для админ-панели уведомлений
+  notification_postgres:
+    image: postgres:15-alpine
+    container_name: notification_postgres
+    environment:
+      POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${NOTIFICATION_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB}
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Django-приложение: Административная панель уведомлений
+  notification_admin_panel:
+    build:
+      context: ./notification_admin_panel  
+      dockerfile: Dockerfile
+    container_name: notification_admin_panel
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_URL=postgres://${NOTIFICATION_POSTGRES_USER:-notify_user}:${NOTIFICATION_POSTGRES_PASSWORD:-notify_secret}@notification_postgres:5432/${NOTIFICATION_POSTGRES_DB:-notifications_db}
+      - DJANGO_SETTINGS_MODULE=notification_admin.settings
+      - NOTIFICATION_API_URL=http://notification_api:8000
+      - NOTIFICATION_API_KEY=${NOTIFICATION_API_KEY}
+      - NOTIFICATION_API_TIMEOUT=10
+    volumes:
+      - ./notification_admin_panel:/opt/app  # ВАЖНО: монтируем код для hot-reload
+      - notification_static_volume:/opt/app/staticfiles
+    ports:
+      - "8005:8000"
+    depends_on:
+      notification_postgres:
+        condition: service_healthy
+      notification_api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+      - frontend  # Добавлено, если нужен прямой доступ к UI без Nginx
+
+  # Cron-воркер для обработки отложенных и повторяющихся рассылок
+  notification_admin_cron:
+    build:
+      context: ./notification_admin_panel
+      dockerfile: Dockerfile.cron
+    container_name: notification_admin_cron
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_URL=postgres://${NOTIFICATION_POSTGRES_USER:-notify_user}:${NOTIFICATION_POSTGRES_PASSWORD:-notify_secret}@notification_postgres:5432/${NOTIFICATION_POSTGRES_DB:-notifications_db}
+      - DJANGO_SETTINGS_MODULE=notification_admin.settings
+      - NOTIFICATION_API_URL=http://notification_api:8000
+      - NOTIFICATION_API_KEY=${NOTIFICATION_API_KEY}
+      - NOTIFICATION_API_TIMEOUT=10
+    depends_on:
+      notification_postgres:
+        condition: service_healthy
+      notification_api:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - backend
@@ -888,11 +926,13 @@ services:
       - ./tests:/tests
       - ./analytics_etl:/analytics_etl
       - ./admin_panel:/admin_panel
+      - ./notification_admin_panel:/notification_admin_panel
       - ./shared:/shared
       - ./ugc_service:/ugc_service
     command: sh -c "
-      pytest /tests -rs --ignore=/tests/admin_panel --import-mode=importlib
-      && cd /admin_panel && python manage.py test /tests/admin_panel"
+      pytest /tests -rs --ignore=/tests/admin_panel --ignore=/tests/notification_admin_panel --import-mode=importlib
+      && cd /admin_panel && python manage.py test /tests/admin_panel
+      && cd /notification_admin_panel && python manage.py test tests.notification_admin_panel"
     environment:
       - PYTHONPATH=/analytics_etl/src:/ugc_service/src:/tests:/shared:/
       - REDIS_HOST=async_api_redis
@@ -902,7 +942,6 @@ services:
       - UGC_API_HOST=ugc_service
       - UGC_API_PORT=8000
       - NOTIFICATION_API_HOST=notification_api
-      - NOTIFICATIONS_POSTGRES_HOST=notification_postgres
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -930,8 +969,6 @@ services:
       event_api:
         condition: service_healthy
       notification_api:
-        condition: service_healthy
-      notification_postgres:
         condition: service_healthy
       kafka_ui:
         condition: service_started
