@@ -1,7 +1,7 @@
 """Настройки функциональных тестов с вложенной структурой."""
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
@@ -84,7 +84,7 @@ class TestSettings(BaseSettings):
         'populate_by_name': True,
     }
 
-    def es_index_mapping(self, index_name: str) -> Dict[str, Any]:
+    def es_index_mapping(self, index_name: str) -> dict[str, Any]:
         """Возвращает маппинг для указанного индекса."""
         mapping = {
             'movies': MOVIES_INDEX_SETTINGS,
