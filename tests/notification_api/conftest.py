@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 import aiohttp
+import asyncpg
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer
 
@@ -39,6 +40,21 @@ TOPIC_REQUESTS = os.getenv(
 
 API_KEY = os.getenv('NOTIFICATIONS_API_KEY', '')
 HEADERS = {"X-API-Key": API_KEY} if API_KEY else {}
+
+# Postgres notification_api (лог заявок, docs/notification_requests_contract.md
+# §9) не проброшен на хост для тестов — как и Kafka, рассчитан на запуск через
+# docker-compose --profile tests.
+NOTIFICATIONS_POSTGRES_HOST = os.getenv(
+    'NOTIFICATIONS_POSTGRES_HOST', 'notification_postgres'
+)
+NOTIFICATIONS_POSTGRES_PORT = int(os.getenv('NOTIFICATIONS_POSTGRES_PORT', '5432'))
+NOTIFICATIONS_POSTGRES_USER = os.getenv(
+    'NOTIFICATIONS_POSTGRES_USER', 'notification_user'
+)
+NOTIFICATIONS_POSTGRES_PASSWORD = os.getenv(
+    'NOTIFICATIONS_POSTGRES_PASSWORD', 'notification_password'
+)
+NOTIFICATIONS_POSTGRES_DB = os.getenv('NOTIFICATIONS_POSTGRES_DB', 'notification_db')
 
 
 def make_request(**overrides) -> dict:
@@ -120,3 +136,18 @@ async def kafka_watcher():
 
     for consumer in consumers:
         await consumer.stop()
+
+
+@pytest_asyncio.fixture(name='db_conn')
+async def db_conn():
+    """Прямое подключение к БД notification_api — читаем notification_log
+    (§9), чтобы проверить, что заявка зафиксирована с ожидаемым статусом."""
+    conn = await asyncpg.connect(
+        host=NOTIFICATIONS_POSTGRES_HOST,
+        port=NOTIFICATIONS_POSTGRES_PORT,
+        user=NOTIFICATIONS_POSTGRES_USER,
+        password=NOTIFICATIONS_POSTGRES_PASSWORD,
+        database=NOTIFICATIONS_POSTGRES_DB,
+    )
+    yield conn
+    await conn.close()

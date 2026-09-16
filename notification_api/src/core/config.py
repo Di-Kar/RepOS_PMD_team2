@@ -23,6 +23,20 @@ class Settings(BaseSettings):
     app_name: str = Field(default="Notification API", alias="NOTIFICATIONS_APP_NAME")
     debug: bool = Field(default=False, alias="DEBUG")
 
+    # PostgreSQL — лог заявок, отправленных в Kafka (docs/
+    # notification_requests_contract.md §9). Своя БД, отдельная от auth_service.
+    postgres_host: str = Field(default="localhost", alias="NOTIFICATIONS_POSTGRES_HOST")
+    postgres_port: int = Field(default=5432, alias="NOTIFICATIONS_POSTGRES_PORT")
+    postgres_db: str = Field(
+        default="notification_db", alias="NOTIFICATIONS_POSTGRES_DB"
+    )
+    postgres_user: str = Field(
+        default="notification_user", alias="NOTIFICATIONS_POSTGRES_USER"
+    )
+    postgres_password: str = Field(
+        default="notification_password", alias="NOTIFICATIONS_POSTGRES_PASSWORD"
+    )
+
     # Kafka
     kafka_bootstrap_servers: str = Field(
         default="localhost:9092", alias="NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS"
@@ -64,6 +78,14 @@ class Settings(BaseSettings):
 
     # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
+
+    @property
+    def postgres_dsn(self) -> str:
+        """Async DSN для SQLAlchemy/приложения."""
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
 
 
 settings = Settings()

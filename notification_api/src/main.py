@@ -18,6 +18,7 @@ from src.core.config import settings
 from src.core.kafka_producer import close_producer, init_producer
 from src.core.rate_limiter import limiter
 from src.core.tracer import configure_tracer
+from src.db.postgres import close_db
 
 if settings.sentry_dsn:
     sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.01)
@@ -39,6 +40,7 @@ async def lifespan(_: FastAPI):
     await init_producer()
     yield
     await close_producer()
+    await close_db()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

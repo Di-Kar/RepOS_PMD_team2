@@ -6,6 +6,7 @@ volumes:
   async_api_redis_data:
   auth_postgres_data:
   auth_redis_data:
+  notification_postgres_data:
   clickhouse_data:
   kafka_data:
   etl_analytics_state:
@@ -405,10 +406,48 @@ services:
     networks:
       - backend
 
+  # PostgreSQL сервиса уведомлений (лог заявок, отправленных в Kafka —
+  # docs/notification_requests_contract.md §9). Своя БД, отдельная от auth_service.
+  notification_postgres:
+    image: postgres:16-alpine
+    container_name: notification_postgres
+    environment:
+      POSTGRES_USER: ${NOTIFICATIONS_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${NOTIFICATIONS_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${NOTIFICATIONS_POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Миграции notification_api (alembic upgrade head) перед стартом сервиса.
+  notification_migrations:
+    build: ./notification_api
+    container_name: notification_migrations
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - ./.env
+    environment:
+      - NOTIFICATIONS_POSTGRES_HOST=notification_postgres
+    depends_on:
+      notification_postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
   # API приёма заявок на уведомления (FastAPI): валидирует заявки по
   # контракту docs/notification_requests_contract.md, разворачивает
-  # получателей и публикует в Kafka. Сам не рендерит и не отправляет —
-  # доставка (notification_worker, S10_T3) появится отдельным сервисом позже.
+  # получателей и публикует в Kafka, пишет лог заявок в свою БД (§9). Сам не
+  # рендерит и не отправляет — доставка (notification_worker, S10_T3)
+  # появится отдельным сервисом позже и будет обновлять статус в этом логе.
   notification_api:
     build:
       context: ./notification_api
@@ -418,6 +457,7 @@ services:
       - ./.env
     environment:
       - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - NOTIFICATIONS_POSTGRES_HOST=notification_postgres
       - SENTRY_DSN=${SENTRY_DSN_NOTIFICATION_API}
     ports:
       - "8004:8000"
@@ -434,6 +474,10 @@ services:
         condition: service_completed_successfully
       jaeger:
         condition: service_started
+      notification_postgres:
+        condition: service_healthy
+      notification_migrations:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - backend
@@ -858,6 +902,7 @@ services:
       - UGC_API_HOST=ugc_service
       - UGC_API_PORT=8000
       - NOTIFICATION_API_HOST=notification_api
+      - NOTIFICATIONS_POSTGRES_HOST=notification_postgres
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -885,6 +930,8 @@ services:
       event_api:
         condition: service_healthy
       notification_api:
+        condition: service_healthy
+      notification_postgres:
         condition: service_healthy
       kafka_ui:
         condition: service_started

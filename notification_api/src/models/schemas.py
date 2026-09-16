@@ -70,10 +70,15 @@ def derive_notification_id(request_id: uuid.UUID, user_id: uuid.UUID) -> uuid.UU
     return uuid.uuid5(NOTIFICATIONS_NAMESPACE, f"{request_id}:{user_id}")
 
 
-def to_kafka_record(request: NotificationRequest, user_id: uuid.UUID) -> dict:
+def to_kafka_record(
+    request: NotificationRequest,
+    user_id: uuid.UUID,
+    received_at: datetime | None = None,
+) -> dict:
     """Сериализует одно (после фан-аута) уведомление в JSON-совместимый dict
-    для value сообщения Kafka (контракт §4), проставляя received_at в момент
-    вызова."""
+    для value сообщения Kafka (контракт §4). received_at по умолчанию — момент
+    вызова; принимает готовое значение, чтобы вызывающий (запись лога в БД,
+    §9) использовал ровно тот же timestamp, что ушёл в Kafka."""
     return {
         "notification_id": str(derive_notification_id(request.request_id, user_id)),
         "request_id": str(request.request_id),
@@ -87,5 +92,5 @@ def to_kafka_record(request: NotificationRequest, user_id: uuid.UUID) -> dict:
         "text_override": request.text_override,
         "context": request.context,
         "occurred_at": request.occurred_at.isoformat(),
-        "received_at": datetime.now(timezone.utc).isoformat(),
+        "received_at": (received_at or datetime.now(timezone.utc)).isoformat(),
     }

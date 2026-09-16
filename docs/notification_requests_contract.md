@@ -11,13 +11,17 @@
 - **notification_api** (этот контракт): принимает HTTP-заявку, валидирует,
   разворачивает список получателей в отдельные сообщения Kafka, публикует.
   Не рендерит шаблоны, не ходит за профилем пользователя, не отправляет
-  письма/push/sms и не хранит историю статусов — только приём и постановка в
-  очередь (issue #94: «Сам API не занимается рассылкой — это центральный узел»).
+  письма/push/sms и не ведёт историю статусов доставки — только приём и
+  постановка в очередь (issue #94: «Сам API не занимается рассылкой — это
+  центральный узел»). Своя БД (см. §9) хранит только факт и результат
+  публикации в Kafka — это лог отправки, а не история доставки.
 - **notification_worker** (#96, отдельная задача): читает
   `notifications.requests.v1`, для персонализации сам ходит в `auth_service`
   за именем/email/телефоном по `user_id` (к воркеру эти данные не приходят —
-  только `user_id`), рендерит шаблон, отправляет, ведёт у себя историю и
-  статусы доставки.
+  только `user_id`), рендерит шаблон, отправляет. Детальную историю попыток
+  доставки (retries, ошибки провайдера и т.п.) ведёт у себя; финальный статус
+  по каждому уведомлению обновляет также в `notification_log` БД
+  `notification_api` по ключу `notification_id` — см. §9.
 - **Планирование** (отложенные/повторяющиеся рассылки) — ответственность
   вызывающей стороны. У `notification_admin_panel` уже есть свой cron
   (`process_notifications`, `process_recurring`), который решает delay/cron и
@@ -165,16 +169,18 @@ Response `202`:
 
 ## 6. Идемпотентность
 
-`notification_api` не имеет собственной БД (см. §0), поэтому дедуп не может
-опираться на память сервиса. Вместо этого `notification_id` выводится
-детерминированно: `uuid5(NOTIFICATIONS_NAMESPACE, f"{request_id}:{user_id}")`.
+`notification_api` не делает собственный дедуп заявок при публикации —
+`notification_log` (§9) пишется уже post-factum, после попытки публикации в
+Kafka, и не проверяется перед ней. Вместо дедупа по БД `notification_id`
+выводится детерминированно: `uuid5(NOTIFICATIONS_NAMESPACE,
+f"{request_id}:{user_id}")`.
 
 Повторная отправка того же HTTP-запроса с тем же `request_id` (ретрай клиента,
 NFR-29-аналог из `docs/README.md`) даёт при фан-ауте те же самые
-`notification_id`, что и в первый раз. Дедуп по факту происходит на стороне
-`notification_worker`, когда он сохраняет историю (уникальный
-`notification_id`) — API остаётся stateless, но не мешает дедупу ниже по
-потоку.
+`notification_id`, что и в первый раз — при повторной публикации перезапишет
+(`INSERT ... ON CONFLICT`, см. §9) ту же строку `notification_log`. Дедуп по
+факту доставки происходит на стороне `notification_worker`, когда он
+сохраняет свою историю (уникальный `notification_id`).
 
 ## 7. Примеры
 
@@ -240,3 +246,58 @@ NFR-29-аналог из `docs/README.md`) даёт при фан-ауте те 
 - **Хранение истории/статусов отправки и «мои уведомления» в личном
   кабинете** — у `notification_worker` (T3) или будущего отдельного сервиса,
   не у `notification_api`.
+
+## 9. Лог заявок в БД `notification_api` (таблица `notification_log`)
+
+У `notification_api` появилась собственная Postgres-БД (отдельная от
+`auth_service` и остальных сервисов). Она хранит **лог факта и результата
+публикации в Kafka** — не историю доставки (это по-прежнему зона
+`notification_worker`, §0).
+
+Одна строка на `notification_id`, т.е. на получателя **после** фан-аута (не на
+HTTP-заявку) — тот же ключ, что и в сообщении Kafka (§4). `notification_api`
+пишет строку сразу после попытки публикации, синхронно в рамках обработки
+HTTP-запроса, но best-effort: сбой записи в БД не влияет на HTTP-ответ и не
+откатывает публикацию — источник истины по факту отправки остаётся Kafka.
+
+| Поле | Тип | Кто пишет | Описание |
+|---|---|---|---|
+| `notification_id` | UUID, PK | `notification_api` | см. §6 |
+| `request_id` | UUID, indexed | `notification_api` | |
+| `schema_version` | int | `notification_api` | |
+| `source_service` | string | `notification_api` | |
+| `campaign_id` | string, nullable | `notification_api` | |
+| `user_id` | UUID, indexed | `notification_api` | |
+| `channel` | string | `notification_api` | |
+| `template_id` | string, nullable | `notification_api` | |
+| `subject_override` | text, nullable | `notification_api` | |
+| `text_override` | text, nullable | `notification_api` | |
+| `context` | JSONB | `notification_api` | |
+| `occurred_at` | timestamptz | `notification_api` | |
+| `received_at` | timestamptz | `notification_api` | момент публикации |
+| `status` | string, indexed | `notification_api` **и** `notification_worker` | см. ниже |
+| `status_updated_at` | timestamptz | БД (auto, триггер) | обновляется любым `UPDATE` строки — в т.ч. от `notification_worker`, независимо от того, каким клиентом/ORM он выполнен |
+| `created_at` | timestamptz | БД (auto) | |
+
+### Статусы
+
+`status` — обычная строка, не Postgres ENUM: набор значений расширяется
+`notification_worker` без миграции на стороне `notification_api`.
+
+`notification_api` проставляет один из двух статусов сразу после попытки
+публикации в Kafka:
+
+- `kafka_published` — сообщение успешно ушло в топик.
+- `kafka_publish_failed` — публикация не удалась (соответствует
+  `rejected_recipients[].reason == "kafka_publish_failed"` в HTTP-ответе, §2);
+  сообщение в Kafka не появится, `notification_worker` его не увидит.
+
+Дальше `notification_worker` **обновляет ту же строку** по
+`notification_id` (`UPDATE notification_log SET status = ... WHERE
+notification_id = :id`), когда обрабатывает сообщение из Kafka — например на
+`sent` / `delivered` / `failed` (конкретный набор и семантику определяет T3,
+здесь не фиксируется). Ретрай HTTP-заявки с тем же `request_id` даёт тот же
+`notification_id` (§6) и обновит строку через `INSERT ... ON CONFLICT DO
+UPDATE`, но `notification_api` **не перезаписывает `status`, если он уже не
+`kafka_published`/`kafka_publish_failed`** — то есть после того как воркер
+хоть раз обновил статус, повторная публикация той же заявки его не затирает.
