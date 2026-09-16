@@ -1,22 +1,21 @@
-name: Python CI
+name: CI Pipeline
 
 on:
-  push:
-    branches: [ "main" ]
+  # CI запускается ТОЛЬКО при pull request в master
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
 
 jobs:
-  # Задача 4: Проверка кода на матрице версий Python
-  build-and-test:
-    name: Test on Python ${{ matrix.python-version }}
+  # ============================================
+  # JOB 1: Проверка линтером wemake-python-styleguide
+  # ============================================
+  lint:
+    name: Lint (wemake-python-styleguide)
     runs-on: ubuntu-latest
     strategy:
-      # Матрица версий Python
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
-      # Если одна версия упадет, остальные продолжат выполнение
-      fail-fast: false 
+        python-version: ["3.12", "3.13"]
+      fail-fast: false
 
     steps:
       - name: Checkout repository
@@ -26,60 +25,112 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          # allow-prereleases нужен, так как 3.14 может быть в статусе beta/rc
-          allow-prereleases: true 
-
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff mypy pytest pydantic pydantic-settings django django-stubs
-          # pip install -r requirements.txt 
+          pip install wemake-python-styleguide flake8-html Flake8-pyproject
 
-      - name: Lint with Ruff
- #       run: ruff check --fix --unsafe-fixes .
-        run: ruff check ugc_service\
-  
-      - name: Format check with Ruff
- #       run: ruff format . 
-        run: ruff format --check ugc_service\
+      - name: Run wemake-python-styleguide
+        run: |
+          # Запуск линтера с сохранением обычного вывода
+          flake8 . --tee --output-file=flake8-report.txt || true
+          
+          # Генерация HTML-отчёта
+          flake8 . --format=html --htmldir=flake8-html-report || true
 
-      - name: Type check with Mypy
-        run: mypy ugc_service
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flake8-html-report-py${{ matrix.python-version }}
+          path: flake8-html-report/
+          retention-days: 7
 
-   #   - name: Run tests with pytest
-   #     run: pytest || true
+      - name: Fail if lint errors found
+        run: |
+          if [[ -s flake8-report.txt ]]; then
+            echo "❌ Lint errors found:"
+            cat flake8-report.txt
+            exit 1
+          fi
 
-  # Задача 5: Отправка уведомления в Telegram
-  notify-telegram:
-    name: Notify Telegram
-    # Запускается только если успешно завершилась предыдущая job (матрица)
-    needs: build-and-test
+  # ============================================
+  # JOB 2: Проверка типов через mypy
+  # ============================================
+  mypy:
+    name: Type check (mypy)
     runs-on: ubuntu-latest
-    # Дополнительная страховка: запускаем только при успехе
-    if: success() 
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+      fail-fast: false
 
     steps:
-      - name: Send success message to Telegram
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy
+
+      - name: Run mypy
+        run: mypy .
+
+  # ============================================
+  # JOB 3: Уведомление в Telegram
+  # ============================================
+  notify:
+    name: Notify Telegram
+    runs-on: ubuntu-latest
+    needs: [lint, mypy]
+    if: always()  # Запускается всегда, даже если предыдущие jobs упали
+
+    steps:
+      - name: Determine pipeline status
+        id: status
+        run: |
+          PROJECT_NAME="${{ github.repository }}"
+          COMMIT_HASH="${{ github.event.pull_request.head.sha }}"
+          COMMIT_SHORT="${COMMIT_HASH:0:7}"
+          
+          # Определяем статус и упавшие шаги
+          FAILED_STEPS=""
+          STATUS="successfully"
+          
+          if [[ "${{ needs.lint.result }}" == "failure" ]]; then
+            STATUS="with error"
+            FAILED_STEPS="${FAILED_STEPS}• Lint (wemake-python-styleguide) failed\n"
+          fi
+          
+          if [[ "${{ needs.mypy.result }}" == "failure" ]]; then
+            STATUS="with error"
+            FAILED_STEPS="${FAILED_STEPS}• Type check (mypy) failed\n"
+          fi
+          
+          # Формируем сообщение
+          if [[ "$STATUS" == "successfully" ]]; then
+            MESSAGE="✅ *${PROJECT_NAME}*: Pipeline for \`${COMMIT_SHORT}\` finished successfully!"
+          else
+            MESSAGE="❌ *${PROJECT_NAME}*: Pipeline for \`${COMMIT_SHORT}\` finished with error!\n\n${FAILED_STEPS}"
+          fi
+          
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+
+      - name: Send Telegram notification
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           format: markdown
-          message: |
-            ✅ *CI успешно пройден!*
-            
-            📦 Репозиторий: `${{ github.repository }}`
-            🌿 Ветка: `${{ github.ref_name }}`
-            🐍 Python: 3.12, 3.13, 3.14
-            👤 Автор: `${{ github.actor }}`
-            📝 Коммит: `${{ github.event.head_commit.message }}`
-            
-            🔗 [Посмотреть логи](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          message: ${{ steps.status.outputs.message }}
