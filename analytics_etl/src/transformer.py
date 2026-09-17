@@ -33,20 +33,20 @@ def transform_for_events(event: dict) -> dict:
         'session_id': str(event['session_id']),
         'sequence_number': int(event['sequence_number']),
         'consent': 1 if event['consent'] else 0,
-        'context_page_type': _empty_str(context.get('page_type')),
-        'context_page_id': _empty_str(context.get('page_id')),
-        'context_device': _empty_str(context.get('device')),
-        'context_browser': _empty_str(context.get('browser')),
-        'context_app_version': _empty_str(context.get('app_version')),
-        'source': _empty_str(event.get('source')),
-        'custom_event_type': payload.get('custom_event_type'),
-        'payload_content_id': payload.get('content_id'),
-        'payload_watch_session_id': payload.get('watch_session_id'),
-        'payload_duration_ms': payload.get('duration_ms'),
-        'payload_progress_percent': payload.get('progress_percent'),
-        'payload_from_quality': payload.get('from_quality'),
-        'payload_to_quality': payload.get('to_quality'),
-        'payload_tab_active': payload.get('tab_active'),
+        'context_page_type': _empty_str(context.get('page_type')), # type: ignore[union-attr]
+        'context_page_id': _empty_str(context.get('page_id')), # type: ignore[union-attr]
+        'context_device': _empty_str(context.get('device')), # type: ignore[union-attr]
+        'context_browser': _empty_str(context.get('browser')), # type: ignore[union-attr]
+        'context_app_version': _empty_str(context.get('app_version')), # type: ignore[union-attr]
+        'source': _empty_str(event.get('source')), # type: ignore[union-attr]
+        'custom_event_type': payload.get('custom_event_type'), # type: ignore[union-attr]
+        'payload_content_id': payload.get('content_id'), # type: ignore[union-attr]
+        'payload_watch_session_id': payload.get('watch_session_id'), # type: ignore[union-attr]
+        'payload_duration_ms': payload.get('duration_ms'), # type: ignore[union-attr]
+        'payload_progress_percent': payload.get('progress_percent'), # type: ignore[union-attr]
+        'payload_from_quality': payload.get('from_quality'), # type: ignore[union-attr]
+        'payload_to_quality': payload.get('to_quality'), # type: ignore[union-attr]
+        'payload_tab_active': payload.get('tab_active'), # type: ignore[union-attr]
         'raw_event': raw_json,
     }
 
@@ -88,13 +88,13 @@ def transform_for_movies_metrics(event: dict) -> Optional[dict]:
     if event_type != 'custom_event':
         return None
 
-    custom_event_type = payload.get('custom_event_type')
+    custom_event_type = payload.get('custom_event_type') # type: ignore[union-attr]
     if custom_event_type not in ('quality_change', 'watch_complete'):
         return None
 
-    content_id = payload.get('content_id') or (
-        payload.get('attrs', {}).get('content_id')
-        if isinstance(payload.get('attrs'), dict)
+    content_id = payload.get('content_id') or ( # type: ignore[union-attr]
+        payload.get('attrs', {}).get('content_id') # type: ignore[union-attr]
+        if isinstance(payload.get('attrs'), dict) # type: ignore[union-attr]
         else None
     )
     if not content_id:
@@ -118,22 +118,22 @@ def transform_for_watch_sessions(event: dict) -> Optional[dict]:
     - quality_change
     - watch_complete
     """
-    event_type = event.get('event_type')
+    event_type = event.get('event_type') # type: ignore[union-attr]
     payload = event.get('payload') if isinstance(event.get('payload'), dict) else {}
 
     if event_type != 'custom_event':
         return None
 
-    custom_event_type = payload.get('custom_event_type')
+    custom_event_type = payload.get('custom_event_type') # type: ignore[union-attr]
     if custom_event_type not in ('quality_change', 'watch_complete'):
         return None
 
-    watch_session_id = payload.get('watch_session_id')
+    watch_session_id = payload.get('watch_session_id') # type: ignore[union-attr]
     if not watch_session_id:
         return None
 
-    content_id = payload.get('content_id')
-    user_id = event.get('user_id')
+    content_id = payload.get('content_id') # type: ignore[union-attr]
+    user_id = event.get('user_id') # type: ignore[union-attr]
 
     return {
         'watch_session_id': str(watch_session_id),
@@ -142,9 +142,9 @@ def transform_for_watch_sessions(event: dict) -> Optional[dict]:
         'session_id': str(event.get('session_id', '')),
         'started_at': _format_timestamp(event['occurred_at']),
         'last_updated_at': _format_timestamp(event['received_at']),
-        'quality': payload.get('to_quality', payload.get('from_quality', '')),
-        'progress_percent': _safe_float(payload.get('progress_percent')),
-        'duration_total': payload.get('duration_total_ms', 0),
+        'quality': payload.get('to_quality', payload.get('from_quality', '')), # type: ignore[union-attr]
+        'progress_percent': _safe_float(payload.get('progress_percent')), # type: ignore[union-attr]
+        'duration_total': payload.get('duration_total_ms', 0), # type: ignore[union-attr]
     }
 
 

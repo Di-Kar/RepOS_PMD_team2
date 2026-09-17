@@ -4,7 +4,12 @@ ignore_missing_imports = true
 show_error_codes = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = "."
+#mypy_path = "."
+
+scripts_are_modules = true
+
+# Указываем ugc_service как корень пакетов
+mypy_path = "fulltext_search:auth_service:analytics_etl:ugc_service:notification_api"
 
 exclude = [
     "^tests/",                # Корневая директория tests/
@@ -13,6 +18,17 @@ exclude = [
     ".*_test\\.py$",          # Файлы, заканчивающиеся на "_test.py"
     "conftest\\.py$",         # Файлы конфигурации pytest
     ".*bench_.*\\.py$",
+    
+    # Документация
+    "^docs/",
+    
+    # Миграции Alembic и Django
+    ".*/alembic/.*",
+    ".*/alembic/versions/.*",
+    ".*/migrations/.*",
+    ".*/versions/.*",
     ".*/migrations/",           # Все папки migrations/
     ".*migrations/.*\\.py$",    # Все файлы в миграция
 ]
+
+

@@ -35,7 +35,6 @@ class FilmWorkAdmin(admin.ModelAdmin):
         queryset = super().get_queryset(request).prefetch_related('genres')
         return queryset
 
+    @admin.display(description=_('genres'))
     def get_genres(self, obj):
         return ','.join([genre.name for genre in obj.genres.all()])
-
-    get_genres.short_description = _('genres')

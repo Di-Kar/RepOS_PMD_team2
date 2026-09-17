@@ -47,9 +47,9 @@ class EventProcessor:
     def add_event(
         self,
         validated_event: dict,
-        topic: str = None,
-        partition: int = None,
-        offset: int = None,
+        topic: str | None = None,
+        partition: int | None = None,
+        offset: int | None = None,
     ) -> None:
         """Добавить проверенное событие в буфер в памяти.
 
