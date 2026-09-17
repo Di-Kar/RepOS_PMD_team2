@@ -4,7 +4,10 @@ ignore_missing_imports = true
 show_error_codes = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = "."
+#mypy_path = "."
+
+# Указываем ugc_service как корень пакетов
+mypy_path = "ugc_service/src:auth_service/src:analytics_etl/src"
 
 exclude = [
     "^tests/",                # Корневая директория tests/
@@ -16,3 +19,5 @@ exclude = [
     ".*/migrations/",           # Все папки migrations/
     ".*migrations/.*\\.py$",    # Все файлы в миграция
 ]
+
+
