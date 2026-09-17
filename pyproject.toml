@@ -5,6 +5,9 @@ show_error_codes = true
 namespace_packages = true
 explicit_package_bases = true
 #mypy_path = "."
+# Ключевые настройки для монорепозитория
+namespace_packages = true
+explicit_package_bases = true
 
 # Указываем ugc_service как корень пакетов
 mypy_path = "ugc_service/src:auth_service/src:analytics_etl/src"
