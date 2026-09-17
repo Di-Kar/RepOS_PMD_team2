@@ -33,12 +33,12 @@ def transform_for_events(event: dict) -> dict:
         'session_id': str(event['session_id']),
         'sequence_number': int(event['sequence_number']),
         'consent': 1 if event['consent'] else 0,
-        'context_page_type': _empty_str(context.get('page_type')),
-        'context_page_id': _empty_str(context.get('page_id')),
-        'context_device': _empty_str(context.get('device')),
-        'context_browser': _empty_str(context.get('browser')),
-        'context_app_version': _empty_str(context.get('app_version')),
-        'source': _empty_str(event.get('source')),
+        'context_page_type': _empty_str(context.get('page_type')), # type: ignore[union-attr]
+        'context_page_id': _empty_str(context.get('page_id')), # type: ignore[union-attr]
+        'context_device': _empty_str(context.get('device')), # type: ignore[union-attr]
+        'context_browser': _empty_str(context.get('browser')), # type: ignore[union-attr]
+        'context_app_version': _empty_str(context.get('app_version')), # type: ignore[union-attr]
+        'source': _empty_str(event.get('source')), # type: ignore[union-attr]
         'custom_event_type': payload.get('custom_event_type'),
         'payload_content_id': payload.get('content_id'),
         'payload_watch_session_id': payload.get('watch_session_id'),
