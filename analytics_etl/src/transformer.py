@@ -144,7 +144,7 @@ def transform_for_watch_sessions(event: dict) -> Optional[dict]:
         'last_updated_at': _format_timestamp(event['received_at']),
         'quality': payload.get('to_quality', payload.get('from_quality', '')), # type: ignore[union-attr]
         'progress_percent': _safe_float(payload.get('progress_percent')), # type: ignore[union-attr]
-        'duration_total': payload.get('duration_total_ms', 0 # type: ignore[union-attr]
+        'duration_total': payload.get('duration_total_ms', 0), # type: ignore[union-attr]
     }
 
 
