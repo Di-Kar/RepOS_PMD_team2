@@ -6,6 +6,8 @@ namespace_packages = true
 explicit_package_bases = true
 #mypy_path = "."
 
+scripts_are_modules = True
+
 # Указываем ugc_service как корень пакетов
 mypy_path = "ugc_service/src:auth_service/src:analytics_etl/src"
 
