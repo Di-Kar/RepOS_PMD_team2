@@ -118,13 +118,13 @@ def transform_for_watch_sessions(event: dict) -> Optional[dict]:
     - quality_change
     - watch_complete
     """
-    event_type = event.get('event_type')
+    event_type = event.get('event_type') # type: ignore[union-attr]
     payload = event.get('payload') if isinstance(event.get('payload'), dict) else {}
 
     if event_type != 'custom_event':
         return None
 
-    custom_event_type = payload.get('custom_event_type')
+    custom_event_type = payload.get('custom_event_type') # type: ignore[union-attr]
     if custom_event_type not in ('quality_change', 'watch_complete'):
         return None
 
