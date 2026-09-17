@@ -15,8 +15,7 @@ _UGC_SRC = str(Path(__file__).resolve().parent.parent)
 if _UGC_SRC not in sys.path:
     sys.path.insert(0, _UGC_SRC)
 
-from config import settings  # noqa: E402
-
+from config import settings   # type: ignore[attr-defined]
 
 def _validate_object_id(review_id: str) -> ObjectId:
     """Валидировать и преобразовать строку в ObjectId."""
