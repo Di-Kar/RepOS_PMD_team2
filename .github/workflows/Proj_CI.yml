@@ -82,10 +82,11 @@ jobs:
 
       - name: Type check with Mypy
         run: |
+          mypy admin_panel
           mypy auth_service
           mypy analytics_etl
           mypy ugc_service
-          mypy notification_service
+          mypy notification_api
           mypy fulltext_search
           mypy notification_admin_panel
 
