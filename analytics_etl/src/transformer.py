@@ -39,14 +39,14 @@ def transform_for_events(event: dict) -> dict:
         'context_browser': _empty_str(context.get('browser')), # type: ignore[union-attr]
         'context_app_version': _empty_str(context.get('app_version')), # type: ignore[union-attr]
         'source': _empty_str(event.get('source')), # type: ignore[union-attr]
-        'custom_event_type': payload.get('custom_event_type'),
-        'payload_content_id': payload.get('content_id'),
-        'payload_watch_session_id': payload.get('watch_session_id'),
-        'payload_duration_ms': payload.get('duration_ms'),
-        'payload_progress_percent': payload.get('progress_percent'),
-        'payload_from_quality': payload.get('from_quality'),
-        'payload_to_quality': payload.get('to_quality'),
-        'payload_tab_active': payload.get('tab_active'),
+        'custom_event_type': payload.get('custom_event_type'), # type: ignore[union-attr]
+        'payload_content_id': payload.get('content_id'), # type: ignore[union-attr]
+        'payload_watch_session_id': payload.get('watch_session_id'), # type: ignore[union-attr]
+        'payload_duration_ms': payload.get('duration_ms'), # type: ignore[union-attr]
+        'payload_progress_percent': payload.get('progress_percent'), # type: ignore[union-attr]
+        'payload_from_quality': payload.get('from_quality'), # type: ignore[union-attr]
+        'payload_to_quality': payload.get('to_quality'), # type: ignore[union-attr]
+        'payload_tab_active': payload.get('tab_active'), # type: ignore[union-attr]
         'raw_event': raw_json,
     }
 
