@@ -9,9 +9,9 @@ explicit_package_bases = true
 scripts_are_modules = true
 
 # Указываем ugc_service как корень пакетов
-mypy_path = "ugc_service/src"
-#:auth_service/src"
-#:analytics_etl/src"
+mypy_path = "fulltext_search:auth_service:analytics_etl:ugc_service:notification_api"
+
+
 
 exclude = [
     "^tests/",                # Корневая директория tests/
