@@ -13,6 +13,9 @@ alembic==1.12.1
 # Kafka
 aiokafka==0.11.0
 
+# HTTP-клиент к auth_service (проверка токена websocket-подключения, S10_T4)
+httpx==0.27.0
+
 # Rate Limiting
 slowapi==0.1.9
 

@@ -80,6 +80,14 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="INFO", alias="NOTIFICATIONS_LOG_LEVEL")
 
+    # auth_service (S10_T4, issue #97): проверка токена websocket-клиента.
+    # Без префикса NOTIFICATIONS_ — общая для всего проекта переменная (тот
+    # же AUTH_SERVICE_URL, что у async_api/ugc_service).
+    auth_service_url: str = Field(
+        default="http://auth_service:8000/api/v1/auth", alias="AUTH_SERVICE_URL"
+    )
+    auth_service_timeout: float = Field(default=3.0, alias="AUTH_SERVICE_TIMEOUT")
+
     jaeger_endpoint: str = Field(default="", alias="JAEGER_ENDPOINT")
 
     # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)

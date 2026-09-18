@@ -14,6 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from src.api.v1.notifications import router as notifications_router
+from src.api.v1.websocket import router as websocket_router
 from src.core.config import settings
 from src.core.kafka_producer import close_producer, init_producer
 from src.core.rate_limiter import limiter
@@ -52,6 +53,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 app.include_router(notifications_router)
+app.include_router(websocket_router)
 
 
 @app.get("/health", tags=["Health"])

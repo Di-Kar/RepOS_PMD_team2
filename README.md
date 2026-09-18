@@ -13,7 +13,7 @@
 - `analytics_etl` — ETL, вычитывающий события из Kafka и загружающий их в ClickHouse (схема БД — `clickhouse_init/init.sql`), env-переменные с префиксом `ANALYTICS_`.
 - `shared` — общий код, используемый несколькими сервисами (сейчас — схемы событий `shared/event_schemas.py`, единая точка валидации для `event_api` и `analytics_etl`).
 - `ugc_service` — сервис пользовательского контента: закладки, лайки и рецензии к фильмам; хранилище — шардированный кластер MongoDB (конфиг — `docker/setup_mongo_cluster.sh`), авторизация — JWT от `auth_service` (`ugc_service` его не выпускает, а проксирует `/api/v1/auth/login`).
-- `notification_api` — приём заявок на создание уведомлений (от `admin_panel` и других сервисов), фан-аут по получателям и публикация в Kafka; сам не рендерит и не отправляет — доставка (`notification_worker`, S10_T3) будет отдельным сервисом. Контракт — `docs/notification_requests_contract.md`, env-переменные с префиксом `NOTIFICATIONS_`.
+- `notification_api` — приём заявок на создание уведомлений (от `admin_panel`, `auth_service` и других сервисов), фан-аут по получателям и публикация в Kafka. Каналы `email`/`sms`/`push` сам не рендерит и не отправляет — доставка (`notification_worker`, S10_T3) будет отдельным сервисом; канал `websocket` (S10_T4, issue #97) — исключение, доставляется им же самим (см. §10 контракта). Контракт — `docs/notification_requests_contract.md`, env-переменные с префиксом `NOTIFICATIONS_`.
 - `notification_admin_panel` — панель администратора на Django для создания и отправки уведомлений (обращается к `notification_api`); своя PostgreSQL (`notification_postgres`) и cron-воркер для отложенных/повторяющихся рассылок (`notification_admin_cron`).
 - `tests` — все тесты проекта, образ собирается из `tests/Dockerfile` с кэшированием зависимостей.
 
@@ -49,6 +49,7 @@ docker compose --profile tests down -v --remove-orphans
   - Swagger (http://localhost:8003/docs)
 - notification_api:
   - Swagger (http://localhost:8004/docs)
+  - Websocket мгновенных уведомлений (ws://localhost:8004/api/v1/notifications/ws?token=<access_token>)
 - notification_admin_panel:
   - HTML-панель (http://localhost:8005/panel/)
   - Django-админка (http://localhost:8005/admin/)

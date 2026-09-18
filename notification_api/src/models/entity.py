@@ -18,6 +18,14 @@ from src.db.postgres import Base
 STATUS_KAFKA_PUBLISHED = "kafka_published"
 STATUS_KAFKA_PUBLISH_FAILED = "kafka_publish_failed"
 
+# channel="websocket" (S10_T4, issue #97) не публикуется в Kafka — доставляется
+# синхронно в рамках того же HTTP-запроса (notification_api сам держит
+# соединение), поэтому статус сразу отражает фактический результат, а не факт
+# постановки в очередь.
+STATUS_WEBSOCKET_DELIVERED = "websocket_delivered"
+STATUS_WEBSOCKET_NO_CONNECTION = "websocket_no_connection"
+STATUS_WEBSOCKET_TEXT_REQUIRED = "websocket_text_required"
+
 
 class NotificationLog(Base):
     """Одна строка на notification_id (т.е. на получателя после фан-аута) —

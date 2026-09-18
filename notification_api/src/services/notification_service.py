@@ -15,6 +15,9 @@ from src.db.postgres import AsyncSessionLocal
 from src.models.entity import (
     STATUS_KAFKA_PUBLISH_FAILED,
     STATUS_KAFKA_PUBLISHED,
+    STATUS_WEBSOCKET_DELIVERED,
+    STATUS_WEBSOCKET_NO_CONNECTION,
+    STATUS_WEBSOCKET_TEXT_REQUIRED,
     NotificationLog,
 )
 from src.models.responses import NotificationRequestResult, RejectedRecipient
@@ -23,6 +26,7 @@ from src.models.schemas import (
     derive_notification_id,
     to_kafka_record,
 )
+from src.services.websocket_manager import manager as websocket_manager
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +51,50 @@ def _split_recipients(
     return list(valid.keys()), rejected
 
 
+def _to_ws_payload(record: dict) -> dict:
+    return {
+        "notification_id": record["notification_id"],
+        "request_id": record["request_id"],
+        "source_service": record["source_service"],
+        "subject": record.get("subject_override"),
+        "text": record["text_override"],
+        "context": record.get("context") or {},
+        "occurred_at": record["occurred_at"],
+    }
+
+
+async def _deliver_websocket(
+    request: NotificationRequest, user_id: uuid.UUID, record: dict, log_row: dict
+) -> tuple[dict, RejectedRecipient | None]:
+    """channel="websocket" (S10_T4, issue #97) не идёт в Kafka — доставляется
+    синхронно в рамках этого же HTTP-запроса: notification_api сам держит
+    открытые соединения, и отдельный consumer для одного топика/одного
+    процесса ничего бы не выигрывал (при масштабировании на несколько
+    реплик проблема — какая реплика держит нужное соединение — не решается
+    ни тем, ни другим способом без pub/sub поверх, см. §10 контракта).
+
+    MVP: доставляется только text_override — рендеринг шаблонов остаётся
+    работой notification_worker (S10_T3), которого для этого канала нет."""
+    if not request.text_override:
+        log_row["status"] = STATUS_WEBSOCKET_TEXT_REQUIRED
+        return log_row, RejectedRecipient(
+            user_id=str(user_id), reason="websocket_requires_text_override"
+        )
+
+    delivered = await websocket_manager.send_to_user(
+        str(user_id), _to_ws_payload(record)
+    )
+    log_row["status"] = (
+        STATUS_WEBSOCKET_DELIVERED if delivered else STATUS_WEBSOCKET_NO_CONNECTION
+    )
+    return log_row, None
+
+
 async def _publish_one(
     request: NotificationRequest, user_id: uuid.UUID
 ) -> tuple[dict, RejectedRecipient | None]:
-    """Публикует одно уведомление; возвращает значения строки лога для БД
-    (§9, статус проставлен по результату публикации) и причину отказа либо
+    """Публикует/доставляет одно уведомление; возвращает значения строки
+    лога для БД (§9, статус проставлен по результату) и причину отказа либо
     None при успехе."""
     received_at = datetime.now(timezone.utc)
     record = to_kafka_record(request, user_id, received_at=received_at)
@@ -70,6 +113,10 @@ async def _publish_one(
         "occurred_at": request.occurred_at,
         "received_at": received_at,
     }
+
+    if request.channel == "websocket":
+        return await _deliver_websocket(request, user_id, record, log_row)
+
     try:
         await publish_notification(key=str(user_id), value=record)
     except Exception as exc:
@@ -104,8 +151,16 @@ _UPSERT_UPDATE_COLUMNS = (
 # status — особый случай: если notification_worker уже успел обновить его
 # (значит сообщение реально дошло до консьюмера), ретрай публикации не должен
 # отбрасывать этот статус назад в kafka_published/kafka_publish_failed —
-# перезаписываем status только пока он ещё "наш" (см. entity.py).
-_OWN_STATUSES = (STATUS_KAFKA_PUBLISHED, STATUS_KAFKA_PUBLISH_FAILED)
+# перезаписываем status только пока он ещё "наш" (см. entity.py). Для
+# websocket "наш" — всегда: там нет внешнего воркера, который мог бы
+# обновить статус поверх нашего.
+_OWN_STATUSES = (
+    STATUS_KAFKA_PUBLISHED,
+    STATUS_KAFKA_PUBLISH_FAILED,
+    STATUS_WEBSOCKET_DELIVERED,
+    STATUS_WEBSOCKET_NO_CONNECTION,
+    STATUS_WEBSOCKET_TEXT_REQUIRED,
+)
 
 
 async def _persist_log_entries(rows: list[dict]) -> None:
