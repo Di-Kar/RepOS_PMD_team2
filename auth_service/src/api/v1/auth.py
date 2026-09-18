@@ -2,7 +2,15 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +41,10 @@ from src.models.schemas import (
     UserUpdateRequest,
 )
 from src.services.auth_service import AuthService, join_full_name
+from src.services.notification_client import (
+    send_password_changed_notification,
+    send_welcome_notification,
+)
 from src.services.token_service import TokenService
 
 router = APIRouter(prefix="/api/v1/auth")
@@ -59,6 +71,7 @@ async def _profile_response(user: User, session: AsyncSession) -> UserResponse:
 async def register(
     payload: UserRegisterRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
 ) -> UserRegisterResponse:
     service = AuthService(session)
@@ -71,6 +84,7 @@ async def register(
             status_code=status.HTTP_409_CONFLICT,
             detail={"error": "email_taken", "message": "Email already registered"},
         )
+    background_tasks.add_task(send_welcome_notification, user.id)
     return UserRegisterResponse(**_user_response(user), created_at=user.created_at)
 
 
@@ -202,6 +216,7 @@ async def update_profile(
 async def change_password(
     request: Request,
     payload: ChangePasswordRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     token_payload: TokenPayload = Depends(get_token_payload),
     session: AsyncSession = Depends(get_session),
@@ -224,6 +239,7 @@ async def change_password(
     await TokenService(redis).revoke_all_sessions(
         token_payload.sub, except_session_id=token_payload.session_id
     )
+    background_tasks.add_task(send_password_changed_notification, user.id)
     return MessageResponse(message="Password changed successfully")
 
 

@@ -407,6 +407,24 @@ services:
     networks:
       - backend
 
+  # Миграции notification_api (alembic upgrade head) — по образцу
+  # auth_migrations. Без этого шага таблица notification_log (§9 контракта)
+  # никогда не создаётся, и запись лога молча падает (best-effort, не роняет
+  # HTTP-ответ notification_api).
+  notification_migrations:
+    build:
+      context: ./notification_api
+      dockerfile: Dockerfile
+    container_name: notification_migrations
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - ./.env
+    depends_on:
+      notification_postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
   # API приёма заявок на уведомления (FastAPI): валидирует заявки по
   # контракту docs/notification_requests_contract.md, разворачивает
   # получателей и публикует в Kafka. Сам не рендерит и не отправляет —
@@ -436,6 +454,10 @@ services:
         condition: service_completed_successfully
       jaeger:
         condition: service_started
+      notification_postgres:
+        condition: service_healthy
+      notification_migrations:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - backend

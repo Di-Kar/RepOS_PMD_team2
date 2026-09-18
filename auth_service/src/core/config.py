@@ -87,6 +87,20 @@ class Settings(BaseSettings):
     # Лимит по умолчанию (если не указан на конкретном эндпоинте)
     rate_limit_default: str = Field(default="100/minute", alias="RATE_LIMIT_DEFAULT")
 
+    # notification_api (S10_T7, issue #100): приветственное письмо при
+    # регистрации и уведомление о смене пароля — best-effort, см.
+    # src/services/notification_client.py. NOTIFICATIONS_API_KEY без префикса
+    # AUTH_ — единый ключ на всех вызывающих (contract §2), тот же, что у
+    # notification_admin_panel.
+    notifications_api_url: str = Field(
+        default="http://notification_api:8000/api/v1",
+        alias="AUTH_NOTIFICATIONS_API_URL",
+    )
+    notifications_api_key: str = Field(default="", alias="NOTIFICATIONS_API_KEY")
+    notifications_api_timeout: float = Field(
+        default=5.0, alias="AUTH_NOTIFICATIONS_API_TIMEOUT"
+    )
+
     # OAuth (Google)
     google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
     google_client_secret: str = Field(default="", alias="GOOGLE_CLIENT_SECRET")

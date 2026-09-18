@@ -48,13 +48,14 @@ NOTIFICATIONS_POSTGRES_HOST = os.getenv(
     'NOTIFICATIONS_POSTGRES_HOST', 'notification_postgres'
 )
 NOTIFICATIONS_POSTGRES_PORT = int(os.getenv('NOTIFICATIONS_POSTGRES_PORT', '5432'))
-NOTIFICATIONS_POSTGRES_USER = os.getenv(
-    'NOTIFICATIONS_POSTGRES_USER', 'notification_user'
-)
+# Без "S" — так реально называется в .env/.env.example и docker-compose.yml
+# (POSTGRES_USER/PASSWORD/DB сервиса notification_postgres); с "S" в env_file
+# такой переменной нет, и подключение падает на дефолтных кредах.
+NOTIFICATIONS_POSTGRES_USER = os.getenv('NOTIFICATION_POSTGRES_USER', 'notify_user')
 NOTIFICATIONS_POSTGRES_PASSWORD = os.getenv(
-    'NOTIFICATIONS_POSTGRES_PASSWORD', 'notification_password'
+    'NOTIFICATION_POSTGRES_PASSWORD', 'notify_secret'
 )
-NOTIFICATIONS_POSTGRES_DB = os.getenv('NOTIFICATIONS_POSTGRES_DB', 'notification_db')
+NOTIFICATIONS_POSTGRES_DB = os.getenv('NOTIFICATION_POSTGRES_DB', 'notifications_db')
 
 
 def make_request(**overrides) -> dict:

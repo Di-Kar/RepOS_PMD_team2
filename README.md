@@ -8,7 +8,7 @@
 - `database` — скрипты для наполнения базы данных (структура формируется миграциями django из admin_panel).
 - `fulltext_search` — сервис для полнотекстового поиска (ETL переноса данных из PostgreSQL в Elasticsearch).
 - `async_api` — асинхронное API для онлайн-кинотеатра.
-- `auth_service` — сервис авторизации (JWT, роли/RBAC; свои PostgreSQL и Redis, все env-переменные с префиксом `AUTH_`).
+- `auth_service` — сервис авторизации (JWT, роли/RBAC; свои PostgreSQL и Redis, все env-переменные с префиксом `AUTH_`); при регистрации и смене пароля best-effort отправляет уведомление через `notification_api` (S10_T7, issue #100).
 - `event_api` — приём пользовательских событий (клики, просмотры страниц, кастомные события) и публикация их в Kafka; контракт событий — `docs/user_events_contract.md`, env-переменные с префиксом `EVENTS_`.
 - `analytics_etl` — ETL, вычитывающий события из Kafka и загружающий их в ClickHouse (схема БД — `clickhouse_init/init.sql`), env-переменные с префиксом `ANALYTICS_`.
 - `shared` — общий код, используемый несколькими сервисами (сейчас — схемы событий `shared/event_schemas.py`, единая точка валидации для `event_api` и `analytics_etl`).

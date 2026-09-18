@@ -25,16 +25,22 @@ class Settings(BaseSettings):
 
     # PostgreSQL — лог заявок, отправленных в Kafka (docs/
     # notification_requests_contract.md §9). Своя БД, отдельная от auth_service.
-    postgres_host: str = Field(default="localhost", alias="NOTIFICATIONS_POSTGRES_HOST")
-    postgres_port: int = Field(default=5432, alias="NOTIFICATIONS_POSTGRES_PORT")
+    # Без "S" — так называется реально заданная переменная (.env.example,
+    # сервис notification_postgres в docker-compose.yml); с "S" такой
+    # переменной никогда не было, и подключение всегда уходило на дефолтный
+    # localhost, то есть notification_log не писался ни в одном окружении.
+    postgres_host: str = Field(
+        default="notification_postgres", alias="NOTIFICATION_POSTGRES_HOST"
+    )
+    postgres_port: int = Field(default=5432, alias="NOTIFICATION_POSTGRES_PORT")
     postgres_db: str = Field(
-        default="notification_db", alias="NOTIFICATIONS_POSTGRES_DB"
+        default="notifications_db", alias="NOTIFICATION_POSTGRES_DB"
     )
     postgres_user: str = Field(
-        default="notification_user", alias="NOTIFICATIONS_POSTGRES_USER"
+        default="notify_user", alias="NOTIFICATION_POSTGRES_USER"
     )
     postgres_password: str = Field(
-        default="notification_password", alias="NOTIFICATIONS_POSTGRES_PASSWORD"
+        default="notify_secret", alias="NOTIFICATION_POSTGRES_PASSWORD"
     )
 
     # Kafka

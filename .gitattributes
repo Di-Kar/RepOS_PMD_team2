@@ -1,0 +1,4 @@
+# crontab (Debian cron) не понимает CRLF — "bad minute" при `crontab file`.
+# core.autocrlf=true на Windows иначе перезатирает файл обратно в CRLF при
+# следующем checkout.
+notification_admin_panel/crontab text eol=lf
