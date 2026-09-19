@@ -8,7 +8,6 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
 
 import asyncpg
 from aiokafka.structs import ConsumerRecord
@@ -16,46 +15,38 @@ from notification_schemas import ReadyToSendMessage
 from pydantic import ValidationError
 
 from src.clients.email_client import PermanentSendError, send_email
-from src.core.config import settings
 from src.core.errors import PermanentProcessingError
+from src.core.message_utils import safe_raw_message, try_uuid
 from src.db import queries
 from src.db.postgres import get_pool
 
 logger = logging.getLogger(__name__)
 
 
-def _safe_raw_message(raw_bytes: bytes) -> Optional[dict[str, Any]]:
-    try:
-        return {"raw_utf8": raw_bytes.decode("utf-8", errors="replace")[:4000]}
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _try_uuid(value: Any) -> Optional[uuid.UUID]:
-    try:
-        return uuid.UUID(str(value))
-    except (TypeError, ValueError):
-        return None
-
-
-async def _claim_for_sending(pool: asyncpg.Pool, message: ReadyToSendMessage) -> bool:
+async def _claim_for_sending(
+    pool: asyncpg.Pool, message: ReadyToSendMessage, attempt_id: uuid.UUID
+) -> bool:
     """Возвращает True, если можно (продолжать) слать письмо, False —
     сообщение уже обработано/не подлежит обработке (никаких дальнейших
     действий не требуется).
 
-    Разбор статуса 'sending' — ключевая часть идемпотентности: Kafka
+    Разбор статуса 'sending' — ключевая часть идемпотентности. Kafka
     гарантирует, что одну и ту же партицию (а значит, и notification_id —
     партиционирование по user_id) в любой момент читает не больше одного
-    консьюмера в группе, поэтому 'sending', возникший в рамках текущей серии
-    ретраев ЭТОГО ЖЕ сообщения (consumer.py, TransientProcessingError),
-    безопасно продолжать — лиз (last_notification_send) свежий. Если лиз
-    истёк, статус 'sending' почти наверняка оставлен процессом, упавшим
-    между claim'ом и результатом отправки (либо до, либо после реального
-    SMTP-вызова, мы не можем узнать) — авто-ретрай в этом случае мог бы
-    продублировать письмо, поэтому уходит в DLQ на разбор человеком."""
+    консьюмера в группе — но нужно ещё отличить "это моя же, ещё не
+    прервавшаяся серия ретраев ЭТОГО ЖЕ сообщения" (consumer.py,
+    TransientProcessingError) от "предыдущий вызов упал после claim'а, но
+    до/после фактической отправки" (перезапуск процесса, переигровка
+    offset'а). Раньше это решалось эвристикой по времени
+    (NOTIFICATION_WORKER_SEND_LEASE_SECONDS) — она не могла надёжно
+    различить свежий чужой crash от своего же живого ретрая (см. ревью).
+    Теперь `attempt_id` — случайный, стабильный только в пределах одного
+    непрерывного вызова consumer.py._process_with_retry на это сообщение
+    (src/consumer.py) — записывается вместе со статусом 'sending' и
+    сверяется точным сравнением, без угадывания по времени."""
     async with pool.acquire() as conn, conn.transaction():
-        row = await queries.get_notification_for_claim(conn, message.notification_id)
-        if row is None:
+        status = await queries.get_status_for_claim(conn, message.notification_id)
+        if status is None:
             # Render-стадия обязана создать эту строку до публикации в
             # ready-топик — отсутствие означает рассинхрон, а не штатный
             # случай; разбираем отдельно, не пытаясь угадать контент.
@@ -69,7 +60,6 @@ async def _claim_for_sending(pool: asyncpg.Pool, message: ReadyToSendMessage) ->
             )
             return False
 
-        status = row["status"]
         if status in ("sent", "failed", "skipped"):
             logger.info(
                 f"notification_id={message.notification_id} already {status}, "
@@ -78,12 +68,12 @@ async def _claim_for_sending(pool: asyncpg.Pool, message: ReadyToSendMessage) ->
             return False
 
         if status == "sending":
-            last_send = row["last_notification_send"]
-            lease_expired = last_send is None or (
-                datetime.now(timezone.utc) - last_send
-            ).total_seconds() > settings.send_lease_seconds
-            if not lease_expired:
-                await queries.touch_sending_lease(conn, message.notification_id)
+            current_attempt = await queries.get_latest_sending_attempt(
+                conn, message.notification_id
+            )
+            if current_attempt == str(attempt_id):
+                # Точно та же, ещё не прервавшаяся серия ретраев этого же
+                # процесса на это же сообщение — безопасно продолжать.
                 return True
             await queries.insert_dlq(
                 conn,
@@ -91,9 +81,10 @@ async def _claim_for_sending(pool: asyncpg.Pool, message: ReadyToSendMessage) ->
                 stage="send",
                 error_type="send_ambiguous",
                 error_message=(
-                    f"stuck in 'sending' since {last_send} (lease "
-                    f"{settings.send_lease_seconds}s expired) — not "
-                    "auto-retrying to avoid duplicate delivery"
+                    f"stuck in 'sending' under a different attempt_id "
+                    f"({current_attempt!r} != {attempt_id}) — process likely "
+                    "crashed after claiming; not auto-retrying to avoid "
+                    "duplicate delivery"
                 ),
                 raw_message=message.model_dump(mode="json"),
             )
@@ -103,10 +94,7 @@ async def _claim_for_sending(pool: asyncpg.Pool, message: ReadyToSendMessage) ->
             return False
 
         # status == "pending"
-        await queries.mark_sending(conn, message.notification_id)
-        await queries.insert_notification_history(
-            conn, message.notification_id, "sending"
-        )
+        await queries.mark_sending(conn, message.notification_id, attempt_id)
         return True
 
 
@@ -132,7 +120,7 @@ async def _record_result(
         await queries.update_notification_log_status(conn, message.notification_id, status)
 
 
-async def handle_message(record: ConsumerRecord) -> None:
+async def handle_message(record: ConsumerRecord, attempt_id: uuid.UUID) -> None:
     pool = get_pool()
 
     try:
@@ -144,7 +132,7 @@ async def handle_message(record: ConsumerRecord) -> None:
             stage="send",
             error_type="invalid_json",
             error_message=str(exc),
-            raw_message=_safe_raw_message(record.value),
+            raw_message=safe_raw_message(record.value),
         )
         raise PermanentProcessingError(f"invalid JSON: {exc}") from exc
 
@@ -154,7 +142,7 @@ async def handle_message(record: ConsumerRecord) -> None:
         maybe_id = raw.get("notification_id") if isinstance(raw, dict) else None
         await queries.insert_dlq(
             pool,
-            notification_id=_try_uuid(maybe_id),
+            notification_id=try_uuid(maybe_id),
             stage="send",
             error_type="invalid_message",
             error_message=str(exc),
@@ -167,7 +155,7 @@ async def handle_message(record: ConsumerRecord) -> None:
         # реализованы), этот процесс не трогает сообщение вовсе.
         return
 
-    if not await _claim_for_sending(pool, message):
+    if not await _claim_for_sending(pool, message, attempt_id):
         return
 
     try:
@@ -184,8 +172,9 @@ async def handle_message(record: ConsumerRecord) -> None:
         )
         raise PermanentProcessingError(str(exc)) from exc
     # TransientSendError (подкласс TransientProcessingError) пробрасывается
-    # как есть — consumer.py её ретраит; notifications.status остаётся
-    # 'sending', лиз обновится на следующем заходе в _claim_for_sending.
+    # как есть — consumer.py её ретраит с тем же attempt_id (см.
+    # src/consumer.py), поэтому следующий заход в _claim_for_sending узнает
+    # свою же 'sending'-запись и продолжит без повторной пометки.
 
     await _record_result(pool, message, status="sent")
     logger.info(f"notification_id={message.notification_id} sent")

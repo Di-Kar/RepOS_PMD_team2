@@ -9,6 +9,7 @@ import signal
 
 import sentry_sdk
 
+from src.clients.auth_client import close_auth_client, init_auth_client
 from src.consumer import run_consumer_loop
 from src.core.config import settings
 from src.core.tracer import configure_tracer
@@ -30,6 +31,7 @@ async def main() -> None:
     configure_tracer("notification_worker_render", debug=settings.debug)
     await init_pool()
     await init_producer()
+    await init_auth_client()
 
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
@@ -41,6 +43,7 @@ async def main() -> None:
             topic=settings.kafka_topic_requests,
             group_id=settings.kafka_consumer_group_render,
             handler=handle_message,
+            stage="render",
         )
     )
 
@@ -52,6 +55,7 @@ async def main() -> None:
     except asyncio.CancelledError:
         pass
 
+    await close_auth_client()
     await close_producer()
     await close_pool()
 

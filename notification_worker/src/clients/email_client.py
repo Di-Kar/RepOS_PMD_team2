@@ -65,13 +65,27 @@ class SmtpPool:
     прождав пул дольше `smtp_timeout`, сам открывает соединение напрямую
     (сверх пула), так что обработка сообщения не виснет навсегда даже если
     SMTP временно недоступен. Самовосстановление происходит по мере
-    следующих `release()`, без отдельной фоновой задачи."""
+    следующих `release()`, без отдельной фоновой задачи.
+
+    Соединения, входящие в пул ("члены"), отслеживаются по `id(client)` в
+    `_members` — это отличает их от временных сверх-пуловых соединений,
+    которые `acquire()` открывает при таймауте ожидания: временные не
+    учитываются в `_created` и не возвращаются в пул, а закрываются сразу
+    после использования — иначе `_created` (число "постоянных" соединений)
+    разошлось бы с реальным количеством живых соединений при устойчиво
+    медленном SMTP, и пул мог бы расти неограниченно."""
 
     def __init__(self, size: int):
         self._size = size
         self._pool: asyncio.Queue[aiosmtplib.SMTP] = asyncio.Queue()
         self._created = 0
         self._lock = asyncio.Lock()
+        self._members: set[int] = set()
+
+    async def _connect_member(self) -> aiosmtplib.SMTP:
+        client = await _connect()
+        self._members.add(id(client))
+        return client
 
     async def _acquire_or_create(self) -> aiosmtplib.SMTP:
         if not self._pool.empty():
@@ -79,7 +93,7 @@ class SmtpPool:
         async with self._lock:
             if self._created < self._size:
                 self._created += 1
-                return await _connect()
+                return await self._connect_member()
         return await self._pool.get()
 
     async def acquire(self) -> aiosmtplib.SMTP:
@@ -89,34 +103,48 @@ class SmtpPool:
             )
         except asyncio.TimeoutError:
             # Пул исчерпан/завис дольше таймаута — не блокируем обработку
-            # сообщения навечно, открываем временное соединение сверх пула.
-            client = await _connect()
+            # сообщения навечно, открываем временное соединение СВЕРХ пула
+            # (не через _connect_member — оно не "член" пула, см. release()).
+            return await _connect()
         if not client.is_connected:
             # Соединение из пула успело умереть само по себе (сервер закрыл
             # его по простою между письмами) — не отдаём заведомо мёртвое.
             await self._discard(client)
-            client = await _connect()
+            client = await self._connect_member()
         return client
 
     async def release(self, client: aiosmtplib.SMTP) -> None:
         """Возвращает соединение в пул, если оно всё ещё живо (проверяется
         постфактум через `is_connected` — этого достаточно, чтобы отличить
         реальный обрыв транспорта от обычного 4xx/5xx SMTP-ответа, который
-        сессию не разрывает)."""
+        сессию не разрывает) И является членом пула — временное
+        сверх-пуловое соединение из acquire() всегда просто закрывается."""
+        is_member = id(client) in self._members
         if client.is_connected:
-            await self._pool.put(client)
+            if is_member:
+                await self._pool.put(client)
+            else:
+                await self._safe_quit(client)
+            return
+        if not is_member:
+            await self._safe_quit(client)
             return
         await self._discard(client)
         try:
-            fresh = await _connect()
+            fresh = await self._connect_member()
         except Exception as exc:  # noqa: BLE001 — переподключение best-effort
             logger.warning(f"SMTP reconnect failed while releasing pool slot: {exc}")
             return
         await self._pool.put(fresh)
 
     async def _discard(self, client: aiosmtplib.SMTP) -> None:
+        self._members.discard(id(client))
         async with self._lock:
             self._created = max(self._created - 1, 0)
+        await self._safe_quit(client)
+
+    @staticmethod
+    async def _safe_quit(client: aiosmtplib.SMTP) -> None:
         try:
             await client.quit()
         except Exception:  # noqa: BLE001
@@ -125,10 +153,8 @@ class SmtpPool:
     async def close(self) -> None:
         while not self._pool.empty():
             client = self._pool.get_nowait()
-            try:
-                await client.quit()
-            except Exception:  # noqa: BLE001
-                pass
+            self._members.discard(id(client))
+            await self._safe_quit(client)
 
 
 _pool: Optional[SmtpPool] = None

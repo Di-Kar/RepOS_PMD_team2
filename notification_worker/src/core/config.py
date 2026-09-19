@@ -89,17 +89,16 @@ class Settings(BaseSettings):
     partition_pause_seconds: float = Field(
         default=30.0, alias="NOTIFICATION_WORKER_PARTITION_PAUSE_SECONDS"
     )
-
-    # Send-стадия: сколько секунд статус notifications.status='sending'
-    # считается "живым" (тот же процесс всё ещё ретраит отправку) прежде
-    # чем считаться зависшим после падения процесса (см.
-    # send_service._claim_for_sending). Не настоящая распределённая
-    # блокировка с owner-id — эвристика по времени, достаточная при
-    # гарантии Kafka "одна партиция — один консьюмер группы одновременно";
-    # окно должно быть заметно больше, чем реалистичное время одной серии
-    # ретраев (retry_max_attempts * smtp_timeout).
-    send_lease_seconds: float = Field(
-        default=120.0, alias="NOTIFICATION_WORKER_SEND_LEASE_SECONDS"
+    # Сколько раз подряд можно поставить партицию на паузу и повторить одно
+    # и то же сообщение (после исчерпания retry_max_attempts внутри каждого
+    # цикла), прежде чем сдаться и зафиксировать сообщение как
+    # необработанное в DLQ (см. src/consumer.py). Без этого предела
+    # сообщение, которое ломается по причине, не зависящей от количества
+    # попыток (например баг), крутилось бы pause/resume/retry бесконечно и
+    # блокировало бы партицию (а с ней — всех пользователей, чьи сообщения
+    # туда попадают) навсегда.
+    max_pause_cycles: int = Field(
+        default=5, alias="NOTIFICATION_WORKER_MAX_PAUSE_CYCLES"
     )
 
     # TTL кэша message_templates в памяти — шаблоны меняются редко

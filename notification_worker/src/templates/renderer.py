@@ -36,6 +36,16 @@ class TemplateNotFoundError(Exception):
     рендер-стадия трактует любую из этих причин одинаково."""
 
 
+class TemplateRenderError(Exception):
+    """Шаблон найден и активен, но не рендерится под Jinja2 (синтаксис
+    или ошибка при подстановке). Валидация в notification_admin_panel
+    (MessageTemplate.validate_template) проверяет синтаксис ДЖАНГО-шаблона,
+    не Jinja2 — шаблон, прошедший ту валидацию, может использовать
+    конструкции (`{% ... %}`-теги, фильтры вида `|default:"x"`), невалидные
+    или иначе работающие под Jinja2. Тоже постоянная ошибка — ретраить
+    без исправления самого шаблона бессмысленно."""
+
+
 async def get_template(template_id: str) -> dict[str, str]:
     now = time.monotonic()
     cached = _cache.get(template_id)
@@ -56,9 +66,19 @@ def render(
     *, subject_template: str, body_template: str, context: dict
 ) -> tuple[str, str]:
     """Рендерит subject/body Jinja2-шаблонами с данным контекстом
-    (context из Kafka-сообщения + {"user": {...}} от auth_service)."""
-    rendered_subject = (
-        _env.from_string(subject_template).render(**context) if subject_template else ""
-    )
-    rendered_body = _env.from_string(body_template).render(**context)
+    (context из Kafka-сообщения + {"user": {...}} от auth_service).
+
+    Поднимает TemplateRenderError на любую ошибку Jinja2 (синтаксис,
+    ошибка при рендере) — без этого перехвата исключение уходило бы как
+    "неожиданная" ошибка в consumer.py и ретраилось бы бесконечно, хотя
+    сообщение здесь ни при чём — сломан сам шаблон."""
+    try:
+        rendered_subject = (
+            _env.from_string(subject_template).render(**context)
+            if subject_template
+            else ""
+        )
+        rendered_body = _env.from_string(body_template).render(**context)
+    except jinja2.exceptions.TemplateError as exc:
+        raise TemplateRenderError(f"Jinja2 render failed: {exc}") from exc
     return rendered_subject, rendered_body

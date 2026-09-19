@@ -162,38 +162,69 @@ async def insert_content_and_notification(
         )
 
 
-async def get_notification_for_claim(
+async def get_status_for_claim(
     db: asyncpg.Connection, notification_id: uuid.UUID
-) -> Optional[asyncpg.Record]:
-    """Читает status + last_notification_send с блокировкой строки
-    (FOR UPDATE) — вызывающий должен быть внутри транзакции. Основа
-    claim-логики send-стадии (§5.2 плана): last_notification_send здесь
-    используется как лиз (см. settings.send_lease_seconds), а не только как
-    информационная метка."""
-    return await db.fetchrow(
-        "SELECT status, last_notification_send FROM notifications "
-        "WHERE notification_id = $1 FOR UPDATE",
+) -> Optional[str]:
+    """Читает status с блокировкой строки (FOR UPDATE) — вызывающий должен
+    быть внутри транзакции. Основа claim-логики send-стадии (§5.2 плана)."""
+    return await db.fetchval(
+        "SELECT status FROM notifications WHERE notification_id = $1 FOR UPDATE",
         notification_id,
     )
 
 
-async def mark_sending(db: DBLike, notification_id: uuid.UUID) -> None:
-    """pending -> sending, проставляет лиз (last_notification_send=now())."""
+async def get_latest_sending_attempt(
+    db: DBLike, notification_id: uuid.UUID
+) -> Optional[str]:
+    """Возвращает attempt_id (записанный в error_message строки истории
+    статуса 'sending', см. send_service.mark_sending) последней попытки
+    отправки — используется, чтобы отличить "это я сам продолжаю ту же,
+    ещё не прервавшуюся серию ретраев" от "эту запись 'sending' оставил
+    другой (упавший) вызов", без угадывания по времени (см. ревью:
+    time-based лиз не мог надёжно различить эти два случая)."""
+    return await db.fetchval(
+        "SELECT error_message FROM notification_history "
+        "WHERE notification_id = $1 AND status = 'sending' "
+        "ORDER BY sent_at DESC LIMIT 1",
+        notification_id,
+    )
+
+
+async def mark_sending(
+    db: DBLike, notification_id: uuid.UUID, attempt_id: uuid.UUID
+) -> None:
+    """pending -> sending, проставляет last_notification_send=now() (чисто
+    информационно, для дашборда) и записывает attempt_id этой попытки в
+    notification_history — по нему следующий вызов claim-логики отличит
+    "свой" продолжающийся ретрай от чужого прерванного (см.
+    get_latest_sending_attempt)."""
     await db.execute(
         "UPDATE notifications SET status = 'sending', last_notification_send = now(), "
         "last_update = now() WHERE notification_id = $1",
         notification_id,
     )
+    await insert_notification_history(
+        db, notification_id, "sending", error_message=str(attempt_id)
+    )
 
 
-async def touch_sending_lease(db: DBLike, notification_id: uuid.UUID) -> None:
-    """Продлевает лиз без смены статуса — вызывается при ретрае SMTP
-    в рамках того же процесса/сообщения (ещё не поводов считать
-    'sending' зависшим)."""
-    await db.execute(
-        "UPDATE notifications SET last_notification_send = now() WHERE notification_id = $1",
+async def get_existing_rendered_content(
+    db: DBLike, notification_id: uuid.UUID
+) -> Optional[dict[str, str]]:
+    """Контент, уже отрендеренный и сохранённый в предыдущей попытке
+    рендер-стадии — используется, когда notifications.status уже 'pending'
+    при повторном чтении того же Kafka-сообщения (см.
+    render_service._resume_pending): не рендерим повторно, публикуем то,
+    что уже есть, в notifications.ready.v1."""
+    row = await db.fetchrow(
+        "SELECT nc.rendered_subject, nc.rendered_body FROM notifications n "
+        "JOIN notification_contents nc ON nc.content_id = n.content_id "
+        "WHERE n.notification_id = $1",
         notification_id,
     )
+    if row is None:
+        return None
+    return {"subject": row["rendered_subject"], "body": row["rendered_body"]}
 
 
 async def update_notification_status(

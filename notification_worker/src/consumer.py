@@ -2,7 +2,10 @@
 email_sender) — manual commit после успешной обработки, ретраи с backoff на
 транзиентных ошибках, пауза только застрявшей партиции при исчерпании
 ретраев (остальные партиции — другие пользователи — продолжают
-обрабатываться этим же процессом), commit-and-skip на постоянных ошибках.
+обрабатываться этим же процессом), commit-and-skip на постоянных ошибках,
+и предел числа циклов паузы — после него сообщение фиксируется в DLQ как
+необработанное, а не крутится pause/resume бесконечно (см. ревью: без
+предела один "плохой" месседж мог заблокировать партицию навсегда).
 
 Каждая назначенная консьюмеру партиция обрабатывается своей asyncio-задачей
 (свой независимый цикл `getmany` на эту партицию) — это и даёт "пауза одной
@@ -16,23 +19,36 @@ email_sender) — manual commit после успешной обработки, 
 
 import asyncio
 import logging
+import uuid
 from typing import Awaitable, Callable
 
 from aiokafka import AIOKafkaConsumer
 from aiokafka.structs import ConsumerRecord, TopicPartition
 
 from src.core.config import settings
-from src.core.errors import PermanentProcessingError, TransientProcessingError
+from src.core.errors import PermanentProcessingError
+from src.core.message_utils import safe_raw_message
+from src.db import queries
+from src.db.postgres import get_pool
 
 logger = logging.getLogger(__name__)
 
-Handler = Callable[[ConsumerRecord], Awaitable[None]]
+# attempt_id — стабилен на протяжении всех попыток (включая паузы/резюме)
+# обработки ОДНОГО сообщения этим процессом, меняется на новый случайный
+# только когда consumer.py заново получает это сообщение "с нуля" (после
+# перезапуска процесса или переигровки offset'а) — используется send-стадией
+# (src/services/send_service.py), чтобы отличить "я сам продолжаю ретраить"
+# от "предыдущий вызов упал, не закончив" без угадывания по времени.
+Handler = Callable[[ConsumerRecord, uuid.UUID], Awaitable[None]]
 
 
-async def run_consumer_loop(*, topic: str, group_id: str, handler: Handler) -> None:
+async def run_consumer_loop(
+    *, topic: str, group_id: str, handler: Handler, stage: str
+) -> None:
     """Запускает consumer-loop и блокируется, пока его не остановят
     (KeyboardInterrupt/SIGTERM снаружи — main_*.py ловит их для graceful
-    shutdown)."""
+    shutdown). `stage` ("render"/"send") — только для записи в DLQ, когда
+    сообщение исчерпало все циклы паузы (см. _process_with_retry)."""
     consumer = AIOKafkaConsumer(
         topic,
         bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -46,7 +62,7 @@ async def run_consumer_loop(*, topic: str, group_id: str, handler: Handler) -> N
         partitions = await _wait_for_assignment(consumer)
         logger.info(f"Assigned partitions: {sorted(tp.partition for tp in partitions)}")
         tasks = [
-            asyncio.create_task(_consume_partition(consumer, tp, handler))
+            asyncio.create_task(_consume_partition(consumer, tp, handler, stage))
             for tp in partitions
         ]
         await asyncio.gather(*tasks)
@@ -74,7 +90,7 @@ async def _wait_for_assignment(
 
 
 async def _consume_partition(
-    consumer: AIOKafkaConsumer, tp: TopicPartition, handler: Handler
+    consumer: AIOKafkaConsumer, tp: TopicPartition, handler: Handler, stage: str
 ) -> None:
     """Независимый цикл на одну партицию — getmany ограничен этой
     партицией, поэтому pause/sleep на ней не блокирует getmany других
@@ -84,7 +100,34 @@ async def _consume_partition(
         batches = await consumer.getmany(tp, timeout_ms=1000)
         records = batches.get(tp, [])
         for record in records:
-            await _process_with_retry(consumer, tp, record, handler)
+            # Новый attempt_id на каждое СВЕЖЕЕ (из getmany) сообщение —
+            # внутри _process_with_retry он остаётся одним и тем же на
+            # протяжении всех попыток/пауз этого конкретного вызова.
+            await _process_with_retry(consumer, tp, record, handler, stage, uuid.uuid4())
+
+
+async def _give_up(
+    tp: TopicPartition, record: ConsumerRecord, stage: str, exc: Exception
+) -> None:
+    """Сообщение исчерпало max_pause_cycles попыток — фиксируем в DLQ как
+    необработанное и отпускаем партицию, вместо того чтобы крутить
+    pause/resume бесконечно (см. докстринг модуля)."""
+    logger.error(
+        f"Giving up on message after {settings.max_pause_cycles} pause cycles "
+        f"(topic={record.topic} partition={record.partition} offset={record.offset}): {exc}"
+    )
+    try:
+        await queries.insert_dlq(
+            get_pool(),
+            notification_id=None,
+            stage=stage,
+            error_type="giving_up_after_max_pause_cycles",
+            error_message=str(exc),
+            raw_message=safe_raw_message(record.value),
+            attempt_count=settings.max_pause_cycles,
+        )
+    except Exception as dlq_exc:  # noqa: BLE001 — не даём сбою записи в DLQ снова застрять на этом же сообщении
+        logger.error(f"Failed to write give-up DLQ entry: {dlq_exc}")
 
 
 async def _process_with_retry(
@@ -92,12 +135,15 @@ async def _process_with_retry(
     tp: TopicPartition,
     record: ConsumerRecord,
     handler: Handler,
+    stage: str,
+    attempt_id: uuid.UUID,
 ) -> None:
     attempt = 0
+    pause_cycles = 0
     while True:
         attempt += 1
         try:
-            await handler(record)
+            await handler(record, attempt_id)
             await consumer.commit({tp: record.offset + 1})
             return
         except PermanentProcessingError as exc:
@@ -111,21 +157,27 @@ async def _process_with_retry(
             await consumer.commit({tp: record.offset + 1})
             return
         except Exception as exc:  # noqa: BLE001 — любая иная ошибка тоже транзиентна по умолчанию
-            is_declared_transient = isinstance(exc, TransientProcessingError)
             if attempt <= settings.retry_max_attempts:
                 backoff = settings.retry_backoff_seconds * attempt
                 logger.warning(
-                    f"{'Transient' if is_declared_transient else 'Unexpected'} error "
-                    f"(attempt {attempt}/{settings.retry_max_attempts}, "
+                    f"Transient error (attempt {attempt}/{settings.retry_max_attempts}, "
                     f"partition={record.partition} offset={record.offset}), "
                     f"retrying in {backoff}s: {exc}"
                 )
                 await asyncio.sleep(backoff)
                 continue
+
+            pause_cycles += 1
+            if pause_cycles > settings.max_pause_cycles:
+                await _give_up(tp, record, stage, exc)
+                await consumer.commit({tp: record.offset + 1})
+                return
+
             logger.error(
                 f"Exhausted retries for partition {record.partition} "
                 f"(offset={record.offset}), pausing for "
-                f"{settings.partition_pause_seconds}s before retrying again: {exc}"
+                f"{settings.partition_pause_seconds}s before retrying again "
+                f"(pause cycle {pause_cycles}/{settings.max_pause_cycles}): {exc}"
             )
             consumer.pause(tp)
             await asyncio.sleep(settings.partition_pause_seconds)

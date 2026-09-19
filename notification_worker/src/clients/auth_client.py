@@ -5,6 +5,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
+from typing import Optional
 
 import httpx
 
@@ -12,6 +13,32 @@ from src.core.config import settings
 from src.core.errors import PermanentProcessingError, TransientProcessingError
 
 logger = logging.getLogger(__name__)
+
+# Персистентный клиент на весь процесс (создаётся в init_auth_client() при
+# старте main_render.py) — держит keep-alive соединение к auth_service
+# вместо того, чтобы открывать новое TCP/TLS-соединение на каждый вызов
+# get_user_profile (а это происходит на КАЖДОЕ сообщение requests.v1).
+_client: Optional[httpx.AsyncClient] = None
+
+
+async def init_auth_client() -> None:
+    global _client
+    _client = httpx.AsyncClient(timeout=settings.auth_service_timeout)
+    logger.info(f"auth_service HTTP client ready: {settings.auth_service_url}")
+
+
+async def close_auth_client() -> None:
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
+        logger.info("auth_service HTTP client closed.")
+
+
+def _get_client() -> httpx.AsyncClient:
+    if _client is None:
+        raise RuntimeError("auth_service HTTP client is not initialized")
+    return _client
 
 
 @dataclass
@@ -37,8 +64,7 @@ async def get_user_profile(user_id: uuid.UUID) -> UserProfile:
         else {}
     )
     try:
-        async with httpx.AsyncClient(timeout=settings.auth_service_timeout) as client:
-            response = await client.get(url, headers=headers)
+        response = await _get_client().get(url, headers=headers)
     except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as exc:
         raise TransientProcessingError(
             f"auth_service unreachable for user_id={user_id}: {exc}"

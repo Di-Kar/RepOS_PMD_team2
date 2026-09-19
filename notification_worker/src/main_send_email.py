@@ -42,6 +42,7 @@ async def main() -> None:
             topic=settings.kafka_topic_ready,
             group_id=settings.kafka_consumer_group_send,
             handler=handle_message,
+            stage="send",
         )
     )
 
