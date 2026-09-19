@@ -1,12 +1,14 @@
 """Зависимости авторизации: проверка Bearer-токена и загрузка текущего пользователя."""
 
+import secrets
 import uuid
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.exceptions import InvalidTokenError
 from src.db.postgres import get_session
 from src.db.redis_db import get_redis
@@ -64,3 +66,24 @@ async def require_superuser(user: User = Depends(get_current_user)) -> User:
             detail={"error": "forbidden", "message": "Superuser privileges required"},
         )
     return user
+
+
+async def verify_internal_api_key(
+    x_internal_api_key: str | None = Header(default=None),
+) -> None:
+    """Авторизация service-to-service вызовов, у которых нет JWT конечного
+    пользователя (notification_worker, S10_T3, issue #96) — копия
+    notification_api/src/api/v1/dependencies.py:verify_api_key. Пустой
+    AUTH_INTERNAL_API_KEY отключает проверку — для локальной разработки."""
+    if not settings.internal_api_key:
+        return
+    if not x_internal_api_key or not secrets.compare_digest(
+        x_internal_api_key, settings.internal_api_key
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "invalid_internal_api_key",
+                "message": "Missing or invalid X-Internal-Api-Key",
+            },
+        )

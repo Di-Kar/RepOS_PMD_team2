@@ -101,6 +101,13 @@ class Settings(BaseSettings):
         default=5.0, alias="AUTH_NOTIFICATIONS_API_TIMEOUT"
     )
 
+    # notification_worker (S10_T3, issue #96): internal-эндпоинт профиля по
+    # user_id, без JWT конечного пользователя — воркеру из Kafka приходит
+    # только user_id. Единый ключ на всех S2S-вызывающих, по образцу
+    # NOTIFICATIONS_API_KEY у notification_api. Пусто = проверка выключена
+    # (локальная разработка).
+    internal_api_key: str = Field(default="", alias="AUTH_INTERNAL_API_KEY")
+
     # OAuth (Google)
     google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
     google_client_secret: str = Field(default="", alias="GOOGLE_CLIENT_SECRET")

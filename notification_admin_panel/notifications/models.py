@@ -316,6 +316,12 @@ class Notification(models.Model):
         SENDING = "sending", "Отправляется"
         SENT = "sent", "Отправлено"
         FAILED = "failed", "Ошибка"
+        # Пишет notification_worker (S10_T3, issue #96): пользователь
+        # неактивен либо канал ещё не реализован (сейчас — только email).
+        # Не CHECK-ограничение на уровне БД (CharField без db-level constraint,
+        # см. ddl.sql комментарий в плане реализации воркера) — добавлено
+        # здесь для консистентности с админкой (list_filter/выбор в форме).
+        SKIPPED = "skipped", "Пропущено"
 
     notification_id = models.UUIDField(
         primary_key=True,

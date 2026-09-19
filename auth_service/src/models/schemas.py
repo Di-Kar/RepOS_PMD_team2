@@ -48,6 +48,20 @@ class UserResponse(BaseSchema):
     is_superuser: bool = Field(default=False, description="Superuser flag")
 
 
+class InternalUserProfileResponse(BaseSchema):
+    """Профиль пользователя для service-to-service вызовов по user_id, без
+    JWT конечного пользователя (notification_worker, S10_T3, issue #96) —
+    воркеру приходит из Kafka только user_id, ему нечем пройти обычный
+    Depends(get_current_user). Отдаёт минимум, нужный для персонализации
+    письма; is_active отдаётся как есть (не 404) — решение "не отправлять
+    уведомление неактивному пользователю" принимает сам воркер."""
+
+    id: uuid.UUID = Field(..., description="User ID")
+    email: str = Field(..., description="Email (login)")
+    full_name: str = Field(default="", description="Full name")
+    is_active: bool = Field(..., description="Account active flag")
+
+
 class UserUpdateRequest(BaseSchema):
     """Запрос обновления профиля: менять можно только full_name."""
 

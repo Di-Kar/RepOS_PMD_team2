@@ -15,13 +15,15 @@
   постановка в очередь (issue #94: «Сам API не занимается рассылкой — это
   центральный узел»). Своя БД (см. §9) хранит только факт и результат
   публикации в Kafka — это лог отправки, а не история доставки.
-- **notification_worker** (#96, отдельная задача): читает
+- **notification_worker** (#96, реализовано — см. §11): читает
   `notifications.requests.v1`, для персонализации сам ходит в `auth_service`
-  за именем/email/телефоном по `user_id` (к воркеру эти данные не приходят —
-  только `user_id`), рендерит шаблон, отправляет. Детальную историю попыток
-  доставки (retries, ошибки провайдера и т.п.) ведёт у себя; финальный статус
-  по каждому уведомлению обновляет также в `notification_log` БД
-  `notification_api` по ключу `notification_id` — см. §9.
+  за именем/email по `user_id` (к воркеру эти данные не приходят — только
+  `user_id`), рендерит шаблон, отправляет. Детальную историю попыток
+  доставки ведёт у себя (Django-таблицы `notification_admin_panel`,
+  прямым SQL); финальный статус по каждому уведомлению обновляет также в
+  `notification_log` БД `notification_api` по ключу `notification_id` — см.
+  §9. Пока реализована доставка только канала `email` — телефон для
+  sms/push в модели `auth_service.User` также пока отсутствует.
 - **Планирование** (отложенные/повторяющиеся рассылки) — ответственность
   вызывающей стороны. У `notification_admin_panel` уже есть свой cron
   (`process_notifications`, `process_recurring`), который решает delay/cron и
@@ -301,13 +303,31 @@ HTTP-запроса, но best-effort: сбой записи в БД не вли
 
 Дальше `notification_worker` **обновляет ту же строку** по
 `notification_id` (`UPDATE notification_log SET status = ... WHERE
-notification_id = :id`), когда обрабатывает сообщение из Kafka — например на
-`sent` / `delivered` / `failed` (конкретный набор и семантику определяет T3,
-здесь не фиксируется). Ретрай HTTP-заявки с тем же `request_id` даёт тот же
-`notification_id` (§6) и обновит строку через `INSERT ... ON CONFLICT DO
-UPDATE`, но `notification_api` **не перезаписывает `status`, если он уже не
-своим** (см. ниже) — то есть после того как воркер хоть раз обновил статус,
-повторная публикация той же заявки его не затирает.
+notification_id = :id`), когда обрабатывает сообщение из Kafka. Ретрай
+HTTP-заявки с тем же `request_id` даёт тот же `notification_id` (§6) и
+обновит строку через `INSERT ... ON CONFLICT DO UPDATE`, но `notification_api`
+**не перезаписывает `status`, если он уже не своим** (см. ниже) — то есть
+после того как воркер хоть раз обновил статус, повторная публикация той же
+заявки его не затирает.
+
+Реализованный (S10_T3) набор статусов `notification_worker` (email-канал —
+единственный, для которого сейчас есть доставка, см. §11):
+
+- `queued_for_send` — рендер-стадия успешно прочитала профиль и шаблон,
+  опубликовала готовое сообщение в `notifications.ready.v1`.
+- `render_failed` — постоянная ошибка на рендер-стадии (пользователь не
+  найден в `auth_service`, шаблон не найден/неактивен) — подробности в
+  `notification_worker_dlq` (§11).
+- `skipped` — пользователь неактивен (`is_active=false`) либо канал ещё не
+  реализован (сейчас — не `email`); осознанное решение не отправлять, не
+  ошибка.
+- `sent` — письмо успешно передано SMTP.
+- `failed` — постоянная ошибка отправки (невалидный email, провайдер
+  отклонил с постоянной ошибкой).
+- `requires_manual_review` — send-стадия обнаружила зависшую отправку
+  (`notifications.status='sending'` дольше лиза, см. §11) — не ретраится
+  автоматически, чтобы не продублировать письмо; статус самой
+  `notifications` строки при этом остаётся `sending`, разбирается вручную.
 
 Для `websocket` (S10_T4, §10) статус проставляется вместо этого сразу по
 факту синхронной доставки — Kafka не участвует, воркер тоже:
@@ -374,6 +394,56 @@ subject, text, context, occurred_at}`.
 ограничений — эта проверка синхронная: получатель уходит в
 `rejected_recipients` HTTP-ответа с `reason: "websocket_requires_text_override"`,
 а не просто в лог.
+
+## 11. `notification_worker` (S10_T3, issue #96) — реализовано
+
+Два процесса из каталога `notification_worker/` (общий Docker-образ, разный
+`command`): `notification_worker_render` (consumer group
+`notification_worker_render`) и `notification_worker_email_sender` (consumer
+group `notification_worker_email_sender`). Схема сообщений (`shared/
+notification_schemas.py`) общая с `notification_api`.
+
+**Промежуточный топик** `notifications.ready.v1` (3 партиции, ключ
+`user_id`) — выход рендер-стадии, вход отправляющих воркеров: несёт уже
+отрендеренные `subject`/`body` и email получателя, чтобы send-стадия не
+обращалась к `auth_service` повторно.
+
+**Обогащение профилем** — `GET /api/v1/auth/internal/users/{user_id}` в
+`auth_service` (заголовок `X-Internal-Api-Key`, см.
+`auth_service/src/api/v1/internal.py`), а не обычный `GET /profile` — у
+воркера нет JWT конечного пользователя, только `user_id` из Kafka. `404` —
+постоянная ошибка (пользователь не найден), `is_active=false` отдаётся как
+есть — решение "не слать" принимает воркер (`skipped`, не ошибка).
+
+**Запись результата** — воркер пишет в три места: `notification_log`
+(статус, см. выше) и Django-таблицы `notification_admin_panel`
+(`notification_contents`/`notifications`/`notification_history`, ранее
+существовавшие без единого писателя) — прямым SQL, без Django ORM.
+
+**Идемпотентность доставки** — перед рендером и перед фактической
+отправкой воркер проверяет текущий `notifications.status`: уже терминальный
+статус (`sent`/`failed`/`skipped`) означает redelivery, повторная обработка
+пропускается. Статус `sending` перед отправкой — особый случай: свежий
+(в пределах `NOTIFICATION_WORKER_SEND_LEASE_SECONDS`, по умолчанию 120с) —
+это тот же процесс ретраит после транзиентной ошибки SMTP; протухший —
+процесс, вероятно, упал между claim'ом и результатом, автоматический
+ретрай не выполняется (`requires_manual_review` в `notification_log`), чтобы
+не продублировать письмо.
+
+**`notification_worker_dlq`** (таблица в `notifications_db`, своя у
+воркера, применяется скриптом `notification_worker/scripts/migrate.py`, не
+Alembic/Django) — сообщения с постоянной ошибкой (пользователь/шаблон не
+найден, битый JSON, SMTP отклонил письмо окончательно) и случаи
+`requires_manual_review`. Поля: `notification_id` (nullable — не всегда
+известен), `stage` (`render`/`send`), `error_type`, `error_message`,
+`raw_message` (JSONB), `attempt_count`, `created_at`.
+
+**Ограничение MVP**: реализована доставка только канала `email`. Заявки с
+`channel="sms"`/`"push"` доходят до рендер-стадии и получают статус
+`skipped` (`error_type=channel_not_implemented` в логике воркера, не
+записывается отдельно в DLQ — это не ошибка, а осознанный пропуск) — не
+теряются молча, но и не доставляются, пока не появятся соответствующие
+sender-процессы, читающие тот же `notifications.ready.v1`.
 
 **Один инстанс.** Реестр соединений — только в памяти процесса; в текущем
 `docker-compose.yml` `notification_api` не масштабируется горизонтально.
