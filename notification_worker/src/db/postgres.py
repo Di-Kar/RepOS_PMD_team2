@@ -26,6 +26,11 @@ async def init_pool() -> None:
         dsn=settings.postgres_dsn,
         min_size=settings.postgres_pool_min_size,
         max_size=settings.postgres_pool_max_size,
+        # См. комментарий у postgres_command_timeout_seconds: недоступная
+        # БД должна давать ошибку за предсказуемое время — от этого зависит
+        # бюджет удержания партиции в src/consumer.py.
+        timeout=settings.postgres_command_timeout_seconds,
+        command_timeout=settings.postgres_command_timeout_seconds,
     )
     logger.info(f"Postgres pool started: {settings.postgres_host}:{settings.postgres_port}")
 
