@@ -7,7 +7,9 @@
 import asyncio
 import logging
 import re
+import uuid
 from email.message import EmailMessage
+from email.utils import parseaddr
 from typing import Optional
 
 import aiosmtplib
@@ -21,10 +23,16 @@ logger = logging.getLogger(__name__)
 # не претендует на полную валидацию RFC 5322.
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-# Ошибки уровня соединения/транспорта — не ошибки конкретного письма.
-_CONNECTION_ERRORS = (
+# Не удалось установить соединение — письмо заведомо не начинало
+# передаваться, повторять безопасно.
+_CONNECT_ERRORS = (
     aiosmtplib.SMTPConnectError,
     aiosmtplib.SMTPConnectTimeoutError,
+)
+
+# Транспорт оборвался посреди уже начатого диалога с сервером — какая часть
+# письма дошла, неизвестно (см. AmbiguousSendError).
+_MID_SESSION_ERRORS = (
     aiosmtplib.SMTPServerDisconnected,
     OSError,
 )
@@ -37,6 +45,17 @@ class PermanentSendError(PermanentProcessingError):
 
 class TransientSendError(TransientProcessingError):
     """SMTP временно недоступен (таймаут, отказ в соединении, код 4xx)."""
+
+
+class AmbiguousSendError(PermanentProcessingError):
+    """Соединение оборвалось (или упал протокол) уже ПОСЛЕ того, как
+    отправка письма началась (send_message на уже установленном
+    соединении) — неизвестно, успел ли сервер принять письмо до обрыва.
+    В отличие от TransientSendError, автоматический повтор здесь опасен
+    (риск дубля — см. ревью), поэтому это не транзиентная, а постоянная
+    ошибка: вызывающий (send_service) обязан остановить автообработку
+    сообщения и завести его на ручной разбор, а не ретраить send_email
+    вслепую."""
 
 
 async def _connect() -> aiosmtplib.SMTP:
@@ -106,12 +125,30 @@ class SmtpPool:
             # сообщения навечно, открываем временное соединение СВЕРХ пула
             # (не через _connect_member — оно не "член" пула, см. release()).
             return await _connect()
-        if not client.is_connected:
+        if not await self._is_alive(client):
             # Соединение из пула успело умереть само по себе (сервер закрыл
             # его по простою между письмами) — не отдаём заведомо мёртвое.
             await self._discard(client)
             client = await self._connect_member()
         return client
+
+    @staticmethod
+    async def _is_alive(client: aiosmtplib.SMTP) -> bool:
+        """Проверка "перед выдачей из пула" — одного `is_connected`
+        недостаточно: он смотрит только на локальный транспорт, а тот
+        остаётся "открытым", если соединение молча потеряно по дороге
+        (NAT/файрвол выбросил простаивающую сессию, не прислав FIN). Без
+        живого NOOP такое соединение уезжает в send_message и падает там
+        обрывом, который send_email обязан трактовать как неопределённый
+        исход (AmbiguousSendError) — то есть заводить на ручной разбор
+        письмо, которое на самом деле ни разу не отправлялось."""
+        if not client.is_connected:
+            return False
+        try:
+            await client.noop()
+        except Exception:  # noqa: BLE001 — любой сбой здесь означает "соединение негодно"
+            return False
+        return True
 
     async def release(self, client: aiosmtplib.SMTP) -> None:
         """Возвращает соединение в пул, если оно всё ещё живо (проверяется
@@ -183,7 +220,9 @@ def get_smtp_pool() -> SmtpPool:
     return _pool
 
 
-async def send_email(*, to: str | None, subject: str, body: str) -> None:
+async def send_email(
+    *, to: str | None, subject: str, body: str, notification_id: uuid.UUID
+) -> None:
     if not to or not _EMAIL_RE.match(to):
         raise PermanentSendError(f"invalid recipient email: {to!r}")
 
@@ -191,6 +230,19 @@ async def send_email(*, to: str | None, subject: str, body: str) -> None:
     message["From"] = settings.smtp_from_email
     message["To"] = to
     message["Subject"] = subject
+    # Детерминированный (по notification_id, не по попытке) Message-ID —
+    # если это письмо всё же уйдёт повторно (см. AmbiguousSendError ниже),
+    # провайдер/релей, умеющий дедуплицировать по Message-ID, получает эту
+    # защиту "бесплатно", а по логам провайдера можно вручную сверить, что
+    # реально было доставлено, при разборе notification_worker_dlq
+    # (error_type=smtp_ambiguous, см. send_service.py). Сам по себе
+    # заголовок ничего не гарантирует — «сырой» SMTP дедуп не поддерживает.
+    # parseaddr — smtp_from_email допускает форму с display name
+    # ("RepOS <noreply@...>"), из которой наивный rsplit('@') утащил бы в
+    # домен закрывающую угловую скобку и сломал заголовок.
+    _, from_addr = parseaddr(settings.smtp_from_email)
+    domain = from_addr.rpartition("@")[2] or "repospmd.local"
+    message["Message-ID"] = f"<{notification_id}@{domain}>"
     message.set_content(body)
 
     pool = get_smtp_pool()
@@ -204,15 +256,28 @@ async def send_email(*, to: str | None, subject: str, body: str) -> None:
             raise PermanentSendError(
                 f"SMTP permanent error {exc.code}: {exc.message}"
             ) from exc
+        # Явный отказ сервера (4xx) — недвусмысленно "не принято", ретраить
+        # безопасно (в отличие от обрыва ниже).
         raise TransientSendError(
             f"SMTP transient error {exc.code}: {exc.message}"
         ) from exc
-    except _CONNECTION_ERRORS as exc:
+    except _CONNECT_ERRORS as exc:
+        # Соединение вообще не удалось установить (aiosmtplib пробовал
+        # переподключиться внутри send_message) — письмо не начинало
+        # передаваться, повторять безопасно.
         raise TransientSendError(f"SMTP connection error: {exc}") from exc
+    except _MID_SESSION_ERRORS as exc:
+        # Транспорт оборвался посреди диалога на соединении, живость
+        # которого пул только что проверил (SmtpPool.acquire) — значит,
+        # обрыв случился уже по ходу передачи письма и неизвестно, успел
+        # ли сервер его принять. Автоповтор рискует задублировать
+        # доставку, поэтому это не транзиентная, а требующая ручного
+        # разбора ошибка (см. ревью).
+        raise AmbiguousSendError(f"SMTP transport lost mid-session: {exc}") from exc
     except aiosmtplib.SMTPException as exc:
-        # Прочие ошибки протокола по умолчанию транзиентны — безопаснее
-        # повторить попытку, чем молча потерять уведомление.
-        raise TransientSendError(f"SMTP error: {exc}") from exc
+        # Прочие ошибки протокола на этом этапе — тоже уже после начала
+        # диалога с сервером, по той же причине не ретраим автоматически.
+        raise AmbiguousSendError(f"SMTP error: {exc}") from exc
     finally:
         # release() сам решает, жив ли клиент (client.is_connected) —
         # неважно, каким путём мы сюда попали (успех/4xx-5xx/обрыв).

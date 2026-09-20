@@ -208,6 +208,45 @@ async def mark_sending(
     )
 
 
+async def get_latest_send_confirmation(
+    db: DBLike, notification_id: uuid.UUID
+) -> Optional[str]:
+    """Возвращает attempt_id (записанный в error_message строки истории
+    статуса 'sent_by_smtp') последнего подтверждённого SMTP приёма письма —
+    в отличие от get_latest_sending_attempt, это не "кто последний застолбил
+    claim", а "SMTP уже точно принял письмо в этой попытке". Совпадение
+    attempt_id у статуса 'sending' само по себе не доказывает, что письмо
+    ещё не отправлено (см. ревью) — эта проверка закрывает разрыв: claim-
+    логика (send_service._claim_for_sending) запрещает повторный send_email
+    при ЛЮБОМ таком подтверждении, чьим бы attempt_id оно ни было
+    подписано, и разрешает только повторную запись результата. Сам
+    attempt_id в записи остаётся для разбора руками."""
+    return await db.fetchval(
+        "SELECT error_message FROM notification_history "
+        "WHERE notification_id = $1 AND status = 'sent_by_smtp' "
+        "ORDER BY sent_at DESC LIMIT 1",
+        notification_id,
+    )
+
+
+async def mark_sent_by_smtp(
+    db: DBLike, notification_id: uuid.UUID, attempt_id: uuid.UUID
+) -> None:
+    """Дешёвая, отдельная от _record_result запись сразу после того, как
+    SMTP подтвердил приём письма — до попытки финализировать статус в
+    notifications/notification_log. Если финализация потом упадёт по вине
+    БД, эта запись позволит следующему заходу (get_latest_send_confirmation)
+    отличить "письмо уже точно ушло, слать повторно нельзя" от "ещё не
+    отправляли" (см. send_service._claim_for_sending / _finalize_sent)."""
+    await insert_notification_history(
+        db,
+        notification_id,
+        "sent_by_smtp",
+        error_message=str(attempt_id),
+        delivery_provider="smtp",
+    )
+
+
 async def get_existing_rendered_content(
     db: DBLike, notification_id: uuid.UUID
 ) -> Optional[dict[str, str]]:
