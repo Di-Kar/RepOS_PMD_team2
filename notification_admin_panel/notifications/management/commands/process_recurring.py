@@ -4,7 +4,7 @@
 создаёт новую партию уведомлений и сдвигает next_run.
 """
 
-from croniter import croniter
+from croniter import croniter # type: ignore[import-untyped]
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -34,7 +34,9 @@ class Command(BaseCommand):
             )
 
             # Отправляем заявку в notification_api
-            result = send_campaign_notifications(campaign)
+            # force_new_request_id=True гарантирует новый request_id для каждого периода,
+            # чтобы downstream-воркер не отбросил сообщение как дубликат первого запуска.
+            result = send_campaign_notifications(campaign, force_new_request_id=True)
 
             self.stdout.write(
                 self.style.SUCCESS(
