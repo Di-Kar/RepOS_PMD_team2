@@ -16,6 +16,7 @@
 - `notification_api` — приём заявок на создание уведомлений (от `admin_panel`, `auth_service` и других сервисов), фан-аут по получателям и публикация в Kafka. Каналы `email`/`sms`/`push` сам не рендерит и не отправляет — доставка этим занимается `notification_worker`; канал `websocket` (S10_T4, issue #97) — исключение, доставляется им же самим (см. §10 контракта). Контракт — `docs/notification_requests_contract.md`, env-переменные с префиксом `NOTIFICATIONS_`.
 - `notification_worker` (S10_T3, issue #96) — два процесса из одного образа: `notification_worker_render` (читает `notifications.requests.v1`, обогащает профилем из `auth_service` internal-эндпоинта, рендерит шаблон, публикует в `notifications.ready.v1`) и `notification_worker_email_sender` (читает `notifications.ready.v1`, идемпотентно отправляет email через SMTP, обновляет статусы в `notification_log`/`notifications`/`notification_history`). Env-переменные с префиксом `NOTIFICATION_WORKER_`.
 - `notification_admin_panel` — панель администратора на Django для создания и отправки уведомлений (обращается к `notification_api`); своя PostgreSQL (`notification_postgres`, общая физическая БД с `notification_api`/`notification_worker`) и cron-воркер для отложенных/повторяющихся рассылок (`notification_admin_cron`).
+- `link_shortener_service` — универсальный сервис коротких ссылок: `POST /api/v1/links` создаёт короткую ссылку (S2S, `X-API-Key`), `GET /r/{code}` резолвит её по клику (302 на действительный код, 404 на несуществующий/просроченный). Первый потребитель — `auth_service`: ссылка подтверждения email в welcome-письме при регистрации, при переходе проставляет `email_confirmed=true` через internal-эндпоинт `auth_service` и редиректит на настраиваемый `redirectUrl` (по умолчанию — главная страница). Своя PostgreSQL (`link_shortener_postgres`), env-переменные с префиксом `LINKS_`. Контракт — `docs/link_shortener_contract.md`.
 - `tests` — все тесты проекта, образ собирается из `tests/Dockerfile` с кэшированием зависимостей.
 
 ## Запуск проекта (без тестов и с тестами)
@@ -55,6 +56,9 @@ docker compose --profile tests down -v --remove-orphans
   - HTML-панель (http://localhost:8005/panel/)
   - Django-админка (http://localhost:8005/admin/)
   - Swagger (http://localhost:8005/api/v1/docs/)
+- link_shortener_service:
+  - Swagger (http://localhost:8006/docs)
+  - Резолв короткой ссылки (http://localhost:8006/r/<code>)
 - jaeger: http://localhost:16686
 - kafka-ui: http://localhost:8090
 
@@ -62,7 +66,7 @@ docker compose --profile tests down -v --remove-orphans
 
 ## Тесты
 
-Все тесты живут в папке `tests/` (подпапка = тестируемый сервис: `admin_panel`, `async_api`, `auth_service`, `event_api`, `notification_api`, `analytics_etl`, `shared`, `ugc_service`) и запускаются одним контейнером. Нужен запущенный проект:
+Все тесты живут в папке `tests/` (подпапка = тестируемый сервис: `admin_panel`, `async_api`, `auth_service`, `event_api`, `notification_api`, `link_shortener_service`, `analytics_etl`, `shared`, `ugc_service`) и запускаются одним контейнером. Нужен запущенный проект:
 
 ### Запуск всех тестов
 
@@ -108,11 +112,11 @@ ruff check . --fix
 
 ## Sentry
 
-Мониторинг необработанных исключений — облачный [Sentry](https://sentry.io/) (бесплатный Developer-план). Подключён к сервисам с HTTP API — `async_api`, `auth_service`, `event_api`, `ugc_service`, `admin_panel`, `notification_api` — у каждого свой проект и свой DSN (issue #81). `analytics_etl` (фоновый Kafka-консьюмер, не API) сознательно не подключён.
+Мониторинг необработанных исключений — облачный [Sentry](https://sentry.io/) (бесплатный Developer-план). Подключён к сервисам с HTTP API — `async_api`, `auth_service`, `event_api`, `ugc_service`, `admin_panel`, `notification_api`, `link_shortener_service` — у каждого свой проект и свой DSN (issue #81). `analytics_etl` (фоновый Kafka-консьюмер, не API) сознательно не подключён.
 
-1. На sentry.io завести отдельный проект под каждый сервис (Platform → Python/FastAPI для `async_api`/`auth_service`/`event_api`/`ugc_service`/`notification_api`, Python/Django для `admin_panel`).
+1. На sentry.io завести отдельный проект под каждый сервис (Platform → Python/FastAPI для `async_api`/`auth_service`/`event_api`/`ugc_service`/`notification_api`/`link_shortener_service`, Python/Django для `admin_panel`).
 2. В настройках каждого проекта Settings → Client Keys скопировать DSN.
-3. Вставить DSN'ы в `.env` (`SENTRY_DSN_ASYNC_API`, `SENTRY_DSN_AUTH_SERVICE`, `SENTRY_DSN_EVENT_API`, `SENTRY_DSN_UGC_SERVICE`, `SENTRY_DSN_ADMIN_PANEL`, `SENTRY_DSN_NOTIFICATION_API`) и перезапустить стек:
+3. Вставить DSN'ы в `.env` (`SENTRY_DSN_ASYNC_API`, `SENTRY_DSN_AUTH_SERVICE`, `SENTRY_DSN_EVENT_API`, `SENTRY_DSN_UGC_SERVICE`, `SENTRY_DSN_ADMIN_PANEL`, `SENTRY_DSN_NOTIFICATION_API`, `SENTRY_DSN_LINK_SHORTENER_SERVICE`) и перезапустить стек:
 
 Без DSN конкретный сервис работает как обычно — просто не шлёт события в Sentry.
 
@@ -124,6 +128,7 @@ ruff check . --fix
 - ugc_service — http://localhost:8003/api/v1/_sentry_debug
 - admin_panel — http://localhost/api/v1/_sentry_debug/
 - notification_api — http://localhost:8004/api/v1/_sentry_debug
+- link_shortener_service — http://localhost:8006/api/v1/_sentry_debug
 
 ## OAuth Google
 

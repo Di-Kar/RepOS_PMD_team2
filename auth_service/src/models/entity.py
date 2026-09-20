@@ -36,6 +36,13 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Подтверждение email по короткой ссылке из welcome-письма —
+    # проставляется link_shortener_service через
+    # POST /api/v1/auth/internal/users/{id}/confirm-email при первом валидном
+    # визите по ссылке. См. src/api/v1/internal.py, src/services/link_client.py.
+    email_confirmed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     # False для пользователей, заведённых только через OAuth (пароль —
     # случайный, никому не известный хэш) — не даёт отвязать последний
     # соцаккаунт и остаться без единого способа войти.

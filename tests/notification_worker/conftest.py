@@ -211,10 +211,10 @@ class MailhogClient:
     async def find_by_recipient(self, email: str, *, subject: str | None = None) -> list[dict]:
         """recipient-only фильтр не различает тестовое письмо и
         приветственное письмо auth_service (register_user() всегда триггерит
-        send_welcome_notification в фоне на тот же адрес, см.
-        auth_service/src/api/v1/auth.py) — если тест чувствителен к
-        конкретному письму, передавайте `subject` (сравнение после
-        RFC 2047-декодирования, см. `subject()`)."""
+        send_welcome_with_confirmation в фоне на тот же адрес, см.
+        auth_service/src/services/registration_notifications.py) — если тест
+        чувствителен к конкретному письму, передавайте `subject` (сравнение
+        после RFC 2047-декодирования, см. `subject()`)."""
         items = await self.messages()
         matching = [
             item

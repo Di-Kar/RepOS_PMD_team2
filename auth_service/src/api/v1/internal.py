@@ -47,3 +47,25 @@ async def get_internal_user_profile(
         full_name=join_full_name(user),
         is_active=user.is_active,
     )
+
+
+@router.post("/users/{user_id}/confirm-email", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_user_email(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Проставляет email_confirmed=True.
+    Единственный вызывающий — link_shortener_service, при первом валидном
+    визите по ссылке purpose=email_confirmation из welcome-письма (см.
+    src/services/link_client.py, docs/link_shortener_contract.md). Идемпотентен:
+    повторный вызов для уже подтверждённого пользователя — тоже 204, не
+    ошибка (несколько кликов по ещё не истёкшей ссылке не должны падать)."""
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "user_not_found", "message": "User not found"},
+        )
+    if not user.email_confirmed:
+        user.email_confirmed = True
+        await session.commit()

@@ -11,6 +11,7 @@ volumes:
   etl_analytics_state:
   notification_postgres_data:
   notification_static_volume:
+  link_shortener_postgres_data:
   # MongoDB Cluster data
   mongo_config_data_0:
   mongo_config_data_1:
@@ -277,6 +278,12 @@ services:
         condition: service_completed_successfully
       jaeger:
         condition: service_started
+      # best-effort зависимость (создание ссылки подтверждения email —
+      # фоновая задача, недоступность link_shortener_service не должна
+      # блокировать сам старт auth_service) — поэтому service_started, а не
+      # service_healthy.
+      link_shortener_service:
+        condition: service_started
     restart: unless-stopped
     networks:
       - backend
@@ -473,6 +480,81 @@ services:
     container_name: mailhog
     ports:
       - "8025:8025"
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ============================================================================
+  #  Link Shortener Service
+  # ============================================================================
+  # Универсальный сократитель ссылок: POST /api/v1/links создаёт короткую
+  # ссылку (S2S, X-API-Key), GET /r/{code} резолвит её по клику — 404 на
+  # несуществующий/просроченный код, 302 на действительный. Первый потребитель
+  # — auth_service (ссылка подтверждения email в welcome-письме), см.
+  # docs/link_shortener_contract.md.
+
+  link_shortener_postgres:
+    image: postgres:16-alpine
+    container_name: link_shortener_postgres
+    environment:
+      POSTGRES_USER: ${LINKS_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${LINKS_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${LINKS_POSTGRES_DB}
+    volumes:
+      - link_shortener_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Миграции link_shortener_service (alembic upgrade head) — по образцу
+  # notification_migrations.
+  link_shortener_migrations:
+    build:
+      context: ./link_shortener_service
+      dockerfile: Dockerfile
+    container_name: link_shortener_migrations
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - ./.env
+    environment:
+      - LINKS_POSTGRES_HOST=link_shortener_postgres
+    depends_on:
+      link_shortener_postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  link_shortener_service:
+    build:
+      context: ./link_shortener_service
+      dockerfile: Dockerfile
+    container_name: link_shortener_service
+    env_file:
+      - ./.env
+    environment:
+      - LINKS_POSTGRES_HOST=link_shortener_postgres
+      - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
+      - SENTRY_DSN=${SENTRY_DSN_LINK_SHORTENER_SERVICE}
+    ports:
+      - "8006:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      link_shortener_postgres:
+        condition: service_healthy
+      link_shortener_migrations:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
     restart: unless-stopped
     networks:
       - backend
@@ -1073,6 +1155,7 @@ services:
       - UGC_API_HOST=ugc_service
       - UGC_API_PORT=8000
       - NOTIFICATION_API_HOST=notification_api
+      - LINK_SHORTENER_API_HOST=link_shortener_service
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - NOTIFICATION_WORKER_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -1102,6 +1185,8 @@ services:
       event_api:
         condition: service_healthy
       notification_api:
+        condition: service_healthy
+      link_shortener_service:
         condition: service_healthy
       notification_worker_render:
         condition: service_started

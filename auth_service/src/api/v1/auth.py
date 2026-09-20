@@ -41,10 +41,8 @@ from src.models.schemas import (
     UserUpdateRequest,
 )
 from src.services.auth_service import AuthService, join_full_name
-from src.services.notification_client import (
-    send_password_changed_notification,
-    send_welcome_notification,
-)
+from src.services.notification_client import send_password_changed_notification
+from src.services.registration_notifications import send_welcome_with_confirmation
 from src.services.token_service import TokenService
 
 router = APIRouter(prefix="/api/v1/auth")
@@ -84,7 +82,7 @@ async def register(
             status_code=status.HTTP_409_CONFLICT,
             detail={"error": "email_taken", "message": "Email already registered"},
         )
-    background_tasks.add_task(send_welcome_notification, user.id)
+    background_tasks.add_task(send_welcome_with_confirmation, user.id)
     return UserRegisterResponse(**_user_response(user), created_at=user.created_at)
 
 
