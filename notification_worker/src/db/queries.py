@@ -20,11 +20,14 @@
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import Any, Optional, Union
 
 import asyncpg
+
+logger = logging.getLogger(__name__)
 
 DBLike = Union[asyncpg.Pool, asyncpg.Connection]
 
@@ -93,6 +96,45 @@ def _coerce_campaign_id(campaign_id: str | None) -> Optional[int]:
         return None
 
 
+def _is_campaign_fk_violation(exc: asyncpg.ForeignKeyViolationError) -> bool:
+    """Отличает нарушение FK notifications.campaign_id -> campaigns(id) от
+    любого другого нарушения целостности той же вставки. PostgreSQL не
+    сообщает в FK-ошибке имя колонки, поэтому смотрим на имя ограничения
+    (автоимя и в Django-схеме, и в ddl.sql содержит `campaign_id`) и, как
+    запасной вариант, на detail ('Key (campaign_id)=(42) is not present in
+    table "campaigns"'). Второй FK этой таблицы — content_id — так не
+    совпадёт, и его нарушение не будет замаскировано записью с NULL."""
+    return "campaign_id" in ((exc.constraint_name or "") + (exc.detail or ""))
+
+
+_CAMPAIGN_FK_NAME_SQL = """
+    SELECT quote_ident(conname)
+    FROM pg_constraint
+    WHERE conrelid = to_regclass('notifications')
+      AND confrelid = to_regclass('campaigns')
+      AND contype = 'f'
+      AND condeferred
+"""
+
+# Кэш результата _deferred_campaign_fk_name на процесс: имя ограничения не
+# меняется без миграции, а сам воркер долгоживущий. _FK_NAME_UNRESOLVED
+# отличает "ещё не спрашивали" от "спросили, отложенного FK нет".
+_FK_NAME_UNRESOLVED = object()
+_campaign_fk_name: Any = _FK_NAME_UNRESOLVED
+
+
+async def _deferred_campaign_fk_name(db: DBLike) -> Optional[str]:
+    """Имя (уже в кавычках, quote_ident) FK notifications.campaign_id ->
+    campaigns, если оно DEFERRABLE INITIALLY DEFERRED — так его создаёт
+    Django-миграция notification_admin_panel, и тогда проверка по умолчанию
+    откладывается до COMMIT. None — ограничение проверяется сразу
+    (например, схема из ddl.sql), форсировать нечего."""
+    global _campaign_fk_name
+    if _campaign_fk_name is _FK_NAME_UNRESOLVED:
+        _campaign_fk_name = await db.fetchval(_CAMPAIGN_FK_NAME_SQL)
+    return _campaign_fk_name
+
+
 async def insert_content_and_notification(
     db: asyncpg.Connection,
     *,
@@ -111,7 +153,11 @@ async def insert_content_and_notification(
     notification_id передаётся явно из Kafka-сообщения (НЕ Django-дефолтный
     uuid4) — иначе кросс-сервисная корреляция по ID сломается (контракт §6).
     ON CONFLICT DO NOTHING на notifications — идемпотентность при
-    redelivery поверх уже проверенного статуса (§5.1 п.2)."""
+    redelivery поверх уже проверенного статуса (§5.1 п.2). Вставка
+    notifications идёт во вложенной транзакции (SAVEPOINT) с принудительной
+    немедленной проверкой FK, чтобы нарушение ссылки на кампанию всплыло
+    здесь, а запасной вариант с campaign_id=NULL выполнялся в живой, а не
+    прерванной транзакции — см. _is_campaign_fk_violation."""
     content_id = uuid.uuid4()
     await db.execute(
         """
@@ -124,27 +170,54 @@ async def insert_content_and_notification(
         rendered_body,
     )
     coerced_campaign_id = _coerce_campaign_id(campaign_id)
+    campaign_fk_name = await _deferred_campaign_fk_name(db)
     try:
-        await db.execute(
-            """
-            INSERT INTO notifications
-                (notification_id, content_id, campaign_id, user_id, channel, status,
-                 scheduled_at, last_update, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
-            ON CONFLICT (notification_id) DO NOTHING
-            """,
-            notification_id,
-            content_id,
-            coerced_campaign_id,
-            user_id,
-            channel,
-            status,
-            scheduled_at,
-        )
-    except asyncpg.ForeignKeyViolationError:
+        # Вложенная транзакция — asyncpg выпускает SAVEPOINT внутри уже
+        # открытой вызывающим транзакции. Без него неудачный INSERT
+        # переводит всю транзакцию в aborted, и запасная вставка ниже
+        # падала бы с InFailedSQLTransactionError, хотя исключение
+        # перехвачено (найдено ревью).
+        async with db.transaction():
+            await db.execute(
+                """
+                INSERT INTO notifications
+                    (notification_id, content_id, campaign_id, user_id, channel, status,
+                     scheduled_at, last_update, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
+                ON CONFLICT (notification_id) DO NOTHING
+                """,
+                notification_id,
+                content_id,
+                coerced_campaign_id,
+                user_id,
+                channel,
+                status,
+                scheduled_at,
+            )
+            if campaign_fk_name is not None:
+                # Django создаёт этот FK как DEFERRABLE INITIALLY DEFERRED,
+                # поэтому по умолчанию campaign_id проверяется только на
+                # COMMIT внешней транзакции — там перехватить и исправить
+                # ошибку уже нельзя (она улетала в consumer, и уведомление
+                # уходило в DLQ). Форсируем проверку здесь, внутри savepoint,
+                # и сразу возвращаем режим: IMMEDIATE действует до конца
+                # транзакции, то есть протёк бы в остальные запросы
+                # вызывающего.
+                await db.execute(f"SET CONSTRAINTS {campaign_fk_name} IMMEDIATE")
+                await db.execute(f"SET CONSTRAINTS {campaign_fk_name} DEFERRED")
+    except asyncpg.ForeignKeyViolationError as exc:
+        if not _is_campaign_fk_violation(exc):
+            raise
         # campaign_id ссылается на несуществующую (например, удалённую)
         # кампанию — не блокируем доставку уведомления пользователю из-за
         # разъехавшихся справочных данных, просто теряем связь с кампанией.
+        # Откат дошёл только до savepoint, поэтому записанный выше
+        # notification_contents остаётся, а транзакция снова пригодна для
+        # запросов.
+        logger.warning(
+            f"notification_id={notification_id}: campaign_id={coerced_campaign_id} "
+            f"not found in campaigns, inserting notification with campaign_id=NULL"
+        )
         await db.execute(
             """
             INSERT INTO notifications
