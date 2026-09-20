@@ -342,7 +342,7 @@ services:
       - -c
       - |
         set -e
-        for topic in "$$EVENTS_KAFKA_TOPIC_CLICKS" "$$EVENTS_KAFKA_TOPIC_PAGEVIEWS" "$$EVENTS_KAFKA_TOPIC_CUSTOM_EVENTS" "$$NOTIFICATIONS_KAFKA_TOPIC_REQUESTS"; do
+        for topic in "$$EVENTS_KAFKA_TOPIC_CLICKS" "$$EVENTS_KAFKA_TOPIC_PAGEVIEWS" "$$EVENTS_KAFKA_TOPIC_CUSTOM_EVENTS" "$$NOTIFICATIONS_KAFKA_TOPIC_REQUESTS" "$$NOTIFICATION_WORKER_KAFKA_TOPIC_READY"; do
           echo "Creating topic: $$topic"
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
             --create --if-not-exists --topic "$$topic" \
@@ -428,7 +428,8 @@ services:
   # API приёма заявок на уведомления (FastAPI): валидирует заявки по
   # контракту docs/notification_requests_contract.md, разворачивает
   # получателей и публикует в Kafka. Сам не рендерит и не отправляет —
-  # доставка (notification_worker, S10_T3) появится отдельным сервисом позже.
+  # доставка email (notification_worker_render/_email_sender, S10_T3) —
+  # отдельные сервисы ниже.
   notification_api:
     build:
       context: ./notification_api
@@ -439,6 +440,9 @@ services:
     environment:
       - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - SENTRY_DSN=${SENTRY_DSN_NOTIFICATION_API}
+      - PYTHONPATH=/opt/app/shared
+    volumes:
+      - ./shared:/opt/app/shared:ro
     ports:
       - "8004:8000"
     healthcheck:
@@ -458,6 +462,111 @@ services:
         condition: service_healthy
       notification_migrations:
         condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # SMTP-мок для локальной разработки и тестов notification_worker — письма
+  # никуда не уходят наружу, видны через HTTP API/UI на 8025.
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: mailhog
+    ports:
+      - "8025:8025"
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Разовая миграция notification_worker: своя таблица notification_worker_dlq
+  # в той же notification_postgres (см. notification_worker/scripts/migrate.py) —
+  # по образцу notification_migrations, но идемпотентный DDL-скрипт вместо
+  # Alembic: заводить третью систему миграций поверх той же физической БД
+  # (Alembic у notification_api, Django-миграции у notification_admin_panel)
+  # ради одной таблицы избыточно.
+  notification_worker_migrations:
+    build:
+      context: ./notification_worker
+      dockerfile: Dockerfile
+    container_name: notification_worker_migrations
+    command: ["python", "scripts/migrate.py"]
+    env_file:
+      - ./.env
+    depends_on:
+      notification_postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # Воркер-рендерер (S10_T3, issue #96): читает notifications.requests.v1,
+  # обогащает профилем из auth_service (internal endpoint, без JWT — к
+  # воркеру приходит только user_id), рендерит шаблон, публикует готовый
+  # текст в notifications.ready.v1. Сам письма не отправляет — см. §0
+  # контракта и docs/notification_requests_contract.md.
+  notification_worker_render:
+    build:
+      context: ./notification_worker
+      dockerfile: Dockerfile
+    container_name: notification_worker_render
+    command: ["python", "-m", "src.main_render"]
+    env_file:
+      - ./.env
+    environment:
+      - NOTIFICATION_WORKER_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SENTRY_DSN=${SENTRY_DSN_NOTIFICATION_WORKER}
+      - PYTHONPATH=/opt/app/shared
+    volumes:
+      - ./shared:/opt/app/shared:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka_init:
+        condition: service_completed_successfully
+      notification_postgres:
+        condition: service_healthy
+      notification_migrations:
+        condition: service_completed_successfully
+      notification_worker_migrations:
+        condition: service_completed_successfully
+      auth_service:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Воркер-отправитель email (S10_T3, issue #96): читает notifications.ready.v1,
+  # фильтрует channel="email", идемпотентно отправляет письмо (проверяет
+  # текущий статус перед отправкой — ределивери не должен дублировать
+  # письмо), обновляет notification_log/notifications/notification_history.
+  # Независимый от рендера consumer group — своё горизонтальное
+  # масштабирование (docker compose up --scale notification_worker_email_sender=N),
+  # не блокируется медленным auth_service/Postgres на рендер-стадии.
+  notification_worker_email_sender:
+    build:
+      context: ./notification_worker
+      dockerfile: Dockerfile
+    container_name: notification_worker_email_sender
+    command: ["python", "-m", "src.main_send_email"]
+    env_file:
+      - ./.env
+    environment:
+      - NOTIFICATION_WORKER_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SENTRY_DSN=${SENTRY_DSN_NOTIFICATION_WORKER}
+      - PYTHONPATH=/opt/app/shared
+    volumes:
+      - ./shared:/opt/app/shared:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka_init:
+        condition: service_completed_successfully
+      notification_postgres:
+        condition: service_healthy
+      notification_migrations:
+        condition: service_completed_successfully
+      notification_worker_migrations:
+        condition: service_completed_successfully
+      mailhog:
+        condition: service_started
     restart: unless-stopped
     networks:
       - backend
@@ -966,6 +1075,8 @@ services:
       - NOTIFICATION_API_HOST=notification_api
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - NOTIFICATION_WORKER_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - MAILHOG_HOST=mailhog
       - ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ANALYTICS_CLICKHOUSE_HOST=clickhouse
       - ANALYTICS_CLICKHOUSE_PORT=8123
@@ -992,6 +1103,12 @@ services:
         condition: service_healthy
       notification_api:
         condition: service_healthy
+      notification_worker_render:
+        condition: service_started
+      notification_worker_email_sender:
+        condition: service_started
+      mailhog:
+        condition: service_started
       kafka_ui:
         condition: service_started
       clickhouse:

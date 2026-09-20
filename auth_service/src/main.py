@@ -15,6 +15,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.v1.auth import router as auth_router
 from src.api.v1.idm import router as idm_router
+from src.api.v1.internal import router as internal_router
 from src.api.v1.oauth import router as oauth_router
 from src.core.config import settings
 from src.core.rate_limiter import limiter, setup_rate_limit_middleware
@@ -63,6 +64,7 @@ setup_rate_limit_middleware(app)
 app.include_router(auth_router)
 app.include_router(idm_router)
 app.include_router(oauth_router)
+app.include_router(internal_router)
 
 
 # --- Middleware для X-Request-Id и трассировки ---

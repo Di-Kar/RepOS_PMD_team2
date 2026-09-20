@@ -1,58 +1,33 @@
 """Схема HTTP-заявки на уведомление и Kafka-сообщения после фан-аута —
 контракт docs/notification_requests_contract.md.
 
-Пока это единственный сервис, работающий с этой схемой (notification_worker
-из S10_T3 ещё не существует в репозитории) — модуль живёт в notification_api,
-а не в shared/, как shared/event_schemas.py для event_api/analytics_etl.
-Если воркер появится в этом репозитории, схему стоит вынести в shared/, чтобы
-не расходиться, как когда-то разошлись event_api и analytics_etl."""
+С появлением notification_worker (S10_T3, issue #96) — второго потребителя
+этого контракта — сама схема переехала в shared/notification_schemas.py (по
+образцу shared/event_schemas.py для event_api/analytics_etl), чтобы не
+разойтись между двумя сервисами, как когда-то разошлись event_api и
+analytics_etl. Этот модуль остаётся тонкой точкой входа для остального кода
+notification_api (импорты не пришлось переписывать) и добавляет проверку
+NOTIFICATIONS_MAX_RECIPIENTS, специфичную для этого сервиса — shared-модуль
+сознательно не знает про pydantic-settings конкретного потребителя.
+"""
 
-import uuid
-from datetime import datetime, timezone
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from notification_schemas import (  # noqa: F401
+    NOTIFICATIONS_NAMESPACE,
+    SCHEMA_VERSION,
+    Channel,
+    NotificationRequest as _NotificationRequest,
+    derive_notification_id,
+    to_kafka_record,
+)
+from pydantic import model_validator
 
 from src.core.config import settings
 
-SCHEMA_VERSION = 1
 
-Channel = Literal["email", "sms", "push", "websocket"]
-
-# Namespace для детерминированного notification_id (контракт §6) — фиксирован
-# и не должен меняться, иначе повторная отправка того же request_id перестанет
-# давать те же notification_id.
-NOTIFICATIONS_NAMESPACE = uuid.uuid5(
-    uuid.NAMESPACE_DNS, "notification-api.repospmd.local"
-)
-
-
-class NotificationRequest(BaseModel):
-    """HTTP-заявка (контракт §3), до фан-аута по получателям.
-
-    recipient_ids намеренно типизирован как list[str], а не list[UUID]:
-    невалидный UUID у одного получателя не должен ронять валидацию всей
-    заявки (§5 контракта) — по одному элементу разбираем сами в сервисе.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    request_id: uuid.UUID
-    source_service: str = Field(min_length=1)
-    campaign_id: str | None = None
-    channel: Channel
-    template_id: str | None = None
-    subject_override: str | None = None
-    text_override: str | None = None
-    context: dict = Field(default_factory=dict)
-    recipient_ids: list[str] = Field(min_length=1)
-    occurred_at: datetime
-
-    @model_validator(mode="after")
-    def _require_content_source(self) -> "NotificationRequest":
-        if not self.template_id and not self.text_override:
-            raise ValueError("either template_id or text_override is required")
-        return self
+class NotificationRequest(_NotificationRequest):
+    """Расширяет общую схему проверкой лимита получателей — лимит настроен
+    через NOTIFICATIONS_MAX_RECIPIENTS, переменную этого сервиса, поэтому
+    живёт здесь, а не в shared/."""
 
     @model_validator(mode="after")
     def _limit_recipients(self) -> "NotificationRequest":
@@ -63,34 +38,11 @@ class NotificationRequest(BaseModel):
         return self
 
 
-def derive_notification_id(request_id: uuid.UUID, user_id: uuid.UUID) -> uuid.UUID:
-    """Детерминированный notification_id (контракт §6) — повтор того же
-    request_id при ретрае клиента даёт те же notification_id, без своей БД у
-    notification_api дедуп остаётся возможным ниже по потоку (у воркера)."""
-    return uuid.uuid5(NOTIFICATIONS_NAMESPACE, f"{request_id}:{user_id}")
-
-
-def to_kafka_record(
-    request: NotificationRequest,
-    user_id: uuid.UUID,
-    received_at: datetime | None = None,
-) -> dict:
-    """Сериализует одно (после фан-аута) уведомление в JSON-совместимый dict
-    для value сообщения Kafka (контракт §4). received_at по умолчанию — момент
-    вызова; принимает готовое значение, чтобы вызывающий (запись лога в БД,
-    §9) использовал ровно тот же timestamp, что ушёл в Kafka."""
-    return {
-        "notification_id": str(derive_notification_id(request.request_id, user_id)),
-        "request_id": str(request.request_id),
-        "schema_version": SCHEMA_VERSION,
-        "source_service": request.source_service,
-        "campaign_id": request.campaign_id,
-        "user_id": str(user_id),
-        "channel": request.channel,
-        "template_id": request.template_id,
-        "subject_override": request.subject_override,
-        "text_override": request.text_override,
-        "context": request.context,
-        "occurred_at": request.occurred_at.isoformat(),
-        "received_at": (received_at or datetime.now(timezone.utc)).isoformat(),
-    }
+__all__ = [
+    "NOTIFICATIONS_NAMESPACE",
+    "SCHEMA_VERSION",
+    "Channel",
+    "NotificationRequest",
+    "derive_notification_id",
+    "to_kafka_record",
+]

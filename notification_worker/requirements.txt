@@ -1,0 +1,32 @@
+# Kafka — тот же клиент, что уже использует producer в notification_api
+# (единый async-стек проекта; не confluent-kafka, чтобы не смешивать два
+# Kafka-клиента ради одного нового сервиса).
+aiokafka==0.11.0
+
+# PostgreSQL — прямой asyncpg-пул к notifications_db (та же физическая БД,
+# что у notification_api/notification_admin_panel, разные таблицы).
+asyncpg==0.29.0
+
+# HTTP-клиент к auth_service (internal-эндпоинт профиля по user_id)
+httpx==0.27.0
+
+# Рендер шаблонов — {{ user.name }} совместим с синтаксисом, который уже
+# использует Django template engine в notification_admin_panel для простых
+# переменных.
+jinja2==3.1.4
+
+# Отправка email — асинхронный SMTP-клиент, единообразно с остальным
+# async-стеком проекта.
+aiosmtplib==3.0.2
+
+pydantic==2.7.1
+pydantic-settings==2.12.0
+
+sentry-sdk==2.44.0
+
+# Distributed Tracing
+opentelemetry-api==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
+
+ruff==0.6.9
