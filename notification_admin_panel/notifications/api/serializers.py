@@ -218,7 +218,7 @@ class CampaignCreateSerializer(serializers.ModelSerializer):
                     }
                 )
             try:
-                from croniter import croniter
+                from croniter import croniter # type: ignore[import-untyped]
 
                 croniter(cron_expression)
             except (KeyError, ValueError) as exc:
