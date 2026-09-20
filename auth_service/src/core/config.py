@@ -101,6 +101,25 @@ class Settings(BaseSettings):
         default=5.0, alias="AUTH_NOTIFICATIONS_API_TIMEOUT"
     )
 
+    # link_shortener_service: ссылка подтверждения email в welcome-письме.
+    # LINKS_API_KEY — общий ключ, тот же, что проверяет POST /api/v1/links у
+    # link_shortener_service.
+    links_api_url: str = Field(
+        default="http://link_shortener_service:8000/api/v1",
+        alias="AUTH_LINKS_API_URL",
+    )
+    links_api_key: str = Field(default="", alias="LINKS_API_KEY")
+    links_api_timeout: float = Field(default=5.0, alias="AUTH_LINKS_API_TIMEOUT")
+    # Куда редиректить пользователя после успешного подтверждения email; в
+    # этом проекте нет отдельной админ-панели auth_service, поэтому это
+    # настраиваемое значение .env, по умолчанию — главная страница кинотеатра.
+    email_confirm_redirect_url: str = Field(
+        default="http://localhost/", alias="AUTH_EMAIL_CONFIRM_REDIRECT_URL"
+    )
+    email_confirm_link_ttl_seconds: int = Field(
+        default=86400, alias="AUTH_EMAIL_CONFIRM_LINK_TTL_SECONDS"
+    )
+
     # notification_worker (S10_T3, issue #96): internal-эндпоинт профиля по
     # user_id, без JWT конечного пользователя — воркеру из Kafka приходит
     # только user_id. Единый ключ на всех S2S-вызывающих, по образцу

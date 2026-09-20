@@ -1,5 +1,6 @@
 """Best-effort уведомления через notification_api (S10_T7, issue #100):
-приветственное письмо при регистрации, оповещение о смене пароля.
+приветственное письмо при регистрации (см. src/services/
+registration_notifications.py), оповещение о смене пароля.
 
 Заявка в свободном формате (text_override, без template_id) — по образцу
 docs/notification_requests_contract.md §7. Отправка выполняется в фоновой
@@ -18,7 +19,7 @@ from src.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-async def _send_notification(
+async def send_notification(
     *, recipient_id: uuid.UUID, subject: str, text: str
 ) -> None:
     payload = {
@@ -55,16 +56,8 @@ async def _send_notification(
         logger.warning("notification_api unreachable: %s", exc)
 
 
-async def send_welcome_notification(user_id: uuid.UUID) -> None:
-    await _send_notification(
-        recipient_id=user_id,
-        subject="Регистрация завершена",
-        text="Добро пожаловать! Ваш аккаунт создан.",
-    )
-
-
 async def send_password_changed_notification(user_id: uuid.UUID) -> None:
-    await _send_notification(
+    await send_notification(
         recipient_id=user_id,
         subject="Пароль изменён",
         text=(

@@ -72,6 +72,16 @@ class TestNotifications:
         assert message is not None, "заявка на приветственное письмо не дошла до Kafka"
         assert message["channel"] == "email"
         assert message["text_override"]
+        # welcome-письмо должно нести сокращённую ссылку подтверждения email
+        # (docs/link_shortener_contract.md).
+        # Это отдельный сервис (link_shortener_service) — если он недоступен,
+        # auth_service best-effort деградирует до письма без ссылки (см.
+        # src/services/registration_notifications.py), поэтому здесь мы
+        # именно требуем её наличие: в тестовом окружении link_shortener_service
+        # обязателен (docker-compose.yml, зависимость сервиса tests).
+        assert "/r/" in message["text_override"], (
+            "welcome-письмо не содержит короткую ссылку подтверждения email"
+        )
 
     async def test_change_password_sends_notification(
         self, session, new_user, login, notifications_consumer

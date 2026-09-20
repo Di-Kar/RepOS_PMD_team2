@@ -6,9 +6,9 @@ notifications, notification_history).
 Все проверки идут через конкретный notification_id, полученный из
 notification_log по request_id этой заявки — не через user_id: register_user()
 попутно триггерит настоящее приветственное письмо auth_service на тот же
-адрес (см. auth_service/src/api/v1/auth.py, send_welcome_notification), у
-которого свой отдельный notification_id, и выборка "по user_id" находила бы
-обе строки сразу."""
+адрес (см. auth_service/src/services/registration_notifications.py,
+send_welcome_with_confirmation), у которого свой отдельный notification_id, и
+выборка "по user_id" находила бы обе строки сразу."""
 
 from .conftest import make_notification_request, post_notification, wait_until
 
