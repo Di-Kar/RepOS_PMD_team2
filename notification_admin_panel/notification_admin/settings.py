@@ -106,7 +106,7 @@ LOGOUT_REDIRECT_URL = "/admin/login/"
 NOTIFICATION_API_URL = os.environ.get(
     "NOTIFICATION_API_URL", "http://notification_api:8001/api/v1"
 )
-NOTIFICATION_API_KEY = os.environ.get("NOTIFICATION_API_KEY", "dev-api-key")
+NOTIFICATION_API_KEY = os.environ.get("NOTIFICATION_API_KEY", "")
 NOTIFICATION_API_TIMEOUT = int(os.environ.get("NOTIFICATION_API_TIMEOUT", "10"))
 
 # Источник для аудита
