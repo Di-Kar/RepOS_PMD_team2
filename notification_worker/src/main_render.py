@@ -47,17 +47,35 @@ async def main() -> None:
         )
     )
 
-    await stop_event.wait()
-    logger.info("Shutdown signal received, stopping render worker")
-    consumer_task.cancel()
-    try:
-        await consumer_task
-    except asyncio.CancelledError:
-        pass
+    # Ждём и сигнал остановки, и сам consumer-loop: он может завершиться
+    # ошибкой (например DlqUnavailableError — DLQ недоступна, offset не
+    # подтверждён), и тогда процесс обязан упасть, а не остаться "живым",
+    # ничего не читая, — docker перезапустит сервис (restart: unless-stopped)
+    # и работа продолжится с неподтверждённого offset'а.
+    stop_task = asyncio.create_task(stop_event.wait())
+    done, _ = await asyncio.wait(
+        {consumer_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
+    )
+
+    consumer_failed = consumer_task in done
+    if consumer_failed:
+        logger.error("Consumer loop stopped on its own, shutting down render worker")
+        stop_task.cancel()
+    else:
+        logger.info("Shutdown signal received, stopping render worker")
+        consumer_task.cancel()
+        try:
+            await consumer_task
+        except asyncio.CancelledError:
+            pass
 
     await close_auth_client()
     await close_producer()
     await close_pool()
+
+    if consumer_failed:
+        # Пробрасываем причину наружу — ненулевой код выхода и запись в Sentry.
+        consumer_task.result()
 
 
 if __name__ == "__main__":

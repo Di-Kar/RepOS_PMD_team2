@@ -17,3 +17,15 @@ class PermanentProcessingError(Exception):
     ЗАРАНЕЕ записать причину в notification_worker_dlq/notification_log
     перед тем, как поднять это исключение — consumer.py в ответ на него
     только коммитит offset и переходит к следующему сообщению."""
+
+
+class DlqUnavailableError(RuntimeError):
+    """DLQ (Postgres) недоступна дольше dlq_unavailable_max_hold_seconds.
+    Подтвердить сообщение нельзя — причина сбоя нигде не сохранена, а
+    держать партицию на паузе дальше тоже нельзя: aiokafka выводит
+    консьюмера из группы, когда фетчей не было дольше max_poll_interval
+    (по умолчанию 300 с), и тогда последующий commit упал бы с
+    CommitFailedError, а процесс тихо перестал бы читать партицию.
+    Поднимается наружу из consumer-loop, чтобы процесс завершился с
+    ошибкой и был перезапущен (restart: unless-stopped) с
+    неподтверждённого offset'а."""

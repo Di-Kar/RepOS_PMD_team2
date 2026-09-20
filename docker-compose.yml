@@ -1140,6 +1140,10 @@ services:
       - ./analytics_etl:/analytics_etl
       - ./admin_panel:/admin_panel
       - ./notification_admin_panel:/notification_admin_panel
+      # Юнит-тесты consumer-loop воркера (tests/notification_worker/
+      # test_consumer_dlq_unavailable.py) импортируют его исходники напрямую
+      # — состояние "Kafka жива, DLQ недоступна" снаружи не воспроизвести.
+      - ./notification_worker:/notification_worker
       - ./shared:/shared
       - ./ugc_service:/ugc_service
     command: sh -c "

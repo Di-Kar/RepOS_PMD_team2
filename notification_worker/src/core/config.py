@@ -52,6 +52,16 @@ class Settings(BaseSettings):
     postgres_pool_max_size: int = Field(
         default=10, alias="NOTIFICATION_WORKER_POSTGRES_POOL_MAX_SIZE"
     )
+    # Таймаут на установку соединения и на отдельный запрос. Запросы
+    # воркера — точечные INSERT/UPDATE/SELECT, поэтому десятки секунд
+    # означают не медленный запрос, а недоступную БД. Без таймаута
+    # недостижимый (не отвечающий, в отличие от явно отказывающего) Postgres
+    # растягивал бы один цикл ретраев дольше, чем весь бюджет удержания
+    # партиции (dlq_unavailable_max_hold_seconds), и консьюмер успел бы
+    # выпасть из группы по max_poll_interval раньше, чем воркер сдастся.
+    postgres_command_timeout_seconds: float = Field(
+        default=10.0, alias="NOTIFICATION_WORKER_POSTGRES_COMMAND_TIMEOUT_SECONDS"
+    )
 
     # Kafka
     kafka_bootstrap_servers: str = Field(
@@ -99,6 +109,20 @@ class Settings(BaseSettings):
     # туда попадают) навсегда.
     max_pause_cycles: int = Field(
         default=5, alias="NOTIFICATION_WORKER_MAX_PAUSE_CYCLES"
+    )
+    # Сколько максимум держать партицию на паузе, когда сообщение уже
+    # исчерпало max_pause_cycles, но записать его в DLQ не получается
+    # (Postgres недоступен): offset в этом случае не подтверждается — иначе
+    # сообщение пропало бы бесследно (см. src/consumer.py). По истечении
+    # этого срока consumer-loop поднимает DlqUnavailableError и процесс
+    # завершается, чтобы перезапуститься с неподтверждённого offset'а.
+    # Значение должно оставаться заметно меньше max_poll_interval_ms
+    # aiokafka (по умолчанию 300 000 мс): пока партиция на паузе, фетчей
+    # нет, и по превышении этого интервала консьюмер сам выходит из группы
+    # (aiokafka/consumer/group_coordinator.py), то есть именно то, от чего
+    # мы здесь защищаемся.
+    dlq_unavailable_max_hold_seconds: float = Field(
+        default=120.0, alias="NOTIFICATION_WORKER_DLQ_UNAVAILABLE_MAX_HOLD_SECONDS"
     )
 
     # TTL кэша message_templates в памяти — шаблоны меняются редко

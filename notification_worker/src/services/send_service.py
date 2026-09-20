@@ -16,7 +16,7 @@ from notification_schemas import ReadyToSendMessage
 from pydantic import ValidationError
 
 from src.clients.email_client import AmbiguousSendError, PermanentSendError, send_email
-from src.core.errors import PermanentProcessingError
+from src.core.errors import DlqUnavailableError, PermanentProcessingError
 from src.core.message_utils import safe_raw_message, try_uuid
 from src.db import queries
 from src.db.postgres import get_pool
@@ -159,14 +159,21 @@ async def _flag_for_manual_review(
     error_type: str,
     error_message: str,
 ) -> None:
-    """Заводит сообщение на ручной разбор (DLQ + notification_log), не давая
-    сбою самой этой записи подменить исключение вызывающего: вызывающий
-    поднимает PermanentProcessingError именно для того, чтобы consumer.py
-    НЕ ретраил handle_message, а утёкшая отсюда ошибка БД выглядела бы для
-    него транзиентной — и привела бы ровно к повторной отправке, которую мы
-    предотвращаем. notifications.status намеренно не трогаем: мы не знаем,
-    доставлено письмо или нет, и 'failed' был бы такой же ложью, как 'sent'
-    (статус остаётся 'sending' — это и есть маркер "разобрать руками")."""
+    """Заводит сообщение на ручной разбор (DLQ + notification_log).
+    notifications.status намеренно не трогаем: мы не знаем, доставлено
+    письмо или нет, и 'failed' был бы такой же ложью, как 'sent' (статус
+    остаётся 'sending' — это и есть маркер "разобрать руками").
+
+    Если сама эта запись не прошла (БД недоступна), поднимаем
+    DlqUnavailableError, а не PermanentProcessingError вызывающего: иначе
+    consumer.py подтвердил бы offset, не сохранив причину сбоя (см. ревью
+    S10_R4 — та же потеря, что и в consumer._give_up). Транзиентной ошибкой
+    это тоже отдавать нельзя — повтор handle_message с тем же attempt_id
+    привёл бы к повторной отправке. DlqUnavailableError consumer.py
+    обрабатывает отдельно: offset не подтверждает и роняет процесс; после
+    рестарта attempt_id уже другой, поэтому _claim_for_sending уведёт
+    сообщение на ручной разбор (send_ambiguous), а не отправит второй
+    раз."""
     try:
         await queries.insert_dlq(
             pool,
@@ -179,11 +186,15 @@ async def _flag_for_manual_review(
         await queries.update_notification_log_status(
             pool, message.notification_id, "requires_manual_review"
         )
-    except Exception as exc:  # noqa: BLE001 — если БД недоступна, остаётся только лог
-        logger.error(
+    except Exception as exc:  # noqa: BLE001 — наверх уходит уже DlqUnavailableError
+        logger.critical(
             f"Failed to flag notification_id={message.notification_id} "
             f"for manual review ({error_type}): {exc}"
         )
+        raise DlqUnavailableError(
+            f"could not record manual review for "
+            f"notification_id={message.notification_id} ({error_type}): {exc}"
+        ) from exc
 
 
 async def _finalize_sent(
