@@ -1,15 +1,16 @@
 from croniter import croniter
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+
+from notifications.api.api_views import manager_required
 
 from .forms import CampaignForm, MessageTemplateForm
 from .models import Campaign, MessageTemplate, Notification, NotificationSchedule
 
 
 # ── Dashboard ────────────────────────────────
-@login_required
+@manager_required
 def dashboard(request):
     ctx = {
         "templates_count": MessageTemplate.objects.filter(is_active=True).count(),
@@ -25,7 +26,7 @@ def dashboard(request):
 
 
 # ── CRUD шаблонов ────────────────────────────
-@login_required
+@manager_required
 def template_list(request):
     return render(
         request,
@@ -36,7 +37,7 @@ def template_list(request):
     )
 
 
-@login_required
+@manager_required
 def template_create(request):
     if request.method == "POST":
         form = MessageTemplateForm(request.POST)
@@ -56,7 +57,7 @@ def template_create(request):
     )
 
 
-@login_required
+@manager_required
 def template_edit(request, pk):
     obj = get_object_or_404(MessageTemplate, pk=pk)
     if request.method == "POST":
@@ -77,7 +78,7 @@ def template_edit(request, pk):
     )
 
 
-@login_required
+@manager_required
 def template_delete(request, pk):
     obj = get_object_or_404(MessageTemplate, pk=pk)
     if request.method == "POST":
@@ -96,7 +97,7 @@ def template_delete(request, pk):
 
 
 # ── Рассылки ─────────────────────────────────
-@login_required
+@manager_required
 def campaign_list(request):
     return render(
         request,
@@ -107,7 +108,7 @@ def campaign_list(request):
     )
 
 
-@login_required
+@manager_required
 def campaign_create(request):
     if request.method == "POST":
         form = CampaignForm(request.POST)
@@ -167,7 +168,7 @@ def campaign_create(request):
     )
 
 
-@login_required
+@manager_required
 def campaign_edit(request, pk):
     obj = get_object_or_404(Campaign, pk=pk)
     if request.method == "POST":

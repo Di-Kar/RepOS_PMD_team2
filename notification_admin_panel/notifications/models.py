@@ -52,8 +52,7 @@ class MessageTemplate(models.Model):
         engine = engines["django"]
 
         # 1. Дополнительная проверка на незакрытые теги {{ ... }}
-        # Django может не ловить это, поэтому проверяем вручную
-        open_tags = re.findall(r"\{\{(?!\}\})", self.body)  # {{ без }}
+        open_tags = re.findall(r"\{\{(?!\}\})", self.body)
         close_tags = re.findall(r"\}\}", self.body)
         if len(open_tags) != len(close_tags):
             raise ValidationError(
@@ -229,19 +228,38 @@ class Campaign(models.Model):
         choices=Status.choices,
         default=Status.DRAFT,
     )
+    
+    # Базовый ID заявки (генерируется при создании кампании)
     request_id = models.UUIDField(
         "ID заявки в notification_api",
         default=uuid.uuid4,
         unique=True,
     )
+    
+    # --- ДОБАВЛЕНО ДЛЯ РЕШЕНИЯ ПРОБЛЕМ #3 и #5 ---
+    current_run_request_id = models.UUIDField(
+        "ID текущего запуска",
+        null=True,
+        blank=True,
+        help_text="Новый UUID для каждого запуска recurring. Сохраняется при retry этого запуска.",
+    )
+    next_retry_at = models.DateTimeField(
+        "Следующая попытка при сбое",
+        null=True,
+        blank=True,
+        help_text="Время следующей попытки отправки при временной ошибке API (таймаут, 5xx)",
+    )
+    # -----------------------------------------------
+
     last_send_status = models.CharField(
         "Статус последней отправки",
         max_length=20,
         choices=[
             ("pending", "Ожидает отправки"),
+            ("pending_retry", "Временный сбой, ожидает повторной попытки"), # <-- ДОБАВЛЕНО для Issue #5
             ("sent_to_api", "Отправлено в notification_api"),
             ("api_accepted", "Принято notification_api"),
-            ("api_rejected", "Отклонено notification_api"),
+            ("api_rejected", "Отклонено notification_api (ошибка данных)"),
             ("failed", "Ошибка отправки"),
         ],
         default="pending",
@@ -316,11 +334,7 @@ class Notification(models.Model):
         SENDING = "sending", "Отправляется"
         SENT = "sent", "Отправлено"
         FAILED = "failed", "Ошибка"
-        # Пишет notification_worker (S10_T3, issue #96): пользователь
-        # неактивен либо канал ещё не реализован (сейчас — только email).
-        # Не CHECK-ограничение на уровне БД (CharField без db-level constraint,
-        # см. ddl.sql комментарий в плане реализации воркера) — добавлено
-        # здесь для консистентности с админкой (list_filter/выбор в форме).
+        # Добавлено по комментарию: пользователь неактивен либо канал ещё не реализован
         SKIPPED = "skipped", "Пропущено"
 
     notification_id = models.UUIDField(
@@ -407,7 +421,8 @@ class NotificationHistory(models.Model):
         ordering = ["-sent_at"]
 
     def __str__(self):
-        return f"{self.notification_id} @ {self.sent_at} -> {self.status}"
+        # ИСПРАВЛЕНО: используем self.notification.notification_id, так как прямого поля notification_id в этой модели нет
+        return f"{self.notification.notification_id} @ {self.sent_at} -> {self.status}"
 
 
 class CampaignSendLog(models.Model):

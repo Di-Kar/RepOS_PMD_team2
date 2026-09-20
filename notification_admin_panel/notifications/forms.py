@@ -241,7 +241,7 @@ class CampaignForm(forms.ModelForm):
                     "Для повторяющейся рассылки необходимо указать cron-выражение."
                 )
             try:
-                from croniter import croniter
+                from croniter import croniter    # type: ignore[import-untyped]
 
                 croniter(cron_expression)
             except (KeyError, ValueError) as exc:

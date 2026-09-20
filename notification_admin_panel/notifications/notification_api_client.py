@@ -24,6 +24,9 @@ class NotificationApiResult:
     rejected_recipients: list[dict]  # [{"user_id": "...", "reason": "..."}]
     errors: list[str]  # Ошибки валидации заявки целиком
 
+    # ИСПРАВЛЕНИЕ #5: Флаг для логики повторных попыток (retry)
+    is_temporary_error: bool = False
+
     @property
     def is_success(self) -> bool:
         return self.accepted_count > 0
@@ -38,7 +41,7 @@ class NotificationApiClient:
     def __init__(self):
         self.base_url = settings.NOTIFICATION_API_URL.rstrip("/")
         self.api_key = settings.NOTIFICATION_API_KEY
-        self.timeout = settings.NOTIFICATION_API_TIMEOUT
+        self.timeout = getattr(settings, "NOTIFICATION_API_TIMEOUT", 10)
 
     def send_notification_request(
         self,
@@ -50,30 +53,19 @@ class NotificationApiClient:
         subject_override: Optional[str] = None,
         context: Optional[dict] = None,
         campaign_id: Optional[str] = None,
-        request_id: Optional[uuid.UUID] = None,  # ИЗМЕНЕНО: UUID
+        request_id: Optional[uuid.UUID] = None,
     ) -> NotificationApiResult:
         """
         Отправляет заявку на создание уведомлений.
-        Args:
-            channel: Канал доставки (email/sms/push)
-            recipient_ids: Список UUID получателей
-            occurred_at: Когда произошло событие (ISO 8601)
-            template_id: ID шаблона (если используется шаблон)
-            text_override: Готовый текст (если без шаблона)
-            subject_override: Переопределение темы (для email)
-            context: Доп. переменные для рендера шаблона
-            campaign_id: ID кампании в admin_panel (опционально)
-            request_id: ID заявки (для идемпотентности, генерируется автоматически)
-
-        Returns:
-            NotificationApiResult с результатом отправки
         """
         if request_id is None:
             request_id = uuid.uuid4()
 
         payload = {
-            "request_id": str(request_id),  # Конвертируем в строку для JSON
-            "source_service": settings.NOTIFICATION_SOURCE_SERVICE,
+            "request_id": str(request_id),
+            "source_service": getattr(
+                settings, "NOTIFICATION_SOURCE_SERVICE", "admin_panel"
+            ),
             "channel": channel,
             "recipient_ids": recipient_ids,
             "occurred_at": occurred_at,
@@ -90,9 +82,10 @@ class NotificationApiClient:
         if context:
             payload["context"] = context
 
-        url = f"{self.base_url}/notifications"
+        url = f"{self.base_url}/api/v1/notifications"
+
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "X-API-Key": self.api_key,
             "Content-Type": "application/json",
         }
 
@@ -104,51 +97,71 @@ class NotificationApiClient:
                 timeout=self.timeout,
             )
 
-            if response.status_code != 202:
-                logger.error(
-                    "notification_api returned unexpected status %s: %s",
-                    response.status_code,
-                    response.text,
-                )
+            # Успешный приём заявки брокером/API
+            if response.status_code == 202:
+                data = response.json()
+                returned_request_id = data.get("request_id", str(request_id))
+                if isinstance(returned_request_id, str):
+                    returned_request_id = uuid.UUID(returned_request_id)
+
                 return NotificationApiResult(
-                    request_id=request_id,
-                    status="rejected",
-                    accepted_count=0,
-                    rejected_recipients=[],
-                    errors=[f"HTTP {response.status_code}: {response.text}"],
+                    request_id=returned_request_id,
+                    status=data.get("status", "rejected"),
+                    accepted_count=data.get("accepted_count", 0),
+                    rejected_recipients=data.get("rejected_recipients", []),
+                    errors=data.get("errors", []),
+                    is_temporary_error=False,
                 )
 
-            data = response.json()
+            is_temporary = response.status_code >= 500
 
-            returned_request_id = data["request_id"]
-            if isinstance(returned_request_id, str):
-                returned_request_id = uuid.UUID(returned_request_id)
-
+            logger.error(
+                "notification_api returned unexpected status %s: %s",
+                response.status_code,
+                response.text,
+            )
             return NotificationApiResult(
-                request_id=returned_request_id,
-                status=data["status"],
-                accepted_count=data["accepted_count"],
-                rejected_recipients=data.get("rejected_recipients", []),
-                errors=data.get("errors", []),
+                request_id=request_id,
+                status="rejected",
+                accepted_count=0,
+                rejected_recipients=[],
+                errors=[f"HTTP {response.status_code}: {response.text.strip()}"],
+                is_temporary_error=is_temporary,
             )
 
         except requests.exceptions.Timeout:
-            logger.error("notification_api timeout for request_id=%s", request_id)
+            logger.warning("notification_api timeout for request_id=%s", request_id)
             return NotificationApiResult(
                 request_id=request_id,
                 status="rejected",
                 accepted_count=0,
                 rejected_recipients=[],
                 errors=["Timeout connecting to notification_api"],
+                is_temporary_error=True,  # Таймаут — классическая временная ошибка
             )
-        except requests.exceptions.RequestException as exc:
-            logger.error("notification_api error: %s", exc)
+
+        except requests.exceptions.ConnectionError:
+            logger.warning(
+                "notification_api connection error for request_id=%s", request_id
+            )
             return NotificationApiResult(
                 request_id=request_id,
                 status="rejected",
                 accepted_count=0,
                 rejected_recipients=[],
-                errors=[f"Connection error: {exc}"],
+                errors=["Connection error to notification_api"],
+                is_temporary_error=True,  # Обрыв сети — временная ошибка
+            )
+
+        except requests.exceptions.RequestException as exc:
+            logger.error("notification_api unexpected request error: %s", exc)
+            return NotificationApiResult(
+                request_id=request_id,
+                status="rejected",
+                accepted_count=0,
+                rejected_recipients=[],
+                errors=[f"Unexpected request error: {exc}"],
+                is_temporary_error=True,  # На всякий случай помечаем как временную для retry
             )
 
 
