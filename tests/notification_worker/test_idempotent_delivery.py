@@ -94,5 +94,9 @@ async def test_duplicate_ready_message_sends_email_once(
         "SELECT status FROM notification_history WHERE notification_id = $1 ORDER BY sent_at",
         notification_id,
     )
+    # 'sent_by_smtp' — отдельная отметка "SMTP подтвердил приём", которую
+    # send-стадия пишет ДО финального статуса: по ней повторный заход
+    # отличает "письмо уже ушло, осталось дописать результат" от "ещё не
+    # отправляли" (см. send_service._claim_for_sending).
     statuses = [r["status"] for r in history_rows]
-    assert statuses == ["sending", "sent"], statuses
+    assert statuses == ["sending", "sent_by_smtp", "sent"], statuses

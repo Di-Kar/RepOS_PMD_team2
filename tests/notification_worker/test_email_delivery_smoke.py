@@ -61,4 +61,6 @@ async def test_email_delivered_and_statuses_updated(session, register_user, mail
         "SELECT status FROM notification_history WHERE notification_id = $1 ORDER BY sent_at",
         notification_id,
     )
-    assert [r["status"] for r in history_statuses] == ["sending", "sent"]
+    # 'sent_by_smtp' между ними — отметка "SMTP подтвердил приём", которую
+    # send-стадия пишет до финального статуса (см. send_service).
+    assert [r["status"] for r in history_statuses] == ["sending", "sent_by_smtp", "sent"]
