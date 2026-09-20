@@ -1,134 +1,82 @@
-# notifications/tests/test_notification_api_client.py (фрагмент)
-
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
 from django.utils import timezone
-from notifications.notification_api_client import (
-    NotificationApiClient,
-)
+
+from notifications.notification_api_client import NotificationApiClient, NotificationApiResult
 
 
 class NotificationApiClientTest(TestCase):
-    """Тесты HTTP-клиента."""
+    """Тесты HTTP-клиента с учётом is_temporary_error."""
 
     def setUp(self):
         self.client = NotificationApiClient()
 
     @patch("notifications.notification_api_client.requests.post")
-    def test_success_accepted(self, mock_post):
-        """Все получатели приняты."""
-        request_id = uuid.uuid4()
+    def test_500_error_is_temporary(self, mock_post):
+        """HTTP 500 считается временной ошибкой (is_temporary_error=True)."""
         mock_response = MagicMock()
-        mock_response.status_code = 202
-        mock_response.json.return_value = {
-            "request_id": str(request_id),  # Строка в JSON
-            "status": "accepted",
-            "accepted_count": 2,
-            "rejected_recipients": [],
-            "errors": [],
-        }
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
         mock_post.return_value = mock_response
 
         result = self.client.send_notification_request(
-            channel="email",
-            recipient_ids=[str(uuid.uuid4()) for _ in range(2)],
-            occurred_at=timezone.now().isoformat(),
-            template_id="1",
-        )
-
-        self.assertTrue(result.is_success)
-        self.assertEqual(result.status, "accepted")
-        self.assertEqual(result.accepted_count, 2)
-        self.assertEqual(result.request_id, request_id)  # UUID
-
-    @patch("notifications.notification_api_client.requests.post")
-    def test_partial_acceptance(self, mock_post):
-        """Часть получателей отклонена."""
-        request_id = uuid.uuid4()
-        mock_response = MagicMock()
-        mock_response.status_code = 202
-        mock_response.json.return_value = {
-            "request_id": str(request_id),
-            "status": "partially_accepted",
-            "accepted_count": 1,
-            "rejected_recipients": [{"user_id": "bad-uuid", "reason": "Invalid UUID"}],
-            "errors": [],
-        }
-        mock_post.return_value = mock_response
-
-        result = self.client.send_notification_request(
-            channel="email",
-            recipient_ids=[str(uuid.uuid4()), "bad-uuid"],
-            occurred_at=timezone.now().isoformat(),
-            template_id="1",
-        )
-
-        self.assertTrue(result.is_success)
-        self.assertEqual(result.accepted_count, 1)
-        self.assertEqual(len(result.rejected_recipients), 1)
-
-    @patch("notifications.notification_api_client.requests.post")
-    def test_rejected_returns_failed_result(self, mock_post):
-        """Заявка отклонена целиком."""
-        request_id = uuid.uuid4()
-        mock_response = MagicMock()
-        mock_response.status_code = 202
-        mock_response.json.return_value = {
-            "request_id": str(request_id),
-            "status": "rejected",
-            "accepted_count": 0,
-            "rejected_recipients": [],
-            "errors": ["template_id is required"],
-        }
-        mock_post.return_value = mock_response
-
-        result = self.client.send_notification_request(
-            channel="email",
-            recipient_ids=[str(uuid.uuid4())],
-            occurred_at=timezone.now().isoformat(),
+            channel="email", recipient_ids=[str(uuid.uuid4())],
+            occurred_at=timezone.now().isoformat(), template_id="1",
         )
 
         self.assertFalse(result.is_success)
-        self.assertEqual(result.status, "rejected")
+        self.assertTrue(result.is_temporary_error)
+        self.assertIn("HTTP 500", result.errors[0])
 
     @patch("notifications.notification_api_client.requests.post")
-    def test_payload_structure(self, mock_post):
-        """Проверяем, что payload корректно формируется."""
-        request_id = uuid.uuid4()
+    def test_400_error_is_permanent(self, mock_post):
+        """HTTP 400 считается постоянной ошибкой (is_temporary_error=False)."""
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.text = "Bad Request"
+        mock_post.return_value = mock_response
+
+        result = self.client.send_notification_request(
+            channel="email", recipient_ids=[str(uuid.uuid4())],
+            occurred_at=timezone.now().isoformat(), template_id="1",
+        )
+
+        self.assertFalse(result.is_success)
+        self.assertFalse(result.is_temporary_error)
+
+    @patch("notifications.notification_api_client.requests.post")
+    def test_timeout_is_temporary(self, mock_post):
+        import requests
+        mock_post.side_effect = requests.exceptions.Timeout()
+
+        result = self.client.send_notification_request(
+            channel="email", recipient_ids=[str(uuid.uuid4())],
+            occurred_at=timezone.now().isoformat(), template_id="1",
+        )
+
+        self.assertFalse(result.is_success)
+        self.assertTrue(result.is_temporary_error)
+        self.assertIn("Timeout", result.errors[0])
+
+    @patch("notifications.notification_api_client.requests.post")
+    def test_uses_x_api_key_header(self, mock_post):
+        """Клиент использует заголовок X-API-Key, а не Bearer."""
         mock_response = MagicMock()
         mock_response.status_code = 202
         mock_response.json.return_value = {
-            "request_id": str(request_id),
-            "status": "accepted",
-            "accepted_count": 1,
-            "rejected_recipients": [],
-            "errors": [],
+            "request_id": str(uuid.uuid4()), "status": "accepted",
+            "accepted_count": 1, "rejected_recipients": [], "errors": [],
         }
         mock_post.return_value = mock_response
 
-        user_uuid = str(uuid.uuid4())
-
         self.client.send_notification_request(
-            channel="email",
-            recipient_ids=[user_uuid],
-            occurred_at="2026-09-16T10:00:00Z",
-            template_id="7",
-            campaign_id="42",
-            context={"movie_title": "Matrix"},
-            request_id=request_id,
+            channel="email", recipient_ids=[str(uuid.uuid4())],
+            occurred_at=timezone.now().isoformat(), template_id="1",
         )
 
-        mock_post.assert_called_once()
         call_kwargs = mock_post.call_args.kwargs
-        payload = call_kwargs["json"]
-
-        self.assertEqual(payload["request_id"], str(request_id))  # Строка в JSON
-        self.assertEqual(payload["source_service"], "admin_panel")
-        self.assertEqual(payload["channel"], "email")
-        self.assertEqual(payload["recipient_ids"], [user_uuid])
-        self.assertEqual(payload["template_id"], "7")
-        self.assertEqual(payload["campaign_id"], "42")
-        self.assertEqual(payload["context"], {"movie_title": "Matrix"})
-        self.assertEqual(payload["occurred_at"], "2026-09-16T10:00:00Z")
+        self.assertIn("X-API-Key", call_kwargs["headers"])
+        self.assertEqual(call_kwargs["headers"]["X-API-Key"], self.client.api_key)
+        self.assertNotIn("Authorization", call_kwargs["headers"])

@@ -1,18 +1,13 @@
-"""Фабрики для создания тестовых данных."""
-
 import uuid
-
 from django.contrib.auth import get_user_model
-from notifications.models import (
-    Campaign,
-    MessageTemplate,
-)
+from notifications.models import MessageTemplate, Campaign, NotificationContent, Notification
 
 User = get_user_model()
 
 
 def create_user(**kwargs):
-    defaults = {"username": f"user_{uuid.uuid4().hex[:8]}", "password": "testpass"}
+    # По умолчанию создаём обычного пользователя, но позволяем переопределить is_staff
+    defaults = {"username": f"user_{uuid.uuid4().hex[:8]}", "password": "testpass", "is_staff": False}
     defaults.update(kwargs)
     return User.objects.create_user(**defaults)
 
