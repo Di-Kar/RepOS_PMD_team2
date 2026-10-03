@@ -12,6 +12,7 @@ volumes:
   notification_postgres_data:
   notification_static_volume:
   link_shortener_postgres_data:
+  user_profiles_postgres_data:
   # MongoDB Cluster data
   mongo_config_data_0:
   mongo_config_data_1:
@@ -552,6 +553,77 @@ services:
       link_shortener_postgres:
         condition: service_healthy
       link_shortener_migrations:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Скелет сервиса профилей пользователей (S11_T2, issue #109) — пока без
+  # бизнес-логики, CRUD добавится в S11_T3. Структура — по образцу
+  # link_shortener_service. Своя PostgreSQL, env-переменные с префиксом
+  # PROFILES_, см. docs/user_profiles_contract.md.
+
+  user_profiles_postgres:
+    image: postgres:16-alpine
+    container_name: user_profiles_postgres
+    environment:
+      POSTGRES_USER: ${PROFILES_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${PROFILES_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${PROFILES_POSTGRES_DB}
+    volumes:
+      - user_profiles_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Миграции user_profiles (alembic upgrade head) — по образцу
+  # link_shortener_migrations.
+  user_profiles_migrations:
+    build:
+      context: ./user_profiles
+      dockerfile: Dockerfile
+    container_name: user_profiles_migrations
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - ./.env
+    environment:
+      - PROFILES_POSTGRES_HOST=user_profiles_postgres
+    depends_on:
+      user_profiles_postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  user_profiles:
+    build:
+      context: ./user_profiles
+      dockerfile: Dockerfile
+    container_name: user_profiles
+    env_file:
+      - ./.env
+    environment:
+      - PROFILES_POSTGRES_HOST=user_profiles_postgres
+      - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
+      - SENTRY_DSN=${SENTRY_DSN_USER_PROFILES}
+    ports:
+      - "8007:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      user_profiles_postgres:
+        condition: service_healthy
+      user_profiles_migrations:
         condition: service_completed_successfully
       jaeger:
         condition: service_started
