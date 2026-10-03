@@ -42,10 +42,9 @@ class Settings(BaseSettings):
     )
 
     # Авторизация входящих S2S-запросов от admin_panel (internal API,
-    # docs/user_profiles_contract.md §2). Пусто = проверка выключена
-    # (локальная разработка) — по образцу AUTH_INTERNAL_API_KEY. Сам
-    # verify_internal_api_key-dependency появится вместе с internal-роутами
-    # в S11_T3 — сейчас заводим только поле конфига.
+    # docs/user_profiles_contract.md §2, см. src/api/v1/dependencies.py:
+    # verify_internal_api_key). Пусто = проверка выключена (локальная
+    # разработка) — по образцу AUTH_INTERNAL_API_KEY.
     internal_api_key: str = Field(default="", alias="PROFILES_INTERNAL_API_KEY")
 
     log_level: str = Field(default="INFO", alias="PROFILES_LOG_LEVEL")
