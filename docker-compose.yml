@@ -613,6 +613,8 @@ services:
       - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
       - UGC_SERVICE_URL=http://ugc_service:8000
       - SENTRY_DSN=${SENTRY_DSN_USER_PROFILES}
+    # Проброс только для тестирования (не продуктовое решение): внутренние
+    # эндпоинты /api/v1/profiles без PROFILES_INTERNAL_API_KEY доступны с хоста.
     ports:
       - "8007:8000"
     healthcheck:
@@ -1175,6 +1177,8 @@ services:
       - MONGO_DB=ugc_service
       - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
       - SENTRY_DSN=${SENTRY_DSN_UGC_SERVICE}
+    # Проброс только для тестирования (не продуктовое решение): internal-эндпоинт
+    # /api/v1/internal/users/{id}/ugc-summary без UGC_INTERNAL_API_KEY доступен с хоста.
     ports:
       - "8003:8000"
     depends_on:
