@@ -11,7 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.v1.dependencies import PaginationParams, verify_internal_api_key
 from src.core.exceptions import ProfileNotFoundError
 from src.db.postgres import get_session
-from src.models.schemas import ProfileListResponse, ProfileResponse
+from src.models.schemas import (
+    ProfileFullResponse,
+    ProfileListResponse,
+    ProfileResponse,
+)
+from src.services import ugc_client
 from src.services.profile_service import ProfileService
 
 router = APIRouter(
@@ -48,3 +53,35 @@ async def get_profile_internal(
             detail={"error": "profile_not_found"},
         )
     return ProfileResponse.model_validate(profile)
+
+
+@router.get("/{user_id}/full", response_model=ProfileFullResponse)
+async def get_profile_full(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> ProfileFullResponse:
+    """Агрегирующая витрина: профиль + закладки/оценки/рецензии из
+    ugc_service (docs/user_profiles_contract.md §2). Недоступность
+    ugc_service не 500-ит запрос — профиль отдаётся с ugc_available=False
+    (см. src/services/ugc_client.py)."""
+    try:
+        profile = await ProfileService(session).get_by_id(user_id)
+    except ProfileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "profile_not_found"},
+        )
+
+    summary = await ugc_client.get_user_ugc_summary(user_id)
+    if summary is None:
+        return ProfileFullResponse(
+            profile=ProfileResponse.model_validate(profile),
+            ugc_available=False,
+        )
+    return ProfileFullResponse(
+        profile=ProfileResponse.model_validate(profile),
+        ugc_available=True,
+        bookmarks=summary.bookmarks,
+        ratings=summary.ratings,
+        reviews=summary.reviews,
+    )

@@ -1,26 +1,24 @@
 """E2E тесты для ugc_service — проверка всех API endpoints и данных в MongoDB."""
 
-import asyncio
 import os
 from uuid import uuid4
 
 import aiohttp
 import pytest
+import pytest_asyncio
 from bson import Binary, ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# ==================================================================== #
-#  Фикстуры event loop                                                   #
-# ==================================================================== #
-
-
-@pytest.fixture(scope='session')
-def event_loop():
-    """Event loop на уровне сессии для session-scoped фикстур."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
+# Регистрация+логин (auth_token) выполняется один раз на весь модуль и
+# рассчитана на единственный shared event loop — повтор на каждый тест
+# (function-scope) упирается в rate limit auth_service на /login и валит все
+# тесты пустыми auth_headers. Старый способ делить loop — переопределение
+# самой фикстуры `event_loop` — был session-scoped и "протекал" в другие
+# тестовые файлы (tests/user_profiles) при совместном запуске в одном
+# pytest-процессе, вызывая `RuntimeError: Event loop is closed` в их
+# teardown'е. loop_scope='session' — поддерживаемый pytest-asyncio способ
+# дать этому модулю один общий loop, не трогая loop других модулей.
+pytestmark = pytest.mark.asyncio(loop_scope='session')
 
 # ==================================================================== #
 #  Утилиты                                                               #
@@ -61,7 +59,7 @@ MONGO_DB = 'ugc_service'
 # ==================================================================== #
 
 
-@pytest.fixture(scope='function')
+@pytest_asyncio.fixture(scope='function', loop_scope='session')
 async def mongo_client():
     """Клиент MongoDB."""
     client = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=5000)
@@ -71,15 +69,14 @@ async def mongo_client():
     client.close()
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session', loop_scope='session')
 async def aiohttp_session():
-    """HTTP-сессия."""
-    session = aiohttp.ClientSession()
-    yield session
-    await session.close()
+    """HTTP-сессия, одна на все тесты модуля (см. pytestmark выше)."""
+    async with aiohttp.ClientSession() as session:
+        yield session
 
 
-@pytest.fixture(scope='function')
+@pytest_asyncio.fixture(scope='function', loop_scope='session')
 async def clean_collections(mongo_client):
     """Очистка всех коллекций перед тестом."""
     collections = ['bookmarks', 'likes', 'reviews', 'review_votes']
@@ -90,7 +87,7 @@ async def clean_collections(mongo_client):
         await mongo_client[col].delete_many({})
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session', loop_scope='session')
 async def test_user_id(aiohttp_session):
     """Получение user_id из auth_service для тестов."""
     async with aiohttp_session.get(
@@ -102,9 +99,11 @@ async def test_user_id(aiohttp_session):
     return None
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session', loop_scope='session')
 async def auth_token(aiohttp_session):
-    """Получение тестового JWT-токена через auth_service (один раз на сессию)."""
+    """Получение тестового JWT-токена через auth_service (один раз на модуль —
+    /login у auth_service rate-limited, повтор на каждый тест исчерпал бы
+    лимит и вернул пустые auth_headers всем тестам)."""
     # Сначала регистрируем
     async with aiohttp_session.post(
         f'{AUTH_BASE_URL}/register',
@@ -131,7 +130,7 @@ async def auth_token(aiohttp_session):
     return None
 
 
-@pytest.fixture(scope='function')
+@pytest_asyncio.fixture(scope='function', loop_scope='session')
 async def auth_headers(auth_token):
     """Заголовки с токеном авторизации."""
     if auth_token:

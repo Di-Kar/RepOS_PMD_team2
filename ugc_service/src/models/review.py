@@ -37,6 +37,10 @@ class Review(Document):
             'published_at',
             'rating',
             [('film_id', 1), ('likes_count', -1)],  # сортировка по полезности
+            # (user_id, published_at): get_user_reviews (S11_T6) сортирует по
+            # published_at — без составного индекса сортировка после поиска
+            # по user_id идёт в памяти (лимит blocking sort 32MB).
+            [('user_id', 1), ('published_at', -1)],
         ]
 
     class Config:

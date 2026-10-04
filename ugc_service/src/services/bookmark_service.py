@@ -41,12 +41,14 @@ async def get_user_bookmarks(
     skip: int = 0,
     limit: int = 50,
 ) -> list[Bookmark]:
-    """Получить список закладок пользователя."""
-    bookmarks = await Bookmark.find(
-        Bookmark.user_id == user_id,
-        skip=skip,
-        limit=limit,
-    ).to_list()
+    """Получить список закладок пользователя, последние сначала."""
+    bookmarks = (
+        await Bookmark.find(Bookmark.user_id == user_id)
+        .sort([('created_at', -1)])
+        .skip(skip)
+        .limit(limit)
+        .to_list()
+    )
     return bookmarks
 
 

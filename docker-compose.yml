@@ -611,6 +611,7 @@ services:
     environment:
       - PROFILES_POSTGRES_HOST=user_profiles_postgres
       - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
+      - UGC_SERVICE_URL=http://ugc_service:8000
       - SENTRY_DSN=${SENTRY_DSN_USER_PROFILES}
     ports:
       - "8007:8000"
@@ -1247,6 +1248,11 @@ services:
       - ANALYTICS_CLICKHOUSE_PORT=8123
       - ANALYTICS_CLICKHOUSE_NATIVE_PORT=9000
       - MONGO_URI=mongodb://${MONGO_UGC_USER}:${MONGO_UGC_PASSWORD}@mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin
+      # Без этого manage.py test в notification_admin_panel (см. command выше)
+      # падает с "Connection refused" на дефолтный DATABASE_URL из
+      # notification_admin_panel/notification_admin/settings.py (localhost) —
+      # по образцу notification_admin_cron/notification_admin_panel ниже.
+      - DATABASE_URL=postgres://${NOTIFICATION_POSTGRES_USER:-notify_user}:${NOTIFICATION_POSTGRES_PASSWORD:-notify_secret}@notification_postgres:5432/${NOTIFICATION_POSTGRES_DB:-notifications_db}
     env_file:
       - ./.env
     depends_on:

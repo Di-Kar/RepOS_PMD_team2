@@ -1,12 +1,13 @@
 """Зависимости API: аутентификация, пагинация и валидация ObjectId."""
 
+import secrets
 import sys
 from pathlib import Path
 from typing import Annotated
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import Depends, HTTPException, Query, Request, status
+from fastapi import Depends, Header, HTTPException, Query, Request, status
 from httpx import AsyncClient, HTTPError
 
 # Гарантируем, что ugc_service/src в sys.path — независимо от порядка
@@ -124,3 +125,23 @@ async def get_optional_user(
         return None
     token = auth_header.removeprefix('Bearer ').strip()
     return await auth_client.get_current_user(token)
+
+
+async def verify_internal_api_key(
+    x_internal_api_key: str | None = Header(default=None),
+) -> None:
+    """Авторизация S2S-вызовов (user_profiles, S11_T6) — копия
+    user_profiles/src/api/v1/dependencies.py:verify_internal_api_key. Пустой
+    UGC_INTERNAL_API_KEY отключает проверку — для локальной разработки."""
+    if not settings.internal_api_key:
+        return
+    if not x_internal_api_key or not secrets.compare_digest(
+        x_internal_api_key, settings.internal_api_key
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                'error': 'invalid_internal_api_key',
+                'message': 'Missing or invalid X-Internal-Api-Key',
+            },
+        )

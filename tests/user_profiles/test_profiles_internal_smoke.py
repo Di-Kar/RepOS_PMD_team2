@@ -101,3 +101,35 @@ class TestListProfiles:
             body = await response.json()
         assert len(body["items"]) == 1
         assert body["total"] >= 2
+
+
+class TestGetProfileFull:
+    """GET /{user_id}/full (docs/user_profiles_contract.md §2, S11_T6):
+    агрегирует профиль + закладки/оценки/рецензии из ugc_service. ugc_service
+    поднят и доступен в docker-compose тестового окружения, поэтому сценарий
+    его недоступности (ugc_available: false) здесь не проверяется — как и
+    недоступность auth_service нигде в проекте не проверяется черным ящиком
+    (см. докстринг модуля)."""
+
+    async def test_get_unknown_user_returns_404(self, session):
+        async with session.get(f"{BASE_URL}/{uuid.uuid4()}/full") as response:
+            assert response.status == 404
+            body = await response.json()
+        assert body["detail"]["error"] == "profile_not_found"
+
+    async def test_get_existing_profile_without_ugc_data(self, session, auth_user):
+        created = await _create_profile(session, auth_user)
+
+        async with session.get(
+            f"{BASE_URL}/{auth_user['user_id']}/full"
+        ) as response:
+            assert response.status == 200, await response.text()
+            body = await response.json()
+
+        assert body["profile"] == created
+        assert body["ugc_available"] is True
+        # Свежий пользователь auth_service не создавал ни закладок, ни
+        # оценок, ни рецензий в ugc_service.
+        assert body["bookmarks"] == []
+        assert body["ratings"] == []
+        assert body["reviews"] == []
