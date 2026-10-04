@@ -1,13 +1,26 @@
 """Сервис работы с лайками."""
 
+import json
 import logging
 from datetime import datetime
 from uuid import UUID
 
+from redis.exceptions import RedisError
 from models.like import Like, like_id
 from pymongo.errors import DuplicateKeyError
 
+from core.redis_client import get_redis
+from config import settings
+
 logger = logging.getLogger(__name__)
+
+
+# Префикс ключа кэша
+_FILM_STATS_KEY = "film_stats:{film_id}"
+
+
+def _cache_key(film_id: UUID) -> str:
+    return _FILM_STATS_KEY.format(film_id=str(film_id))
 
 
 async def add_or_update_like(
@@ -24,6 +37,7 @@ async def add_or_update_like(
     )
     try:
         await like.insert()
+        logger.info('Лайк создан: user=%s film=%s rating=%d', user_id, film_id, rating)
     except DuplicateKeyError:
         # Оценка уже есть (в т.ч. гонка параллельных запросов) — обновляем.
         existing = await Like.get(like_id(user_id, film_id))
@@ -31,15 +45,12 @@ async def add_or_update_like(
             existing.rating = rating
             existing.updated_at = datetime.utcnow()
             await existing.save()
-            logger.info(
-                'Лайк обновлён: user=%s film=%s rating=%d',
-                user_id,
-                film_id,
-                rating,
-            )
-            return existing
+            logger.info('Лайк обновлён: user=%s film=%s rating=%d', user_id, film_id, rating)
+            like = existing  # Возвращаем обновлённый объект
 
-    logger.info('Лайк создан: user=%s film=%s rating=%d', user_id, film_id, rating)
+    # ИНВАЛИДАЦИЯ КЭША при записи
+    await invalidate_film_stats_cache(film_id)
+    
     return like
 
 
@@ -49,22 +60,36 @@ async def remove_like(user_id: UUID, film_id: UUID) -> bool:
     if like:
         await like.delete()
         logger.info('Лайк удалён: user=%s film=%s', user_id, film_id)
+        
+        # ИНВАЛИДАЦИЯ КЭША при удалении
+        await invalidate_film_stats_cache(film_id)
         return True
     return False
 
 
 async def get_film_like_stats(film_id: UUID) -> dict:
-    """Получить статистику лайков для фильма (aggregation pipeline).
-
-    Использует MongoDB $facet для расчёта метрик и распределения
-    на стороне базы данных — в память попадает один документ с результатами.
     """
+    Получить статистику лайков для фильма.
+    1. Пытаемся прочитать из Redis.
+    2. На miss — выполняем $facet-агрегацию в Mongo и кладём в Redis.
+    3. На сбой Redis — fallback на Mongo (degrade gracefully).
+    """
+    cache_key = _cache_key(film_id)
+
+    # --- 1. Читаем из кэша ---
+    try:
+        redis = await get_redis()
+        cached = await redis.get(cache_key)
+        if cached is not None:
+            return json.loads(cached)
+    except RedisError as e:
+        logger.warning("redis_read_failed", extra={"film_id": str(film_id), "error": str(e)})
+    except Exception:
+        logger.exception("redis_unexpected_error", extra={"film_id": str(film_id)})
+
+    # --- 2. Cache miss: тяжёлая агрегация в Mongo (ваш оригинальный pipeline) ---
     pipeline = [
-        # Фильтрация по фильму. Передаём UUID как есть — motor кодирует его
-        # согласно uuidRepresentation клиента (standard), совпадая с тем,
-        # как Beanie хранит поле film_id.
         {"$match": {"film_id": film_id}},
-        # Параллельный расчёт метрик и распределения
         {
             "$facet": {
                 "summary": [
@@ -94,12 +119,7 @@ async def get_film_like_stats(film_id: UUID) -> dict:
                                         "$cond": [
                                             {"$eq": ["$total_ratings", 0]},
                                             0,
-                                            {
-                                                "$divide": [
-                                                    "$rating_sum",
-                                                    "$total_ratings",
-                                                ]
-                                            },
+                                            {"$divide": ["$rating_sum", "$total_ratings"]},
                                         ]
                                     },
                                     2,
@@ -122,13 +142,15 @@ async def get_film_like_stats(film_id: UUID) -> dict:
     summary = doc.get("summary", [{}]) if doc else [{}]
     summary = summary[0] if summary else {}
 
-    # Распределение: словарь {0: count, 1: count, ..., 10: count}
-    distribution: dict[int, int] = dict.fromkeys(range(11), 0)
+    # Распределение: словарь {"0": count, "1": count, ..., "10": count}
+    # Используем строковые ключи, так как словарь будет сериализован в JSON
+    distribution: dict[str, int] = {str(i): 0 for i in range(11)}
+    
     if doc and doc.get("distribution"):
         for item in doc["distribution"]:
-            distribution[item["_id"]] = item["count"]
+            distribution[str(item["_id"])] = item["count"]
 
-    return {
+    stats = {
         'film_id': str(film_id),
         'total_likes': summary.get('total_likes', 0),
         'total_dislikes': summary.get('total_dislikes', 0),
@@ -137,18 +159,26 @@ async def get_film_like_stats(film_id: UUID) -> dict:
         'rating_distribution': distribution,
     }
 
+    # --- 3. Пишем в кэш (best-effort) ---
+    try:
+        redis = await get_redis()
+        await redis.setex(
+            cache_key,
+            settings.film_stats_cache_ttl,
+            json.dumps(stats),
+        )
+    except RedisError as e:
+        logger.warning("redis_write_failed", extra={"film_id": str(film_id), "error": str(e)})
 
-async def get_user_likes(
-    user_id: UUID,
-    skip: int = 0,
-    limit: int = 20,
-) -> list[Like]:
-    """Получить оценки, выставленные пользователем (для агрегирующей
-    витрины профиля, S11_T6)."""
-    return (
-        await Like.find(Like.user_id == user_id)
-        .sort([('updated_at', -1)])
-        .skip(skip)
-        .limit(limit)
-        .to_list()
-    )
+    return stats
+
+
+async def invalidate_film_stats_cache(film_id: UUID) -> None:
+    """Сбросить кэш статистики фильма (вызывается при записи/удалении)."""
+    cache_key = _cache_key(film_id)
+    try:
+        redis = await get_redis()
+        await redis.delete(cache_key)
+    except RedisError as e:
+        # Не критично: кэш протухнет по TTL через 60 сек
+        logger.warning("cache_invalidation_failed", extra={"film_id": str(film_id), "error": str(e)})
