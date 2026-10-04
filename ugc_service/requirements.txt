@@ -6,3 +6,6 @@ gunicorn==23.0.0
 uvicorn[standard]==0.30.0
 httpx==0.27.0
 sentry-sdk==2.44.0
+slowapi==0.1.9
+limits[redis]>=3.6.0   # redis-backend для распределённого лимитера
+redis[hiredis]>=5.0.0   # hiredis — C-ускорение сериализации
