@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from beanie import Document
+from beanie import Document, PydanticObjectId
 from pydantic import Field
 
 
@@ -19,7 +19,7 @@ def like_id(user_id: UUID, film_id: UUID) -> str:
 class Like(Document):
     """Лайк пользователя к фильму (оценка от 0 до 10)."""
 
-    id: str
+    id: PydanticObjectId = Field(default=None, alias="_id")
     user_id: UUID
     film_id: UUID
     rating: int

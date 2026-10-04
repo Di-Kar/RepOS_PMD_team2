@@ -3,9 +3,10 @@
 from datetime import datetime
 from uuid import UUID
 
-from beanie import Document
+from beanie import Document, PydanticObjectId
 from bson import ObjectId
 from pydantic import Field
+
 
 
 def review_vote_id(user_id: UUID, review_id: ObjectId) -> str:
@@ -48,7 +49,7 @@ class Review(Document):
 class ReviewVote(Document):
     """Голос за/против рецензии."""
 
-    id: str
+    id: PydanticObjectId = Field(default=None, alias="_id")
     user_id: UUID
     review_id: ObjectId
     is_like: bool

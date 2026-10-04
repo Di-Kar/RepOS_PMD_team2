@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from beanie import Document
+from beanie import Document, PydanticObjectId
 from pydantic import Field
 
 
@@ -19,7 +19,7 @@ def bookmark_id(user_id: UUID, film_id: UUID) -> str:
 class Bookmark(Document):
     """Закладка пользователя на фильм."""
 
-    id: str
+    id: PydanticObjectId = Field(default=None, alias="_id")
     user_id: UUID
     film_id: UUID
     created_at: datetime = Field(default_factory=datetime.utcnow)
