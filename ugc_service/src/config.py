@@ -30,6 +30,32 @@ class Settings(BaseSettings):
         alias='AUTH_REQUEST_TIMEOUT',
     )
 
+    # Rate Limiting (защита от спама рецензиями)
+    reviews_rate_limit: str = Field(
+        default='10/hour',
+        alias='REVIEWS_RATE_LIMIT',
+        description='Лимит на создание рецензий (формат slowapi: count/period)',
+    )
+    rate_limiter_storage_uri: str = Field(
+        default='redis://ugc_redis:6379/1',
+        alias='RATE_LIMITER_STORAGE_URI',
+        description='URI Redis для хранения счетчиков rate limiter (отдельный DB=1)',
+    )
+
+    # Redis (кэш статистики фильмов)
+    redis_host: str = Field(default='ugc_redis', alias='REDIS_HOST')
+    redis_port: int = Field(default=6379, alias='REDIS_PORT')
+    redis_db_cache: int = Field(
+        default=0,
+        alias='REDIS_DB_CACHE',
+        description='DB Redis для кэша статистики фильмов',
+    )
+    film_stats_cache_ttl: int = Field(
+        default=60,
+        alias='FILM_STATS_CACHE_TTL',
+        description='TTL кэша статистики фильма в секундах',
+    )
+
     # Debug
     debug: bool = Field(default=False, alias='DEBUG')
 
