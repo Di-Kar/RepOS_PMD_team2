@@ -56,6 +56,22 @@ async def get_film_reviews(
     return reviews
 
 
+async def get_user_reviews(
+    user_id: UUID,
+    skip: int = 0,
+    limit: int = 20,
+) -> list[Review]:
+    """Получить рецензии пользователя, последние сначала (для агрегирующей
+    витрины профиля, S11_T6)."""
+    return (
+        await Review.find(Review.user_id == user_id)
+        .sort([('published_at', -1)])
+        .skip(skip)
+        .limit(limit)
+        .to_list()
+    )
+
+
 async def get_review_by_id(review_id: ObjectId) -> Review | None:
     """Получить рецензию по ID."""
     return await Review.get(review_id)

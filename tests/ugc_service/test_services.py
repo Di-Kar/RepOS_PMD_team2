@@ -68,6 +68,9 @@ class TestBookmarkService:
         mock_bookmark.created_at = MagicMock()
 
         mock_query = MagicMock()
+        mock_query.sort = MagicMock(return_value=mock_query)
+        mock_query.skip = MagicMock(return_value=mock_query)
+        mock_query.limit = MagicMock(return_value=mock_query)
         mock_query.to_list = AsyncMock(return_value=[mock_bookmark])
 
         with patch('services.bookmark_service.Bookmark') as MockBookmark:

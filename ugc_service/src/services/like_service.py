@@ -136,3 +136,19 @@ async def get_film_like_stats(film_id: UUID) -> dict:
         'total_ratings': summary.get('total_ratings', 0),
         'rating_distribution': distribution,
     }
+
+
+async def get_user_likes(
+    user_id: UUID,
+    skip: int = 0,
+    limit: int = 20,
+) -> list[Like]:
+    """Получить оценки, выставленные пользователем (для агрегирующей
+    витрины профиля, S11_T6)."""
+    return (
+        await Like.find(Like.user_id == user_id)
+        .sort([('updated_at', -1)])
+        .skip(skip)
+        .limit(limit)
+        .to_list()
+    )

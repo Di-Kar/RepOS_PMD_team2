@@ -31,6 +31,10 @@ class Like(Document):
         indexes = [
             'user_id',
             'film_id',
+            # (user_id, updated_at): get_user_likes (S11_T6) сортирует по
+            # updated_at — без составного индекса сортировка после поиска по
+            # user_id идёт в памяти (лимит blocking sort 32MB).
+            [('user_id', 1), ('updated_at', -1)],
         ]
 
     class Config:

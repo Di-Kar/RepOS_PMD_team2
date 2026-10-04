@@ -30,6 +30,11 @@ class Settings(BaseSettings):
         alias='AUTH_REQUEST_TIMEOUT',
     )
 
+    # Авторизация S2S-вызовов (user_profiles, GET /api/v1/internal/..., S11_T6)
+    # — копия PROFILES_INTERNAL_API_KEY/AUTH_INTERNAL_API_KEY. Пусто = проверка
+    # отключена (локальная разработка).
+    internal_api_key: str = Field(default='', alias='UGC_INTERNAL_API_KEY')
+
     # Debug
     debug: bool = Field(default=False, alias='DEBUG')
 

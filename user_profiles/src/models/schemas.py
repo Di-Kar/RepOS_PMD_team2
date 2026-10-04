@@ -71,3 +71,46 @@ class ProfileListResponse(BaseModel):
 
     items: list[ProfileResponse] = Field(..., description="Профили на странице")
     total: int = Field(..., description="Общее количество совпадений")
+
+
+class UgcBookmarkItem(BaseModel):
+    """Закладка пользователя (зеркалит BookmarkResponse ugc_service)."""
+
+    film_id: uuid.UUID
+    added_at: str
+
+
+class UgcRatingItem(BaseModel):
+    """Оценка, выставленная пользователем фильму (зеркалит LikeResponse
+    ugc_service)."""
+
+    film_id: uuid.UUID
+    rating: int
+    updated_at: str
+
+
+class UgcReviewItem(BaseModel):
+    """Рецензия пользователя (зеркалит ReviewResponse ugc_service)."""
+
+    id: str
+    film_id: uuid.UUID
+    title: str
+    rating: int
+    published_at: str
+    likes_count: int
+    dislikes_count: int
+
+
+class ProfileFullResponse(BaseModel):
+    """Агрегирующая витрина профиля (docs/user_profiles_contract.md §2,
+    GET /api/v1/profiles/{user_id}/full)."""
+
+    profile: ProfileResponse
+    ugc_available: bool = Field(
+        ...,
+        description="False — ugc_service был недоступен при сборке ответа, "
+        "списки ниже пустые, а не отсутствующие UGC-данные",
+    )
+    bookmarks: list[UgcBookmarkItem] = Field(default_factory=list)
+    ratings: list[UgcRatingItem] = Field(default_factory=list)
+    reviews: list[UgcReviewItem] = Field(default_factory=list)

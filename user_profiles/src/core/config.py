@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     auth_service_timeout: float = Field(default=3.0, alias="AUTH_SERVICE_TIMEOUT")
     auth_internal_api_key: str = Field(default="", alias="AUTH_INTERNAL_API_KEY")
 
+    # ugc_service (агрегирующая витрина профиля, GET /profiles/{user_id}/full,
+    # S11_T6) — internal-эндпоинт ugc_service, см.
+    # ugc_service/src/api/v1/internal.py.
+    ugc_service_url: str = Field(
+        default="http://ugc_service:8000", alias="UGC_SERVICE_URL"
+    )
+    ugc_service_timeout: float = Field(default=2.0, alias="UGC_SERVICE_TIMEOUT")
+    ugc_internal_api_key: str = Field(default="", alias="UGC_INTERNAL_API_KEY")
+
     jaeger_endpoint: str = Field(default="", alias="JAEGER_ENDPOINT")
 
     # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)

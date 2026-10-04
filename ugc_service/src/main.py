@@ -7,6 +7,7 @@ from logging import config as logging_config
 import sentry_sdk
 from api.v1.auth_proxy import router as auth_proxy_router
 from api.v1.bookmarks import router as bookmarks_router
+from api.v1.internal import router as internal_router
 from api.v1.likes import router as likes_router
 from api.v1.reviews import router as reviews_router
 from config import settings
@@ -96,6 +97,7 @@ app.include_router(auth_proxy_router)
 app.include_router(bookmarks_router)
 app.include_router(likes_router)
 app.include_router(reviews_router)
+app.include_router(internal_router)
 
 
 @app.get('/health', tags=['Health'])

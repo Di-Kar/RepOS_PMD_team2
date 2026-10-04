@@ -29,6 +29,11 @@ class Bookmark(Document):
         indexes = [
             'user_id',
             'film_id',
+            # (user_id, created_at): без него get_user_bookmarks (S11_T6)
+            # сортирует по created_at после поиска по user_id в памяти —
+            # на большом количестве закладок у пользователя упирается в
+            # лимит blocking sort (32MB) без возможности использовать индекс.
+            [('user_id', 1), ('created_at', -1)],
         ]
 
     class Config:
