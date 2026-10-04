@@ -12,6 +12,7 @@ volumes:
   notification_postgres_data:
   notification_static_volume:
   link_shortener_postgres_data:
+  ugc_redis_data:
   # MongoDB Cluster data
   mongo_config_data_0:
   mongo_config_data_1:
@@ -1089,6 +1090,21 @@ services:
     networks:
       - backend
 
+  # --- UGC Service Infrastructure ---
+  ugc_redis:
+    image: redis:7-alpine
+    container_name: ugc_redis
+    volumes:
+      - ugc_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
   # --- ugc_service ---
   ugc_service:
     build:
@@ -1098,10 +1114,16 @@ services:
     env_file:
       - ./.env
     environment:
+      - PROJECT_NAME=ugc_service
       - MONGO_URI=mongodb://${MONGO_UGC_USER}:${MONGO_UGC_PASSWORD}@mongo_mongos-0:27017,mongo_mongos-1:27017/ugc_service?authSource=admin
       - MONGO_DB=ugc_service
       - AUTH_SERVICE_URL=http://auth_service:8000/api/v1/auth
       - SENTRY_DSN=${SENTRY_DSN_UGC_SERVICE}
+      - REDIS_HOST=ugc_redis
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_DB_CACHE=${REDIS_DB_CACHE:-0}
+      - FILM_STATS_CACHE_TTL=${FILM_STATS_CACHE_TTL:-60}
+      - RATE_LIMITER_STORAGE_URI=redis://ugc_redis:${REDIS_PORT:-6379}/1
     ports:
       - "8003:8000"
     depends_on:
@@ -1110,6 +1132,8 @@ services:
       mongo_init:
         condition: service_completed_successfully
       auth_service:
+        condition: service_healthy
+      ugc_redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
@@ -1149,7 +1173,8 @@ services:
     command: sh -c "
       pytest /tests -rs --ignore=/tests/admin_panel --ignore=/tests/notification_admin_panel --import-mode=importlib
       && cd /admin_panel && python manage.py test /tests/admin_panel
-      && cd /notification_admin_panel && python manage.py test tests.notification_admin_panel"
+      && cd /notification_admin_panel && python manage.py test /tests/notification_admin_panel
+      && cd /ugc_service && python manage.py test /tests/ugc_service"
     environment:
       - PYTHONPATH=/analytics_etl/src:/ugc_service/src:/tests:/shared:/
       - REDIS_HOST=async_api_redis
