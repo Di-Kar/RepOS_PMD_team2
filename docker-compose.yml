@@ -1218,6 +1218,11 @@ services:
       - ./notification_worker:/notification_worker
       - ./shared:/shared
       - ./ugc_service:/ugc_service
+      # Юнит-тесты схем user_profiles (tests/user_profiles/test_schemas.py)
+      # грузят src/models/schemas.py по прямому пути через importlib (не
+      # через PYTHONPATH/sys.path — имена "src"/"models" уже заняты пакетами
+      # notification_worker/ugc_service, примонтированными в этот же контейнер).
+      - ./user_profiles:/user_profiles
     command: sh -c "
       pytest /tests -rs --ignore=/tests/admin_panel --ignore=/tests/notification_admin_panel --import-mode=importlib
       && cd /admin_panel && python manage.py test /tests/admin_panel
@@ -1232,6 +1237,7 @@ services:
       - UGC_API_PORT=8000
       - NOTIFICATION_API_HOST=notification_api
       - LINK_SHORTENER_API_HOST=link_shortener_service
+      - USER_PROFILES_API_HOST=user_profiles
       - EVENTS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - NOTIFICATIONS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - NOTIFICATION_WORKER_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -1280,5 +1286,7 @@ services:
         condition: service_healthy
       mongo_init:
         condition: service_completed_successfully
+      user_profiles:
+        condition: service_healthy
     networks:
       - backend

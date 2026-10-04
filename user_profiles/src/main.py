@@ -1,7 +1,4 @@
-"""Точка входа FastAPI-приложения user_profiles.
-
-Скелет сервиса (S11_T2, issue #109) — без бизнес-логики, CRUD-роуты
-добавятся в S11_T3 (docs/user_profiles_contract.md)."""
+"""Точка входа FastAPI-приложения user_profiles (docs/user_profiles_contract.md)."""
 
 import logging
 import uuid
@@ -13,6 +10,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
+from src.api.v1.internal import router as internal_router
+from src.api.v1.profiles import router as profiles_router
 from src.core.config import settings
 from src.core.tracer import configure_tracer
 from src.db.postgres import close_db
@@ -41,6 +40,13 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 FastAPIInstrumentor.instrument_app(app)
+
+# Self-service (/me, JWT) регистрируется до internal (/{user_id}, X-Internal-
+# Api-Key): оба роутера делят префикс /api/v1/profiles, и хотя конвертер
+# uuid.UUID и так не даст internal-роуту перехватить литеральный путь /me,
+# порядок регистрации — defensive-привычка на случай будущих изменений.
+app.include_router(profiles_router)
+app.include_router(internal_router)
 
 
 @app.get("/health", tags=["Health"])
