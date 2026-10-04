@@ -3,17 +3,17 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from api.dependencies import UserContext
+
+from api.dependencies import get_optional_user, UserContext
 from api.v1.reviews import router
 from bson import ObjectId
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+
 # ==================================================================== #
 #  Фикстуры                                                            #
 # ==================================================================== #
-
-
 @pytest.fixture
 def app() -> FastAPI:
     """FastAPI-приложение с роутером рецензий."""
@@ -24,7 +24,7 @@ def app() -> FastAPI:
 
 @pytest.fixture
 def client(app: FastAPI) -> TestClient:
-    """TestClient для отправки запросов к приложению."""
+    """TestClient для отправки запросов к приложению (без авторизации)."""
     return TestClient(app)
 
 
@@ -35,13 +35,25 @@ def mock_user():
 
 
 @pytest.fixture
-def authed_client(client: TestClient, mock_user) -> TestClient:
-    """TestClient с замоканной авторизацией через заголовок Authorization."""
-    auth_client_mock = MagicMock(get_current_user=AsyncMock(return_value=mock_user))
-    with patch('api.dependencies._auth_client', auth_client_mock):
-        # Добавляем заголовок Authorization ко всем запросам
-        client.headers['Authorization'] = 'Bearer test-token'
-        yield client
+def authed_client(app: FastAPI, mock_user) -> TestClient:
+    """
+    TestClient с переопределенной зависимостью get_optional_user.
+    Это гарантирует, что тест получит mock_user, минуя реальную логику middleware.
+    """
+    async def _mock_get_optional_user():
+        return mock_user
+    
+    # 1. Применяем override ИМЕННО к тому экземпляру app, который использует TestClient
+    app.dependency_overrides[get_optional_user] = _mock_get_optional_user
+    
+    # 2. Патчим лимит, чтобы тесты не упирались в 10/hour
+    with patch("config.settings.reviews_rate_limit", "100/minute"):
+        test_client = TestClient(app)
+        test_client.headers['Authorization'] = 'Bearer test-token'
+        yield test_client
+        
+    # 3. Очищаем overrides после теста, чтобы не сломать другие
+    app.dependency_overrides.clear()
 
 
 # ==================================================================== #
@@ -186,8 +198,8 @@ class TestCreateReview:
 
     @patch('api.v1.reviews.review_service')
     def test_valid_body_returns_201(
-        self, mock_service: MagicMock, authed_client: TestClient
-    ):
+       self, mock_service: MagicMock, authed_client: TestClient
+    ):    
         """Валидный body → 201 с данными рецензии."""
         mock_review = MagicMock()
         mock_review.id = ObjectId('550e8400e29b41d4a7164466')
@@ -211,6 +223,7 @@ class TestCreateReview:
                 'text': 'Прекрасная история',
                 'rating': 9,
             },
+            headers={"Authorization": "Bearer valid_token"}
         )
 
         assert response.status_code == status.HTTP_201_CREATED
@@ -340,6 +353,7 @@ class TestCreateReview:
                 'text': 'T' * 10000,
                 'rating': 8,
             },
+            headers={"Authorization": "Bearer valid_token"}
         )
 
         assert response.status_code == status.HTTP_201_CREATED
@@ -374,6 +388,7 @@ class TestCreateReview:
                 'text': 'Текст',
                 'rating': 7,
             },
+            headers={"Authorization": "Bearer valid_token"}
         )
 
         assert response.status_code == status.HTTP_201_CREATED
