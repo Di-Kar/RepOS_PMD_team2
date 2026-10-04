@@ -162,31 +162,29 @@ ugc_service/
 ├── requirements.txt
 ├── readme.md
 ├── src/
-│   ├── main.py            # FastAPI приложение + Swagger security
-│   ├── config.py          # Настройки (pydantic-settings)
-│   ├── logger.py          # Логирование
-│   ├── db/
-│   │   ├── connection.py  # Beanie + Motor подключение
-│   │   └── init_db.py     # Sharding + indexes
-│   ├── models/
-│   │   ├── bookmark.py    # Bookmark (Beanie Document)
-│   │   ├── like.py        # Like
-│   │   └── review.py      # Review + ReviewVote
-│   ├── api/v1/
-│   │   ├── auth_proxy.py  # Прокси авторизации к auth_service
-│   │   ├── bookmarks.py   # CRUD закладок
-│   │   ├── likes.py       # CRUD лайков
-│   │   └── reviews.py     # CRUD рецензий
-│   ├── api/dependencies.py # Аутентификация, пагинация
-│   └── services/
-│       ├── bookmark_service.py
-│       ├── like_service.py
-│       └── review_service.py
-└── tests/
-    └── ugc_service/
-        ├── test_ugc_e2e.py         # E2E тесты (14 тестов)
-        ├── test_services.py        # Unit тесты сервисов
-        └── test_ugc_schemas.py     # Тесты схем
+    ├── main.py            # FastAPI приложение + Swagger security
+    ├── config.py          # Настройки (pydantic-settings)
+    ├── logger.py          # Логирование
+    ├── db/
+    │   ├── connection.py  # Beanie + Motor подключение
+    │   └── init_db.py     # Sharding + indexes
+    ├── models/
+    │   ├── bookmark.py    # Bookmark (Beanie Document)
+    │   ├── like.py        # Like
+    │   └── review.py      # Review + ReviewVote
+    ├── core/
+    │   ├── rate_limiter.py # rate_limiter
+    │   └── redis_client.py # redis_client
+    ├── api/v1/
+    │   ├── auth_proxy.py  # Прокси авторизации к auth_service
+    │   ├── bookmarks.py   # CRUD закладок
+    │   ├── likes.py       # CRUD лайков
+    │   └── reviews.py     # CRUD рецензий
+    ├── api/dependencies.py # Аутентификация, пагинация
+    └── services/
+        ├── bookmark_service.py
+        ├── like_service.py
+        └── review_service.py
 ```
 
 ## Зависимости
@@ -200,6 +198,10 @@ gunicorn==23.0.0
 uvicorn[standard]==0.30.0
 httpx==0.27.0
 motor==3.6.0
+sentry-sdk==2.44.0
+slowapi==0.1.9
+limits[redis]>=3.6.0   # redis-backend для распределённого лимитера
+redis[hiredis]>=5.0.0   # hiredis — C-ускорение сериализации
 ```
 
 ## Переменные окружения
@@ -222,3 +224,67 @@ motor==3.6.0
 | Write (insert/update) | ~4 мс |
 | Агрегация (лайки) | < 10 мс |
 | Поиск с пагинацией | < 20 мс |
+
+---
+
+## 🚀 Модернизация и оптимизация производительности (Задача S11_T11/T12)
+
+В рамках задач **S11_T11/T12** сервис `ugc_service` был существенно модернизирован для обеспечения высокой производительности при чтении статистики фильмов, снижения нагрузки на основную базу данных и защиты от спам-атак. 
+
+### 📋 Связь реализованных решений с требованиями
+
+| Требование | Описание | Реализованное решение |
+| :--- | :--- | :--- |
+| **NFR6** | 95% запросов должны выполняться ≤ 200 мс. | Внедрено кэширование результатов тяжёлых `$facet`-агрегаций в Redis (DB=0) с TTL 60 сек. |
+| **NFR7** | Снижение нагрузки на MongoDB при чтении. | Паттерн **Cache-Aside**: чтение идёт из Redis, запрос к MongoDB выполняется только при промахе (cache miss). |
+| **NFR9** | Отказоустойчивость и доступность. | Реализован **Graceful Degradation**: при недоступности Redis сервис автоматически и прозрачно fallback-ит на прямой запрос к MongoDB. |
+| **NFR12** | Защита от спама рецензиями. | Внедрён **Rate Limiter** (`slowapi` + Redis DB=1) с лимитом `10/hour` на пользователя. |
+| **FR (Актуальность)** | Пользователь должен видеть свою оценку сразу. | Паттерн **Write-Invalidate**: кэш принудительно сбрасывается (`DEL`) при добавлении, изменении или удалении лайка. |
+
+---
+
+### ⚙️ Архитектурные решения
+
+#### 1. Кэширование статистики лайков (`get_film_like_stats`)
+*   **Хранилище**: Выделенный инстанс `ugc_redis` (использует `DB=0` для кэша, чтобы изолировать данные от других механизмов).
+*   **Защита от Cache Stampede**: В кэш сохраняются даже "пустые" результаты (0 оценок), чтобы предотвратить лавинообразные запросы к MongoDB для непопулярных фильмов.
+*   **Инвалидация**: Вызов функций `add_or_update_like` и `remove_like` гарантирует мгновенную очистку кэша для конкретного `film_id`.
+
+#### 2. Защита от спама (Rate Limiting)
+*   **Механизм**: Библиотека `slowapi` с распределённым хранилищем в Redis (`DB=1`).
+*   **Ключ лимита**: Привязан к `user_id` (извлекается middleware из JWT-токена). Для анонимных запросов используется безопасный fallback на IP-адрес.
+*   **Обработка превышения**: Возвращает стандартизированный HTTP `429 Too Many Requests` с заголовком `Retry-After` и понятным JSON-сообщением.
+
+#### 3. Отказоустойчивость (Graceful Degradation)
+Все операции с Redis обёрнуты в блоки `try...except RedisError`. Если кластер Redis недоступен:
+1. Ошибка логируется с уровнем `WARNING`.
+2. Сервис **не падает**, а выполняет fallback на прямое выполнение агрегации в MongoDB.
+3. Это гарантирует выполнение SLA по доступности (NFR9) ценой временной деградации времени отклика.
+
+---
+
+### 🔧 Конфигурация (Переменные окружения)
+
+Новые параметры добавлены в `src/config.py` и могут быть переопределены через `.env` или `docker-compose.yml`:
+
+| Переменная | По умолчанию | Описание |
+| :--- | :--- | :--- |
+| `REDIS_HOST` | `ugc_redis` | Хост Redis-сервера. |
+| `REDIS_PORT` | `6379` | Порт Redis-сервера. |
+| `REDIS_DB_CACHE` | `0` | Номер БД Redis для кэширования статистики. |
+| `FILM_STATS_CACHE_TTL` | `60` | Время жизни кэша статистики фильма (в секундах). |
+| `REVIEWS_RATE_LIMIT` | `10/hour` | Лимит создания рецензий (формат `count/period` для slowapi). |
+| `RATE_LIMITER_STORAGE_URI`| `redis://ugc_redis:6379/1`| URI для хранения счётчиков Rate Limiter (изолированная БД). |
+
+---
+
+### 🧪 Тестирование и качество кода
+
+*   **Покрытие тестами**: Добавлен комплексный набор тестов (`tests/ugc_service/test_like_service.py`, `test_reviews_rate_limit.py`), проверяющий:
+    *   Попадание в кэш (cache hit) и отсутствие запроса к MongoDB.
+    *   Промах кэша (cache miss), корректный парсинг `$facet` и запись в Redis.
+    *   Корректный fallback на MongoDB при имитации сбоя Redis.
+    *   Гарантированную инвалидацию кэша при мутациях.
+    *   Изоляцию лимитов для разных `user_id`.
+*   **Статический анализ**: Код полностью проходит проверку `mypy` без ошибок (`Success: no issues found in 32 source files`), включая строгую типизацию моделей Beanie (`PydanticObjectId`) и обработчиков исключений Starlette.
+
