@@ -10,8 +10,10 @@ from api.dependencies import (
     get_validated_object_id,
 )
 from bson import ObjectId
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
+from config import settings
+from core.rate_limiter import limiter
 from services import review_service
 
 from .schemas import ReviewCreateRequest, ReviewUpdateRequest
@@ -25,7 +27,6 @@ EXAMPLE_REVIEW_ID = UUID('550e8400-e29b-41d4-a716-446655440000')
 
 class ReviewResponse(BaseModel):
     """Ответ с информацией о рецензии."""
-
     id: str
     user_id: UUID
     film_id: UUID
@@ -38,7 +39,6 @@ class ReviewResponse(BaseModel):
 
 class ReviewDetailResponse(BaseModel):
     """Детальная информация о рецензии."""
-
     id: str
     user_id: UUID
     film_id: UUID
@@ -52,7 +52,6 @@ class ReviewDetailResponse(BaseModel):
 
 class ReviewUpdateResponse(BaseModel):
     """Ответ при обновлении рецензии."""
-
     id: str
     title: str
     updated_at: str
@@ -60,7 +59,6 @@ class ReviewUpdateResponse(BaseModel):
 
 class ReviewVoteResponse(BaseModel):
     """Ответ при голосовании за рецензию."""
-
     review_id: str
     is_like: bool
     voted_at: str
@@ -73,8 +71,11 @@ class ReviewVoteResponse(BaseModel):
     description='Создать рецензию на фильм.',
     response_model=ReviewResponse,
 )
+
+@limiter.limit(lambda: settings.reviews_rate_limit)
 async def create_review(
     body: ReviewCreateRequest,
+    request: Request, 
     user=Depends(get_optional_user),
 ):
     if user is None:
@@ -113,15 +114,15 @@ async def create_review(
     response_model=list[ReviewResponse],
 )
 async def get_reviews(
-    film_id: UUID = Query(
+    film_id: UUID = Query( 
         ...,
-        example=str(EXAMPLE_FILM_ID),
+        examples=[str(EXAMPLE_FILM_ID)],
         description='UUID фильма',
     ),
     sort: str = Query(
         'likes_count',
-        regex='^(likes_count|published_at|rating)$',
-        example='likes_count',
+        pattern='^(likes_count|published_at|rating)$',
+        examples=['likes_count'],
         description='Поле сортировки',
     ),
     pagination: PaginationParams = Depends(PaginationParams),
@@ -249,7 +250,7 @@ async def vote_on_review(
     review_id: Annotated[ObjectId, Depends(get_validated_object_id)],
     is_like: bool = Query(
         True,
-        example=True,
+        examples=[True], 
         description='True = лайк, False = дизлайк',
     ),
     user=Depends(get_optional_user),
@@ -275,3 +276,4 @@ async def vote_on_review(
         is_like=vote.is_like,
         voted_at=vote.created_at.isoformat(),
     )
+
