@@ -1,13 +1,12 @@
 """Зависимости API: аутентификация, пагинация и валидация ObjectId."""
 
-import secrets
 import sys
 from pathlib import Path
 from typing import Annotated
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import Depends, Header, HTTPException, Query, Request, status
+from fastapi import HTTPException, Query, Request, status
 from httpx import AsyncClient, HTTPError
 
 # Гарантируем, что ugc_service/src в sys.path — независимо от порядка
@@ -17,7 +16,6 @@ if _UGC_SRC not in sys.path:
     sys.path.insert(0, _UGC_SRC)
 
 from config import settings   # type: ignore[attr-defined]
-from config import settings  # noqa: E402
 
 def _validate_object_id(review_id: str) -> ObjectId:
     """Валидировать и преобразовать строку в ObjectId."""
@@ -63,7 +61,6 @@ class PaginationParams:
 
 class UserContext:
     """Контекст текущего пользователя."""
-
     def __init__(self, user_id: str, name: str):
         self.user_id = user_id
         self.name = name
@@ -110,38 +107,16 @@ async def get_auth_client() -> AuthServiceClient:
     return _auth_client
 
 
-async def get_optional_user(
-    request: Request,
-    auth_client: AuthServiceClient = Depends(get_auth_client),
-) -> UserContext | None:
-    """Определить текущего пользователя по Bearer-токену.
-
-    Ничего не требует и никогда не отклоняет запрос: отсутствие заголовка,
-    невалидный/просроченный токен и недоступность auth_service трактуются
-    как анонимный доступ (None).
+async def get_optional_user(request: Request) -> UserContext | None:
     """
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return None
-    token = auth_header.removeprefix('Bearer ').strip()
-    return await auth_client.get_current_user(token)
-
-
-async def verify_internal_api_key(
-    x_internal_api_key: str | None = Header(default=None),
-) -> None:
-    """Авторизация S2S-вызовов (user_profiles, S11_T6) — копия
-    user_profiles/src/api/v1/dependencies.py:verify_internal_api_key. Пустой
-    UGC_INTERNAL_API_KEY отключает проверку — для локальной разработки."""
-    if not settings.internal_api_key:
-        return
-    if not x_internal_api_key or not secrets.compare_digest(
-        x_internal_api_key, settings.internal_api_key
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                'error': 'invalid_internal_api_key',
-                'message': 'Missing or invalid X-Internal-Api-Key',
-            },
+    Определяет текущего пользователя.
+    Благодаря middleware, данные уже лежат в request.state, 
+    дополнительный HTTP-запрос к auth_service не требуется.
+    """
+    user_id = getattr(request.state, "user_id", None)
+    if user_id:
+        return UserContext(
+            user_id=user_id,
+            name=getattr(request.state, "user_name", ""),
         )
+    return None
