@@ -110,7 +110,12 @@ async def init_cluster():
         logger.info('Инициализация кластера MongoDB завершена')
 
     except Exception as e:
-        # Шдинг может уже быть включён — игнорируем ошибки
-        logger.warning('Ошибка инициализации кластера (может уже существует): %s', e)
+
+        # Игнорируем известную ошибку драйвера с listDatabases в MongoDB 6.0
+        if "listDatabases.name" in str(e) or "IDLUnknownField" in str(e):
+            logger.debug("Кластер уже инициализирован (игнорируем quirk драйвера MongoDB 6.0)")
+        else:
+            logger.warning(f"Ошибка инициализации кластера: {e}")
+
     finally:
         client.close()
