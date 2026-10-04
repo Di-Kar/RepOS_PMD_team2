@@ -3,9 +3,10 @@
 from datetime import datetime
 from uuid import UUID
 
-from beanie import Document
+from beanie import Document, PydanticObjectId
 from bson import ObjectId
 from pydantic import Field
+
 
 
 def review_vote_id(user_id: UUID, review_id: ObjectId) -> str:
@@ -37,10 +38,6 @@ class Review(Document):
             'published_at',
             'rating',
             [('film_id', 1), ('likes_count', -1)],  # сортировка по полезности
-            # (user_id, published_at): get_user_reviews (S11_T6) сортирует по
-            # published_at — без составного индекса сортировка после поиска
-            # по user_id идёт в памяти (лимит blocking sort 32MB).
-            [('user_id', 1), ('published_at', -1)],
         ]
 
     class Config:
@@ -52,7 +49,7 @@ class Review(Document):
 class ReviewVote(Document):
     """Голос за/против рецензии."""
 
-    id: str
+    id: PydanticObjectId = Field(default=None, alias="_id")
     user_id: UUID
     review_id: ObjectId
     is_like: bool
