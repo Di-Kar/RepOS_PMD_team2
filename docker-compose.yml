@@ -13,6 +13,7 @@ volumes:
   notification_static_volume:
   link_shortener_postgres_data:
   user_profiles_postgres_data:
+  ugc_redis_data: 
   # MongoDB Cluster data
   mongo_config_data_0:
   mongo_config_data_1:
@@ -1164,6 +1165,21 @@ services:
     networks:
       - backend
 
+  # --- UGC Service Infrastructure ---
+  ugc_redis:
+    image: redis:7-alpine
+    container_name: ugc_redis
+    volumes:
+      - ugc_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend 
+      
   # --- ugc_service ---
   ugc_service:
     build:
@@ -1179,6 +1195,12 @@ services:
       - SENTRY_DSN=${SENTRY_DSN_UGC_SERVICE}
     # Проброс только для тестирования (не продуктовое решение): internal-эндпоинт
     # /api/v1/internal/users/{id}/ugc-summary без UGC_INTERNAL_API_KEY доступен с хоста.
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_DB_CACHE=${REDIS_DB_CACHE}
+      - FILM_STATS_CACHE_TTL=${FILM_STATS_CACHE_TTL}
+      - RATE_LIMITER_STORAGE_URI=redis://ugc_redis:6379/1
+                                                          
     ports:
       - "8003:8000"
     depends_on:
@@ -1188,6 +1210,8 @@ services:
         condition: service_completed_successfully
       auth_service:
         condition: service_healthy
+      ugc_redis:
+        condition: service_health
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
       interval: 10s
