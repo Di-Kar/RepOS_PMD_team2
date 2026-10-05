@@ -1,8 +1,9 @@
-"""Конфигурация тестов для ugc_service."""
+"""Конфигурация и фикстуры для тестов ugc_service."""
 
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
+import redis.asyncio as redis
 
 import pytest
 
@@ -52,3 +53,21 @@ def mock_beanie():
     mock_doc.find.return_value.to_list = AsyncMock(return_value=[])
     mock_doc.get = AsyncMock(return_value=None)
     return mock_doc
+
+@pytest.fixture(autouse=True)
+async def clear_rate_limits_before_each_test():
+    """
+    Очищает базу данных Redis #1 (где хранятся счётчики rate limiter)
+    перед каждым тестом, чтобы избежать загрязнения состояния между тестами.
+    """
+    try:
+        # Подключаемся к тому же Redis, что и ugc_service
+        r = redis.Redis(host="ugc_redis", port=6379, db=1, decode_responses=True)
+        await r.flushdb()
+        yield
+        await r.close()
+    except Exception as e:
+        # Если Redis недоступен (например, в изолированном unit-тесте без docker network),
+        # просто пропускаем очистку, чтобы не ронять тесты
+        print(f"\n[WARNING] Не удалось очистить Redis для rate limiter: {e}")
+        yield
