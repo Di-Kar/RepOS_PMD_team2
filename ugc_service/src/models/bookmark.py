@@ -19,7 +19,7 @@ def bookmark_id(user_id: UUID, film_id: UUID) -> str:
 class Bookmark(Document):
     """Закладка пользователя на фильм."""
 
-    id: str
+    id: str    # type: ignore[assignment]
     user_id: UUID
     film_id: UUID
     created_at: datetime = Field(default_factory=datetime.utcnow)
