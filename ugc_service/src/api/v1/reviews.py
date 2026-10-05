@@ -10,11 +10,14 @@ from api.dependencies import (
     get_validated_object_id,
 )
 from bson import ObjectId
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from config import settings
+from core.rate_limiter import limiter
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from services import review_service
 
 from .schemas import ReviewCreateRequest, ReviewUpdateRequest
+
 
 router = APIRouter(prefix='/api/v1/reviews', tags=['Рецензии'])
 logger = logging.getLogger(__name__)
@@ -66,15 +69,22 @@ class ReviewVoteResponse(BaseModel):
     voted_at: str
 
 
+# ==================================================================== #
+#  POST '' — создание рецензии (с rate limiting, NFR12)                 #
+# ==================================================================== #
+
+
 @router.post(
     '',
     status_code=status.HTTP_201_CREATED,
     summary='Создать рецензию',
-    description='Создать рецензию на фильм.',
+    description='Создать рецензию на фильм. Защищено rate limiter (NFR12).',
     response_model=ReviewResponse,
 )
+@limiter.limit(settings.reviews_rate_limit)  # ← ЗАЩИТА ОТ СПАМА
 async def create_review(
     body: ReviewCreateRequest,
+    request: Request,  # ← ОБЯЗАТЕЛЬНО для работы slowapi
     user=Depends(get_optional_user),
 ):
     if user is None:
@@ -102,9 +112,17 @@ async def create_review(
             dislikes_count=review.dislikes_count,
         )
     except Exception as e:
-        logger.error('Ошибка создания рецензии: %s', e)
-        raise HTTPException(status_code=500, detail='Внутренняя ошибка сервера')
+        # logger.exception автоматически запишет тип ошибки и стек-трейс в логи
+        logger.exception('Ошибка создания рецензии')
+        raise HTTPException(
+            status_code=500, 
+            detail='Внутренняя ошибка сервера'
+        )
 
+
+# ==================================================================== #
+#  GET '' — список рецензий к фильму                                    #
+# ==================================================================== #
 
 @router.get(
     '',
@@ -115,13 +133,13 @@ async def create_review(
 async def get_reviews(
     film_id: UUID = Query(
         ...,
-        example=str(EXAMPLE_FILM_ID),
+        examples=[str(EXAMPLE_FILM_ID)],  # ← Pydantic V2: examples (список)
         description='UUID фильма',
     ),
     sort: str = Query(
         'likes_count',
-        regex='^(likes_count|published_at|rating)$',
-        example='likes_count',
+        pattern='^(likes_count|published_at|rating)$',  # ← Pydantic V2: pattern вместо regex
+        examples=['likes_count'],
         description='Поле сортировки',
     ),
     pagination: PaginationParams = Depends(PaginationParams),
@@ -147,6 +165,11 @@ async def get_reviews(
         )
         for r in reviews
     ]
+
+
+# ==================================================================== #
+#  GET /{review_id} — детали рецензии                                   #
+# ==================================================================== #
 
 
 @router.get(
@@ -176,6 +199,11 @@ async def get_review(
         likes_count=review.likes_count,
         dislikes_count=review.dislikes_count,
     )
+
+
+# ==================================================================== #
+#  PUT /{review_id} — обновление рецензии (только автор)                #
+# ==================================================================== #
 
 
 @router.put(
@@ -215,6 +243,11 @@ async def update_review(
     )
 
 
+# ==================================================================== #
+#  DELETE /{review_id} — удаление рецензии (только автор)               #
+# ==================================================================== #
+
+
 @router.delete(
     '/{review_id}',
     status_code=status.HTTP_204_NO_CONTENT,
@@ -239,6 +272,11 @@ async def delete_review(
         )
 
 
+# ==================================================================== #
+#  POST /{review_id}/vote — голосование                                 #
+# ==================================================================== #
+
+
 @router.post(
     '/{review_id}/vote',
     summary='Проголосовать за рецензию',
@@ -249,7 +287,7 @@ async def vote_on_review(
     review_id: Annotated[ObjectId, Depends(get_validated_object_id)],
     is_like: bool = Query(
         True,
-        example=True,
+        examples=[True],  # ← Pydantic V2: examples (список)
         description='True = лайк, False = дизлайк',
     ),
     user=Depends(get_optional_user),
