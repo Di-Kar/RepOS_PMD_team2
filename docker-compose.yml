@@ -1195,7 +1195,7 @@ services:
       - SENTRY_DSN=${SENTRY_DSN_UGC_SERVICE}
     # Проброс только для тестирования (не продуктовое решение): internal-эндпоинт
     # /api/v1/internal/users/{id}/ugc-summary без UGC_INTERNAL_API_KEY доступен с хоста.
-      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_HOST=ugc_redis
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_DB_CACHE=${REDIS_DB_CACHE}
       - FILM_STATS_CACHE_TTL=${FILM_STATS_CACHE_TTL}
