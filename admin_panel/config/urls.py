@@ -19,8 +19,11 @@ from django.contrib import admin
 from django.http import HttpRequest
 from django.urls import include, path
 from movies.search import SearchView
+from profiles_proxy.views import profiles_list
 
 urlpatterns = [
+    # До admin.site.urls: тот же префикс /admin/, но свой view с проверкой права
+    path('admin/profiles/', admin.site.admin_view(profiles_list), name='profiles_list'),
     path('admin/', admin.site.urls),
     path('api/', include('movies.api.urls')),
     path('search/', SearchView.as_view(), name='search'),

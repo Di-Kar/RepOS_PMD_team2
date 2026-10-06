@@ -6,7 +6,7 @@ Django User — офлайн-кэш на случай недоступности
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import FrozenSet, List, Optional
 
 import requests
 from django.conf import settings
@@ -30,10 +30,42 @@ class AuthServiceUser:
     full_name: str = ""
     roles: List[str] = field(default_factory=list)
     is_superuser: bool = False
+    permissions: FrozenSet[str] = field(default_factory=frozenset)
 
 
 class AuthServiceUnavailable(Exception):
     """auth_service недоступен или не отвечает (таймаут/сеть/breaker открыт)."""
+
+
+def _fetch_permissions(token: str, role_names: List[str]) -> FrozenSet[str]:
+    """Права пользователя: объединение permissions его ролей из IDM.
+
+    /profile отдаёт только имена ролей, поэтому права берём из GET /idm/roles
+    тем же токеном. Любой сбой — пустой набор прав (fail-closed): вход без
+    прав не даёт доступа ни к одной ветке, которая от них зависит.
+    """
+    if not role_names:
+        return frozenset()
+    try:
+        response = requests.get(
+            f"{settings.AUTH_SERVICE_IDM_URL}/roles",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=settings.AUTH_SERVICE_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        logger.warning("Не удалось получить роли IDM, права не определены: %s", exc)
+        return frozenset()
+    if response.status_code != 200:
+        logger.warning("GET /idm/roles вернул %s, права не определены", response.status_code)
+        return frozenset()
+
+    wanted = set(role_names)
+    return frozenset(
+        permission
+        for role in response.json().get("items", [])
+        if role.get("name") in wanted
+        for permission in role.get("permissions", [])
+    )
 
 
 def authenticate_via_auth_service(
@@ -87,10 +119,12 @@ def authenticate_via_auth_service(
         return None
 
     data = profile_response.json()
+    roles = data.get("roles") or []
     return AuthServiceUser(
         id=str(data["id"]),
         email=data["email"],
         full_name=data.get("full_name", ""),
-        roles=data.get("roles") or [],
+        roles=roles,
         is_superuser=data.get("is_superuser", False),
+        permissions=_fetch_permissions(access_token, roles),
     )

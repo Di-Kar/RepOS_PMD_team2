@@ -4,4 +4,5 @@ include(
     'base.py',
     'database.py',
     'auth.py',
+    'profiles.py',
 )

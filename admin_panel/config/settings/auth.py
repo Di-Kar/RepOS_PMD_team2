@@ -18,6 +18,8 @@ AUTH_SERVICE_URL = 'http://auth_service:8000/api/v1/auth'
 AUTH_SERVICE_TIMEOUT = float(os.getenv('AUTH_SERVICE_TIMEOUT', '3'))
 # Роль (из IdM auth_service), дающая доступ к Django admin.
 AUTH_SERVICE_ADMIN_ROLE = os.getenv('AUTH_SERVICE_ADMIN_ROLE', 'admin')
+# Права ролей (GET /idm/roles): /profile отдаёт только имена ролей
+AUTH_SERVICE_IDM_URL = 'http://auth_service:8000/api/v1/idm'
 # Порог/окно простого in-process circuit breaker (см. config/circuit_breaker.py).
 AUTH_SERVICE_BREAKER_FAILURE_THRESHOLD = int(
     os.getenv('AUTH_SERVICE_BREAKER_FAILURE_THRESHOLD', '3')

@@ -1,0 +1,15 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+{% if perms.profiles_proxy.view_profile %}
+<div class="module">
+  <table>
+    <caption>Пользователи</caption>
+    <tr>
+      <th scope="row"><a href="{% url 'profiles_list' %}">Профили пользователей</a></th>
+    </tr>
+  </table>
+</div>
+{% endif %}
+{{ block.super }}
+{% endblock %}
