@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 from config.auth_backends import AuthServiceBackend
 from config.auth_service_client import (
+    AuthServiceUnavailable,
     AuthServiceUser,
     _fetch_permissions,
 )
@@ -106,6 +107,57 @@ class ProfilesGateTests(TestCase):
         )
         user = User.objects.get(username="revoked@example.com")
         self.assertFalse(user.has_perm(VIEW_PERM))
+        self.assertFalse(user.is_staff)
+
+
+class DegradedAfterRevocationTests(TestCase):
+    """Снятые права не должны возвращаться через degraded-вход (auth_service упал)."""
+
+    def setUp(self):
+        self.backend = AuthServiceBackend()
+
+    @patch("config.auth_backends.authenticate_via_auth_service")
+    def test_revoked_admin_cannot_login_in_degraded_mode(self, mock_auth):
+        email = "former-admin@example.com"
+        mock_auth.return_value = AuthServiceUser(id="20", email=email, roles=["admin"])
+        self.assertIsNotNone(self.backend.authenticate(None, username=email, password="pass123"))
+
+        # Роль admin сняли; обычный вход это фиксирует в зеркале
+        mock_auth.return_value = AuthServiceUser(id="20", email=email, roles=[])
+        self.assertIsNone(self.backend.authenticate(None, username=email, password="pass123"))
+
+        # auth_service упал: degraded-вход не должен пускать снятого админа
+        mock_auth.side_effect = AuthServiceUnavailable("down")
+        self.assertIsNone(self.backend.authenticate(None, username=email, password="pass123"))
+
+        user = User.objects.get(username=email)
+        self.assertFalse(user.is_superuser)
+        self.assertFalse(user.is_staff)
+
+    @patch("config.auth_backends.authenticate_via_auth_service")
+    def test_revoked_viewer_cannot_login_in_degraded_mode(self, mock_auth):
+        email = "former-viewer@example.com"
+        mock_auth.return_value = AuthServiceUser(
+            id="21", email=email, roles=["profiles_viewer"],
+            permissions=frozenset({"profiles:view"}),
+        )
+        self.assertIsNotNone(self.backend.authenticate(None, username=email, password="pass123"))
+
+        mock_auth.return_value = AuthServiceUser(id="21", email=email, roles=[])
+        self.assertIsNone(self.backend.authenticate(None, username=email, password="pass123"))
+
+        mock_auth.side_effect = AuthServiceUnavailable("down")
+        self.assertIsNone(self.backend.authenticate(None, username=email, password="pass123"))
+
+    @patch("config.auth_backends.authenticate_via_auth_service")
+    def test_degraded_mode_still_works_for_unrevoked_admin(self, mock_auth):
+        """Контроль: без отзыва прав degraded-вход работает, как и раньше."""
+        email = "still-admin@example.com"
+        mock_auth.return_value = AuthServiceUser(id="22", email=email, roles=["admin"])
+        self.assertIsNotNone(self.backend.authenticate(None, username=email, password="pass123"))
+
+        mock_auth.side_effect = AuthServiceUnavailable("down")
+        self.assertIsNotNone(self.backend.authenticate(None, username=email, password="pass123"))
 
 
 class FetchPermissionsTests(TestCase):

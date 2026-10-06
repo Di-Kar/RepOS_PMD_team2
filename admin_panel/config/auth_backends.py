@@ -67,7 +67,7 @@ class AuthServiceBackend(ModelBackend):
                 "Пользователь %s аутентифицирован, но без прав администратора и профилей",
                 username,
             )
-            self._revoke_profiles_permission(auth_user.email)
+            self._revoke_local_access(auth_user.email)
             return None
 
         return self._sync_local_user(auth_user, password)
@@ -96,12 +96,18 @@ class AuthServiceBackend(ModelBackend):
         self._sync_profiles_permission(user, can_view=_can_view_profiles(auth_user))
         return user
 
-    def _revoke_profiles_permission(self, email: str) -> None:
-        """Права сняты в IDM: убираем их и из локального зеркала, иначе
-        degraded-вход (только is_staff + пароль) снова откроет профили."""
+    def _revoke_local_access(self, email: str) -> None:
+        """Права сняты в IDM: зеркало не должно давать ни staff, ни superuser,
+        ни профилей. degraded-вход проверяет только is_staff и пароль, поэтому
+        без сброса is_staff снятый пользователь снова вошёл бы при падении
+        auth_service."""
         local_user = User.objects.filter(username=email).first()
-        if local_user is not None:
-            self._sync_profiles_permission(local_user, can_view=False)
+        if local_user is None:
+            return
+        local_user.is_staff = False
+        local_user.is_superuser = False
+        local_user.save(update_fields=["is_staff", "is_superuser"])
+        self._sync_profiles_permission(local_user, can_view=False)
 
     @staticmethod
     def _sync_profiles_permission(user, can_view: bool) -> None:
