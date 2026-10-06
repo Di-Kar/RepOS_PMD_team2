@@ -181,31 +181,22 @@ class TestReviewVoteSchema:
 
 
 class TestReviewWithAuthorSchema:
-    """Тесты модели ReviewWithAuthorSchema."""
+    """Тесты модели ReviewWithAuthorSchema (ответ карточки фильма)."""
 
-    def test_with_avatar(self):
+    def test_accepts_objectid_string_as_id(self):
         review = ReviewWithAuthorSchema(
-            id=uuid4(),
+            id='650f1a2b3c4d5e6f7a8b9c0d',
             user_id=uuid4(),
             user_name='Test',
             film_id=uuid4(),
             title='Test',
             text='Test',
             rating=5,
-            published_at=datetime.utcnow(),
-            author_avatar='http://example.com/avatar.jpg',
+            published_at='2026-08-30T10:00:00',
+            likes_count=1,
+            dislikes_count=0,
         )
-        assert review.author_avatar == 'http://example.com/avatar.jpg'
+        assert review.id == '650f1a2b3c4d5e6f7a8b9c0d'
 
-    def test_without_avatar(self):
-        review = ReviewWithAuthorSchema(
-            id=uuid4(),
-            user_id=uuid4(),
-            user_name='Test',
-            film_id=uuid4(),
-            title='Test',
-            text='Test',
-            rating=5,
-            published_at=datetime.utcnow(),
-        )
-        assert review.author_avatar is None
+    def test_has_no_avatar_field(self):
+        assert 'author_avatar' not in ReviewWithAuthorSchema.model_fields

@@ -201,11 +201,53 @@ class ReviewSchema(BaseModel):
     )
 
 
-class ReviewWithAuthorSchema(ReviewSchema):
-    """Рецензия с дополнительными данными автора (для карточки фильма)."""
+class ReviewWithAuthorSchema(BaseModel):
+    """Рецензия для карточки фильма: ответ ugc_service + ФИО автора из user_profiles.
 
-    author_avatar: str | None = Field(
-        None,
-        description='URL аватара автора',
-        examples=['https://example.com/avatar.jpg'],
+    id — строка ObjectId (так отдаёт ugc_service), не UUID.
+    """
+
+    id: str = Field(
+        '650f1a2b3c4d5e6f7a8b9c0d',
+        description='ID рецензии (ObjectId)',
+        examples=['650f1a2b3c4d5e6f7a8b9c0d'],
     )
+    user_id: UUID = Field(
+        EXAMPLE_USER_ID,
+        description='UUID автора рецензии',
+        examples=['6ba7b810-9dad-11d1-80b4-00c04fd430c8'],
+    )
+    user_name: str = Field(
+        'Иван Петров',
+        description='ФИО автора; «Аноним», если профиль не найден или user_profiles недоступен',
+        examples=['Иван Петров'],
+    )
+    film_id: UUID = Field(
+        EXAMPLE_FILM_ID,
+        description='UUID фильма',
+        examples=['550e8400-e29b-41d4-a716-446655440000'],
+    )
+    title: str = Field(
+        'Шедевр кино',
+        description='Заголовок рецензии',
+        examples=['Шедевр кино'],
+    )
+    text: str = Field(
+        'Прекрасная история с глубокими персонажами и отличным сюжетом.',
+        description='Текст рецензии',
+        examples=['Прекрасная история с глубокими персонажами и отличным сюжетом.'],
+    )
+    rating: int = Field(
+        9,
+        ge=0,
+        le=10,
+        description='Оценка от 0 до 10',
+        examples=[9],
+    )
+    published_at: str = Field(
+        '2026-08-30T10:00:00',
+        description='Дата публикации (ISO 8601)',
+        examples=['2026-08-30T10:00:00'],
+    )
+    likes_count: int = Field(15, description='Количество лайков', examples=[15])
+    dislikes_count: int = Field(2, description='Количество дизлайков', examples=[2])

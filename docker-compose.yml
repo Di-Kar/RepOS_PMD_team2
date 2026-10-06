@@ -170,6 +170,10 @@ services:
     environment:
       - REDIS_HOST=async_api_redis
       - SENTRY_DSN=${SENTRY_DSN_ASYNC_API}
+      # shared/ugc_schemas.py — контракт ответа ugc для карточки фильма (issue #114)
+      - PYTHONPATH=/opt/app/src:/opt/app/shared
+    volumes:
+      - ./shared:/opt/app/shared:ro
     ports:
       - "8000:8000"
     healthcheck:

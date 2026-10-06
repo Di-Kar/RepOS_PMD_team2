@@ -33,6 +33,7 @@ class ReviewResponse(BaseModel):
     user_id: UUID
     film_id: UUID
     title: str
+    text: str
     rating: int
     published_at: str
     likes_count: int
@@ -106,6 +107,7 @@ async def create_review(
             user_id=review.user_id,
             film_id=review.film_id,
             title=review.title,
+            text=review.text,
             rating=review.rating,
             published_at=review.published_at.isoformat(),
             likes_count=review.likes_count,
@@ -158,6 +160,7 @@ async def get_reviews(
             user_id=r.user_id,
             film_id=r.film_id,
             title=r.title,
+            text=r.text,
             rating=r.rating,
             published_at=r.published_at.isoformat(),
             likes_count=r.likes_count,

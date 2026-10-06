@@ -10,6 +10,9 @@ logging_config.dictConfig(LOGGING)
 
 # Фиксировано именем сервиса в docker-compose.yml, не читается из env.
 AUTH_SERVICE_URL = 'http://auth_service:8000/api/v1/auth'
+# Фиксировано именами сервисов в docker-compose.yml, как и AUTH_SERVICE_URL.
+UGC_SERVICE_URL = 'http://ugc_service:8000/api/v1'
+USER_PROFILES_URL = 'http://user_profiles:8000/api/v1/profiles'
 
 
 class Settings(BaseSettings):
@@ -31,6 +34,14 @@ class Settings(BaseSettings):
     elastic_schema: str = 'http://'
 
     auth_request_timeout: float = Field(default=1.5, alias='AUTH_REQUEST_TIMEOUT')
+
+    # Карточка фильма не должна ждать внешние сервисы дольше этого
+    ugc_request_timeout: float = Field(default=1.0, alias='UGC_REQUEST_TIMEOUT')
+    profiles_request_timeout: float = Field(
+        default=1.0, alias='PROFILES_REQUEST_TIMEOUT'
+    )
+    # Тот же ключ, что у user_profiles (PROFILES_INTERNAL_API_KEY); пусто = проверка отключена
+    profiles_internal_api_key: str = Field(default='', alias='PROFILES_INTERNAL_API_KEY')
 
     # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
     sentry_dsn: str = Field(default='', alias='SENTRY_DSN')
