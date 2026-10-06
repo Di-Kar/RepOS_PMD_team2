@@ -289,7 +289,9 @@ class PostgresHandler:
                 CREATE TABLE movies (id INT PRIMARY KEY, title VARCHAR, avg_rating FLOAT, total_likes INT);
                 CREATE TABLE user_likes (id SERIAL PRIMARY KEY, user_id INT, movie_id INT, type VARCHAR);
                 CREATE TABLE action_logs (id SERIAL PRIMARY KEY, user_id INT, action VARCHAR, payload JSONB);
-                CREATE TABLE unstructured_events (id INT PRIMARY KEY, user_id INT, timestamp TIMESTAMPTZ, data JSONB);  -- NEW
+                CREATE TABLE unstructured_events (
+                    id INT PRIMARY KEY, user_id INT, timestamp TIMESTAMPTZ, data JSONB
+                );  -- NEW
                 
                 CREATE INDEX idx_likes_user ON user_likes(user_id);
                 CREATE INDEX idx_likes_movie ON user_likes(movie_id);

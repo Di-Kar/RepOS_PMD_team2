@@ -43,7 +43,11 @@ class TokenResponse(BaseModel):
         'x-codeSamples': [
             {
                 'lang': 'curl',
-                'source': "curl -X POST 'http://localhost:8003/api/v1/auth/login' -H 'Content-Type: application/json' -d '{\"email\": \"test_e2e@example.com\", \"password\": \"TestPass123!\"}'",
+                'source': (
+                    "curl -X POST 'http://localhost:8003/api/v1/auth/login' "
+                    "-H 'Content-Type: application/json' "
+                    "-d '{\"email\": \"test_e2e@example.com\", \"password\": \"TestPass123!\"}'"
+                ),
             }
         ],
     },

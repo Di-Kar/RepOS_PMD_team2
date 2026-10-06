@@ -141,7 +141,18 @@ async def test_get_film_like_stats_redis_read_fails_fallback_to_mongo(
     
     collection, mock_cursor = mock_like_collection
     mock_cursor.to_list.return_value = [
-        {"summary": [{"total_ratings": 1, "rating_sum": 10, "total_likes": 1, "total_dislikes": 0, "average_rating": 10.0}], "distribution": []}
+        {
+            "summary": [
+                {
+                    "total_ratings": 1,
+                    "rating_sum": 10,
+                    "total_likes": 1,
+                    "total_dislikes": 0,
+                    "average_rating": 10.0,
+                }
+            ],
+            "distribution": [],
+        }
     ]
 
     result = await get_film_like_stats(film_id)

@@ -34,7 +34,7 @@ def register_rate_limiter(app: FastAPI) -> None:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exception_handler)  # type: ignore[arg-type]
 
-async def _rate_limit_exception_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse: # type: ignore[arg-type]
+async def _rate_limit_exception_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse: # type: ignore[arg-type]  # noqa: E501
     """
     Обработчик превышения лимита.
     Динамически извлекает время до сброса окна из исключения slowapi.

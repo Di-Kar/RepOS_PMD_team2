@@ -116,13 +116,25 @@ async def test_rate_limit_is_per_user(strict_limit, mock_review_service):
         with patch("api.dependencies.AuthServiceClient.get_current_user") as mock_a:
             mock_a.return_value = UserContext(user_id=USER_A_ID, name="User A")
             for i in range(2):
-                await ac.post("/api/v1/reviews", json={"film_id": film_id, "title": "A", "text": f"a{i}", "rating": 5}, headers={"Authorization": "Bearer token_A"})
+                await ac.post(
+                    "/api/v1/reviews",
+                    json={"film_id": film_id, "title": "A", "text": f"a{i}", "rating": 5},
+                    headers={"Authorization": "Bearer token_A"},
+                )
             
-            r_a = await ac.post("/api/v1/reviews", json={"film_id": film_id, "title": "A", "text": "a_spam", "rating": 5}, headers={"Authorization": "Bearer token_A"})
+            r_a = await ac.post(
+                "/api/v1/reviews",
+                json={"film_id": film_id, "title": "A", "text": "a_spam", "rating": 5},
+                headers={"Authorization": "Bearer token_A"},
+            )
             assert r_a.status_code == 429, "User A должен получить 429"
 
         # User B ещё может писать
         with patch("api.dependencies.AuthServiceClient.get_current_user") as mock_b:
             mock_b.return_value = UserContext(user_id=USER_B_ID, name="User B")
-            r_b = await ac.post("/api/v1/reviews", json={"film_id": film_id, "title": "B", "text": "b_ok", "rating": 9}, headers={"Authorization": "Bearer token_B"})
+            r_b = await ac.post(
+                "/api/v1/reviews",
+                json={"film_id": film_id, "title": "B", "text": "b_ok", "rating": 9},
+                headers={"Authorization": "Bearer token_B"},
+            )
             assert r_b.status_code == 201, f"User B должен получить 201, получено: {r_b.status_code} - {r_b.text}"

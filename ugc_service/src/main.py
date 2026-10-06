@@ -113,7 +113,10 @@ def custom_openapi():
             'type': 'http',
             'scheme': 'bearer',
             'bearerFormat': 'JWT',
-            'description': 'JWT-токен от auth_service. Получите токен через POST /api/v1/auth/login (email + password), затем вставьте его сюда.',
+            'description': (
+                'JWT-токен от auth_service. Получите токен через POST /api/v1/auth/login '
+                '(email + password), затем вставьте его сюда.'
+            ),
         }
     }
 

@@ -172,7 +172,10 @@ class LoginHistory(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<LoginHistory(id={self.id}, user_id={self.user_id}, device={self.user_device_type}, login_at={self.login_at})>"
+        return (
+            f"<LoginHistory(id={self.id}, user_id={self.user_id}, "
+            f"device={self.user_device_type}, login_at={self.login_at})>"
+        )
 
 
 class SocialAccount(Base):
