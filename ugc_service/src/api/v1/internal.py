@@ -15,8 +15,8 @@ from services import bookmark_service, like_service, review_service
 
 logger = logging.getLogger(__name__)
 
-from .bookmarks import BookmarkResponse
-from .reviews import ReviewResponse
+from .bookmarks import BookmarkResponse  # noqa: E402
+from .reviews import ReviewResponse  # noqa: E402
 
 router = APIRouter(
     prefix='/api/v1/internal',
@@ -92,6 +92,7 @@ async def get_user_ugc_summary(
                 user_id=r.user_id,
                 film_id=r.film_id,
                 title=r.title,
+                text=r.text,
                 rating=r.rating,
                 published_at=r.published_at.isoformat(),
                 likes_count=r.likes_count,

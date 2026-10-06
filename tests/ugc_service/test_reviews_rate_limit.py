@@ -1,13 +1,22 @@
 """Тесты rate limiting для создания рецензий."""
 
+import importlib.util
 import pytest
 import uuid
 from datetime import datetime
+from pathlib import Path
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from main import app
 from api.dependencies import UserContext
+
+# `main` есть и в analytics_etl/src (PYTHONPATH тестового контейнера), поэтому
+# app грузим из ugc_service/src/main.py по пути, а не по имени модуля.
+_UGC_MAIN = Path(__file__).resolve().parents[2] / "ugc_service" / "src" / "main.py"
+_spec = importlib.util.spec_from_file_location("ugc_main", _UGC_MAIN)
+_ugc_main = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_ugc_main)
+app = _ugc_main.app
 
 USER_A_ID = str(uuid.uuid4())
 USER_B_ID = str(uuid.uuid4())

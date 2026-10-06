@@ -48,6 +48,7 @@ def _mock_review():
     review.user_id = USER_ID
     review.film_id = FILM_ID
     review.title = 'Отличный фильм'
+    review.text = 'Прекрасная история'
     review.rating = 9
     review.published_at = MagicMock()
     review.published_at.isoformat.return_value = '2026-09-01T10:00:00'

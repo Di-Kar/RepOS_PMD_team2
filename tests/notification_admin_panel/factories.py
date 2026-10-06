@@ -1,6 +1,6 @@
 import uuid
 from django.contrib.auth import get_user_model
-from notifications.models import MessageTemplate, Campaign, NotificationContent, Notification
+from notifications.models import MessageTemplate, Campaign
 
 User = get_user_model()
 

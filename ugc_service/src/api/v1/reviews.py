@@ -82,7 +82,7 @@ class ReviewVoteResponse(BaseModel):
     description='Создать рецензию на фильм. Защищено rate limiter (NFR12).',
     response_model=ReviewResponse,
 )
-@limiter.limit(settings.reviews_rate_limit)  # ← ЗАЩИТА ОТ СПАМА
+@limiter.limit(lambda: settings.reviews_rate_limit)  # ← ЗАЩИТА ОТ СПАМА; callable читает настройку на каждый запрос
 async def create_review(
     body: ReviewCreateRequest,
     request: Request,  # ← ОБЯЗАТЕЛЬНО для работы slowapi
@@ -113,7 +113,7 @@ async def create_review(
             likes_count=review.likes_count,
             dislikes_count=review.dislikes_count,
         )
-    except Exception as e:
+    except Exception:
         # logger.exception автоматически запишет тип ошибки и стек-трейс в логи
         logger.exception('Ошибка создания рецензии')
         raise HTTPException(

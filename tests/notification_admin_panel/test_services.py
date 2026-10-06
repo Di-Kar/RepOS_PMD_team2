@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.test import TestCase
 from django.utils import timezone
 
-from notifications.models import Campaign, CampaignSendLog
+from notifications.models import Campaign
 from notifications.services import send_campaign_notifications, process_pending_campaigns
 from notifications.notification_api_client import NotificationApiResult
 from .factories import create_campaign, create_template, random_uuids

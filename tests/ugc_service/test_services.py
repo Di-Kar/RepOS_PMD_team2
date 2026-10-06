@@ -106,8 +106,10 @@ class TestLikeService:
 
             assert result is mock_instance
 
-    async def test_add_or_update_like_existing(self, mock_beanie):
+    @patch('services.like_service.get_redis', new_callable=AsyncMock)
+    async def test_add_or_update_like_existing(self, mock_get_redis, mock_beanie):
         """Обновление существующего лайка."""
+        mock_get_redis.return_value.delete = AsyncMock()
         from pymongo.errors import DuplicateKeyError
 
         mock_instance = MagicMock()

@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from redis.exceptions import RedisError
 
-from models.like import Like
 from services.like_service import (
     add_or_update_like,
     get_film_like_stats,
@@ -54,7 +53,7 @@ def mock_like_collection():
     mock_cursor.to_list = AsyncMock()
     collection.aggregate.return_value = mock_cursor
     
-    with patch("models.like.Like.get_motor_collection", return_value=collection) as mock:
+    with patch("models.like.Like.get_motor_collection", return_value=collection):
         yield collection, mock_cursor
 
 
