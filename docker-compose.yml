@@ -1211,7 +1211,7 @@ services:
       auth_service:
         condition: service_healthy
       ugc_redis:
-        condition: service_health
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
       interval: 10s
