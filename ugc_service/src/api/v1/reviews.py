@@ -38,6 +38,7 @@ class ReviewResponse(BaseModel):
     published_at: str
     likes_count: int
     dislikes_count: int
+    is_spoiler: bool
 
 
 class ReviewDetailResponse(BaseModel):
@@ -52,6 +53,7 @@ class ReviewDetailResponse(BaseModel):
     published_at: str
     likes_count: int
     dislikes_count: int
+    is_spoiler: bool
 
 
 class ReviewUpdateResponse(BaseModel):
@@ -59,6 +61,7 @@ class ReviewUpdateResponse(BaseModel):
 
     id: str
     title: str
+    is_spoiler: bool
     updated_at: str
 
 
@@ -101,6 +104,7 @@ async def create_review(
             body.title,
             body.text,
             body.rating,
+            body.is_spoiler,
         )
         return ReviewResponse(
             id=str(review.id),
@@ -109,6 +113,7 @@ async def create_review(
             title=review.title,
             text=review.text,
             rating=review.rating,
+            is_spoiler=review.is_spoiler,
             published_at=review.published_at.isoformat(),
             likes_count=review.likes_count,
             dislikes_count=review.dislikes_count,
@@ -162,6 +167,7 @@ async def get_reviews(
             title=r.title,
             text=r.text,
             rating=r.rating,
+            is_spoiler=r.is_spoiler,
             published_at=r.published_at.isoformat(),
             likes_count=r.likes_count,
             dislikes_count=r.dislikes_count,
@@ -198,6 +204,7 @@ async def get_review(
         title=review.title,
         text=review.text,
         rating=review.rating,
+        is_spoiler=review.is_spoiler,
         published_at=review.published_at.isoformat(),
         likes_count=review.likes_count,
         dislikes_count=review.dislikes_count,
@@ -229,9 +236,15 @@ async def update_review(
     title = body.title if body else None
     text = body.text if body else None
     rating = body.rating if body else None
+    is_spoiler = body.is_spoiler if body else None
 
     review = await review_service.update_review(
-        review_id, UUID(user.user_id), title=title, text=text, rating=rating
+        review_id,
+        UUID(user.user_id),
+        title=title,
+        text=text,
+        rating=rating,
+        is_spoiler=is_spoiler,
     )
     if not review:
         raise HTTPException(
@@ -242,6 +255,7 @@ async def update_review(
     return ReviewUpdateResponse(
         id=str(review.id),
         title=review.title,
+        is_spoiler=review.is_spoiler,
         updated_at=review.published_at.isoformat(),
     )
 

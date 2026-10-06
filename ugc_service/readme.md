@@ -59,10 +59,10 @@
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| POST | `/api/v1/reviews?film_id={id}&title=...&text=...&rating=8` | Создать рецензию |
+| POST | `/api/v1/reviews?film_id={id}&title=...&text=...&rating=8&is_spoiler=false` | Создать рецензию. `is_spoiler` — флаг спойлера (по умолчанию `false`, текст скрывается на фронте) |
 | GET | `/api/v1/reviews?film_id={id}&sort=likes_count&page_number=1&page_size=20` | Список рецензий (сортировка: likes_count, published_at, rating) |
 | GET | `/api/v1/reviews/{review_id}` | Детали рецензии |
-| PUT | `/api/v1/reviews/{review_id}?title=...&text=...&rating=...` | Обновить рецензию (только автор) |
+| PUT | `/api/v1/reviews/{review_id}?title=...&text=...&rating=...&is_spoiler=...` | Обновить рецензию (только автор). `is_spoiler` не передан — флаг не меняется |
 | DELETE | `/api/v1/reviews/{review_id}` | Удалить рецензию (только автор) |
 | POST | `/api/v1/reviews/{review_id}/vote?is_like=true` | Голос за/против рецензии |
 

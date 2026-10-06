@@ -79,6 +79,7 @@ class TestGetReview:
         mock_review.published_at.isoformat.return_value = '2024-01-01T12:00:00'
         mock_review.likes_count = 10
         mock_review.dislikes_count = 1
+        mock_review.is_spoiler = False
 
         mock_service.get_review_by_id = AsyncMock(return_value=mock_review)
 
@@ -200,6 +201,7 @@ class TestCreateReview:
         mock_review.published_at.isoformat.return_value = '2024-01-01T12:00:00'
         mock_review.likes_count = 10
         mock_review.dislikes_count = 1
+        mock_review.is_spoiler = False
 
         mock_service.create_review = AsyncMock(return_value=mock_review)
 
@@ -329,6 +331,7 @@ class TestCreateReview:
         mock_review.published_at.isoformat.return_value = '2024-01-01T12:00:00'
         mock_review.likes_count = 0
         mock_review.dislikes_count = 0
+        mock_review.is_spoiler = False
 
         mock_service.create_review = AsyncMock(return_value=mock_review)
 
@@ -362,6 +365,7 @@ class TestCreateReview:
         mock_review.published_at.isoformat.return_value = '2024-01-01T12:00:00'
         mock_review.likes_count = 0
         mock_review.dislikes_count = 0
+        mock_review.is_spoiler = False
 
         mock_service.create_review = AsyncMock(return_value=mock_review)
 
@@ -379,3 +383,145 @@ class TestCreateReview:
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert data['title'] == 'Тест body'
+
+
+# ==================================================================== #
+#  is_spoiler (issue #115)                                             #
+# ==================================================================== #
+
+
+def _mock_review_with_spoiler(is_spoiler: bool) -> MagicMock:
+    review = MagicMock()
+    review.id = ObjectId('550e8400e29b41d4a7164466')
+    review.user_id = '550e8400-e29b-41d4-a716-446655440000'
+    review.film_id = '550e8400-e29b-41d4-a716-446655440001'
+    review.title = 'Отличный фильм'
+    review.text = 'Прекрасная история'
+    review.rating = 9
+    review.published_at = MagicMock()
+    review.published_at.isoformat.return_value = '2024-01-01T12:00:00'
+    review.likes_count = 0
+    review.dislikes_count = 0
+    review.is_spoiler = is_spoiler
+    return review
+
+
+class TestReviewSpoilerFlag:
+    """Флаг is_spoiler: по умолчанию False, задаётся при создании и меняется в PUT."""
+
+    BODY = {
+        'film_id': '550e8400-e29b-41d4-a716-446655440001',
+        'title': 'Отличный фильм',
+        'text': 'Прекрасная история',
+        'rating': 9,
+    }
+
+    @patch('api.v1.reviews.review_service')
+    def test_create_defaults_to_false(self, mock_service, authed_client: TestClient):
+        """Без поля is_spoiler рецензия создаётся с False."""
+        mock_service.create_review = AsyncMock(
+            return_value=_mock_review_with_spoiler(False)
+        )
+
+        response = authed_client.post('/api/v1/reviews', json=self.BODY)
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()['is_spoiler'] is False
+        assert mock_service.create_review.call_args.args[-1] is False
+
+    @patch('api.v1.reviews.review_service')
+    def test_create_with_spoiler_true(self, mock_service, authed_client: TestClient):
+        """is_spoiler=true передаётся в сервис и возвращается в ответе."""
+        mock_service.create_review = AsyncMock(
+            return_value=_mock_review_with_spoiler(True)
+        )
+
+        response = authed_client.post(
+            '/api/v1/reviews', json={**self.BODY, 'is_spoiler': True}
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()['is_spoiler'] is True
+        assert mock_service.create_review.call_args.args[-1] is True
+
+    @patch('api.v1.reviews.review_service')
+    def test_update_sets_flag(self, mock_service, authed_client: TestClient):
+        """PUT с is_spoiler=true передаёт флаг в сервис и отдаёт его в ответе."""
+        mock_service.update_review = AsyncMock(
+            return_value=_mock_review_with_spoiler(True)
+        )
+
+        response = authed_client.put(
+            '/api/v1/reviews/550e8400e29b41d4a7164466', json={'is_spoiler': True}
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()['is_spoiler'] is True
+        assert mock_service.update_review.call_args.kwargs['is_spoiler'] is True
+
+    @patch('api.v1.reviews.review_service')
+    def test_update_without_flag_passes_none(
+        self, mock_service, authed_client: TestClient
+    ):
+        """PUT без is_spoiler передаёт None: флаг не меняется."""
+        mock_service.update_review = AsyncMock(
+            return_value=_mock_review_with_spoiler(True)
+        )
+
+        response = authed_client.put(
+            '/api/v1/reviews/550e8400e29b41d4a7164466', json={'title': 'Новый заголовок'}
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert mock_service.update_review.call_args.kwargs['is_spoiler'] is None
+
+    @patch('api.v1.reviews.review_service')
+    def test_detail_returns_flag(self, mock_service, client: TestClient):
+        """GET /{id} отдаёт сохранённый флаг."""
+        mock_service.get_review_by_id = AsyncMock(
+            return_value=_mock_review_with_spoiler(True)
+        )
+
+        response = client.get('/api/v1/reviews/550e8400e29b41d4a7164466')
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()['is_spoiler'] is True
+
+
+class TestUpdateReviewServiceSpoiler:
+    """Сервис: None не трогает флаг, True/False его записывают."""
+
+    USER_ID = '550e8400-e29b-41d4-a716-446655440000'
+
+    async def _update(self, current: bool, is_spoiler):
+        from uuid import UUID
+
+        from services import review_service
+
+        review = MagicMock()
+        review.user_id = UUID(self.USER_ID)
+        review.is_spoiler = current
+        review.save = AsyncMock()
+        with patch(
+            'services.review_service.Review.get', AsyncMock(return_value=review)
+        ):
+            await review_service.update_review(
+                ObjectId(), UUID(self.USER_ID), is_spoiler=is_spoiler
+            )
+        return review
+
+    @pytest.mark.asyncio
+    async def test_none_keeps_current_value(self):
+        review = await self._update(current=True, is_spoiler=None)
+        assert review.is_spoiler is True
+        review.save.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_true_sets_flag(self):
+        review = await self._update(current=False, is_spoiler=True)
+        assert review.is_spoiler is True
+
+    @pytest.mark.asyncio
+    async def test_false_clears_flag(self):
+        review = await self._update(current=True, is_spoiler=False)
+        assert review.is_spoiler is False

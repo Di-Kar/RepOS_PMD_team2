@@ -199,6 +199,11 @@ class ReviewSchema(BaseModel):
         description='Количество дизлайков',
         examples=[2],
     )
+    is_spoiler: bool = Field(
+        False,
+        description='Рецензия содержит спойлеры (текст скрывается на фронте)',
+        examples=[False],
+    )
 
 
 class ReviewWithAuthorSchema(BaseModel):
@@ -251,3 +256,8 @@ class ReviewWithAuthorSchema(BaseModel):
     )
     likes_count: int = Field(15, description='Количество лайков', examples=[15])
     dislikes_count: int = Field(2, description='Количество дизлайков', examples=[2])
+    is_spoiler: bool = Field(
+        False,
+        description='Рецензия содержит спойлеры (текст скрывается на фронте)',
+        examples=[False],
+    )

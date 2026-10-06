@@ -34,6 +34,11 @@ class ReviewCreateRequest(BaseModel):
         examples=[9],
         description='Оценка от 0 до 10',
     )
+    is_spoiler: bool = Field(
+        False,
+        examples=[False],
+        description='Рецензия содержит спойлеры (текст скрывается на фронте)',
+    )
 
 
 class ReviewUpdateRequest(BaseModel):
@@ -59,4 +64,9 @@ class ReviewUpdateRequest(BaseModel):
         le=10,
         examples=[10],
         description='Новая оценка от 0 до 10',
+    )
+    is_spoiler: bool | None = Field(
+        None,
+        examples=[True],
+        description='Новый флаг спойлера; не передан — без изменений',
     )

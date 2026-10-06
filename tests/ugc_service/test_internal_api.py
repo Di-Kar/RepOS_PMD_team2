@@ -54,6 +54,7 @@ def _mock_review():
     review.published_at.isoformat.return_value = '2026-09-01T10:00:00'
     review.likes_count = 3
     review.dislikes_count = 0
+    review.is_spoiler = False
     return review
 
 

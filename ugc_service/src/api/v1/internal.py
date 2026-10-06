@@ -94,6 +94,7 @@ async def get_user_ugc_summary(
                 title=r.title,
                 text=r.text,
                 rating=r.rating,
+                is_spoiler=r.is_spoiler,
                 published_at=r.published_at.isoformat(),
                 likes_count=r.likes_count,
                 dislikes_count=r.dislikes_count,

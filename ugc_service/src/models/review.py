@@ -28,6 +28,8 @@ class Review(Document):
     published_at: datetime = Field(default_factory=datetime.utcnow)
     likes_count: int = 0
     dislikes_count: int = 0
+    # Фронт скрывает текст под катом; бэкенд только хранит и отдаёт флаг (issue #115)
+    is_spoiler: bool = False
 
     class Settings:
         name = 'reviews'

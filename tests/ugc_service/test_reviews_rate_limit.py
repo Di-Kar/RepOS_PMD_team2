@@ -35,6 +35,7 @@ def create_mock_review(user_id, film_id, title, text, rating):
     mock_review.published_at = datetime.utcnow()
     mock_review.likes_count = 0
     mock_review.dislikes_count = 0
+    mock_review.is_spoiler = False
     return mock_review
 
 
