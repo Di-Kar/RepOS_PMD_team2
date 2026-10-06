@@ -52,7 +52,7 @@ class Review(Document):
 class ReviewVote(Document):
     """Голос за/против рецензии."""
 
-    id: str
+    id: str   # type: ignore[assignment]
     user_id: UUID
     review_id: ObjectId
     is_like: bool

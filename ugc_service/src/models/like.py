@@ -19,7 +19,7 @@ def like_id(user_id: UUID, film_id: UUID) -> str:
 class Like(Document):
     """Лайк пользователя к фильму (оценка от 0 до 10)."""
 
-    id: str
+    id: str   # type: ignore[assignment]
     user_id: UUID
     film_id: UUID
     rating: int
