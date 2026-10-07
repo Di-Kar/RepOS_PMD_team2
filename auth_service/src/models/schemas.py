@@ -24,7 +24,6 @@ class UserRegisterRequest(BaseSchema):
     password: str = Field(
         ..., min_length=8, max_length=255, description="User password"
     )
-    full_name: Optional[str] = Field(None, max_length=100, description="Full name")
 
 
 class UserRegisterResponse(BaseSchema):
@@ -32,16 +31,17 @@ class UserRegisterResponse(BaseSchema):
 
     id: uuid.UUID = Field(..., description="User ID")
     email: str = Field(..., description="Email (login)")
-    full_name: str = Field(default="", description="Full name")
     created_at: datetime = Field(..., description="Account creation date")
 
 
 class UserResponse(BaseSchema):
-    """Профиль пользователя (GET/PUT /profile)."""
+    """Профиль пользователя (GET /profile). 
+    Внешний контракт сохранён: full_name отдаётся клиентам, 
+    но теперь заполняется динамически из user_profiles."""
 
     id: uuid.UUID = Field(..., description="User ID")
     email: str = Field(..., description="Email (login)")
-    full_name: str = Field(default="", description="Full name")
+    full_name: str = Field(default="", description="Full name")  # <-- ВЕРНУТО для совместимости с admin_panel и другими клиентами
     roles: List[str] = Field(
         default_factory=list, description="Role names assigned to the user"
     )
@@ -50,24 +50,13 @@ class UserResponse(BaseSchema):
 
 class InternalUserProfileResponse(BaseSchema):
     """Профиль пользователя для service-to-service вызовов по user_id, без
-    JWT конечного пользователя (notification_worker, S10_T3, issue #96) —
-    воркеру приходит из Kafka только user_id, ему нечем пройти обычный
-    Depends(get_current_user). Отдаёт минимум, нужный для персонализации
-    письма; is_active отдаётся как есть (не 404) — решение "не отправлять
-    уведомление неактивному пользователю" принимает сам воркер."""
+    JWT конечного пользователя (notification_worker, S10_T3, issue #96).
+    Внешний контракт НЕ меняется: full_name отдаётся, но заполняется из user_profiles."""
 
     id: uuid.UUID = Field(..., description="User ID")
     email: str = Field(..., description="Email (login)")
     full_name: str = Field(default="", description="Full name")
     is_active: bool = Field(..., description="Account active flag")
-
-
-class UserUpdateRequest(BaseSchema):
-    """Запрос обновления профиля: менять можно только full_name."""
-
-    full_name: str = Field(
-        ..., min_length=1, max_length=100, description="New full name"
-    )
 
 
 class UserLoginRequest(BaseSchema):
