@@ -32,8 +32,6 @@ class User(Base):
         String(255), unique=True, nullable=False, index=True
     )
     password: Mapped[str] = mapped_column(String(255), nullable=False)
-    first_name: Mapped[str] = mapped_column(String(50), nullable=True)
-    last_name: Mapped[str] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     # Подтверждение email по короткой ссылке из welcome-письма —

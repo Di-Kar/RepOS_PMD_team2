@@ -141,6 +141,11 @@ class Settings(BaseSettings):
     # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
     sentry_dsn: str = Field(default='', alias='SENTRY_DSN')
 
+    user_profiles_api_url: str = Field(
+        default="http://user_profiles:8000/api/v1",
+        alias="AUTH_USER_PROFILES_API_URL",
+    )
+
     @property
     def postgres_dsn(self) -> str:
         """Construct async PostgreSQL database DSN."""

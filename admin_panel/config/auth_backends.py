@@ -79,7 +79,12 @@ class AuthServiceBackend(ModelBackend):
         получает is_staff без is_superuser и право view_profile: ModelBackend
         проверяет user_permissions, а не роли, поэтому право пишем туда.
         """
-        first_name, _, last_name = auth_user.full_name.partition(" ")
+        # БЕЗОПАСНОЕ получение full_name после миграции S11_T4.
+        # Если по какой-то причине поле отсутствует в ответе auth_service,
+        # используем пустую строку, чтобы избежать AttributeError.
+        full_name = getattr(auth_user, "full_name", "") or ""
+        first_name, _, last_name = full_name.partition(" ")
+        
         user, _ = User.objects.update_or_create(
             username=auth_user.email,
             defaults={
