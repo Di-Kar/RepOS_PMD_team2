@@ -44,7 +44,6 @@ class OAuthService:
         provider_user_id: str,
         email: str,
         email_verified: bool,
-        full_name: Optional[str],
         access_token: Optional[str],
         refresh_token: Optional[str],
         token_expires_at: Optional[datetime],
@@ -69,13 +68,12 @@ class OAuthService:
         user = await self._get_user_by_login(email)
         if user is not None and not email_verified:
             raise OAuthEmailNotVerifiedError(email)
+        
         if user is None:
-            first_name, _, last_name = (full_name or "").partition(" ")
+            # Создаем пользователя БЕЗ first_name и last_name
             user = User(
                 login=email,
                 password=hash_password(secrets.token_urlsafe(32)),
-                first_name=first_name or None,
-                last_name=last_name or None,
                 is_password_set=False,
             )
             self._session.add(user)

@@ -17,21 +17,6 @@ from src.core.utils import get_device_type
 from src.models.entity import LoginHistory, Role, User, UserRole
 
 
-def split_full_name(full_name: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
-    """Делит full_name на first_name/last_name по первому пробелу."""
-    if not full_name or not full_name.strip():
-        return None, None
-    parts = full_name.strip().split(" ", 1)
-    first_name = parts[0]
-    last_name = parts[1] if len(parts) > 1 else None
-    return first_name, last_name
-
-
-def join_full_name(user: User) -> str:
-    """Собирает full_name из first_name/last_name."""
-    return " ".join(part for part in (user.first_name, user.last_name) if part)
-
-
 class AuthService:
     """Операции над пользователем: регистрация, вход, профиль, пароль, история."""
 
@@ -39,15 +24,13 @@ class AuthService:
         self._session = session
 
     async def register(
-        self, email: str, password: str, full_name: Optional[str]
+        self, email: str, password: str
     ) -> User:
-        """Создаёт пользователя. Email хранится в колонке login."""
-        first_name, last_name = split_full_name(full_name)
+        """Создаёт пользователя. Email хранится в колонке login.
+        ФИО больше не передаётся и не сохраняется в auth_service (S11_T4)."""
         user = User(
             login=email,
             password=hash_password(password),
-            first_name=first_name,
-            last_name=last_name,
         )
         self._session.add(user)
         try:
@@ -86,7 +69,7 @@ class AuthService:
         if user is None or not user.is_active:
             raise InvalidCredentialsError(email)
 
-        device_type = get_device_type(user_agent)
+        device_type = get_device_type(user_agent) or "web"
 
         # Опционально: можно сгенерировать простой fingerprint
         fingerprint = f"{ip_address}_{device_type}" if ip_address else None
@@ -98,7 +81,7 @@ class AuthService:
                 ip_address=ip_address,
                 fingerprint=fingerprint,
                 success=success,
-                user_device_type=device_type,
+                user_device_type=device_type, 
             )
         )
 
@@ -117,13 +100,6 @@ class AuthService:
             .where(UserRole.user_id == user_id)
         )
         return list(result.scalars())
-
-    async def update_full_name(self, user: User, full_name: str) -> User:
-        """Обновляет ФИО (email по спеке изменить нельзя)."""
-        user.first_name, user.last_name = split_full_name(full_name)
-        await self._session.commit()
-        await self._session.refresh(user)
-        return user
 
     async def change_password(
         self, user: User, current_password: str, new_password: str
