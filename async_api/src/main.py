@@ -8,6 +8,8 @@ from core import config
 from core.exceptions import StorageUnavailableError
 from core.logger import LOGGING
 from db.auth_client import AuthServiceClient
+from db.profiles_client import ProfilesClient
+from db.ugc_client import UgcClient
 from elasticsearch import AsyncElasticsearch
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -52,11 +54,22 @@ async def lifespan(app: FastAPI):
         base_url=config.AUTH_SERVICE_URL,
         timeout=config.settings.auth_request_timeout,
     )
+    app.state.ugc_client = UgcClient(
+        base_url=config.UGC_SERVICE_URL,
+        timeout=config.settings.ugc_request_timeout,
+    )
+    app.state.profiles_client = ProfilesClient(
+        base_url=config.USER_PROFILES_URL,
+        timeout=config.settings.profiles_request_timeout,
+        api_key=config.settings.profiles_internal_api_key,
+    )
     yield
     # Отключаемся от баз при выключении сервера
     await app.state.redis.close()
     await app.state.elastic.close()
     await app.state.auth_client.aclose()
+    await app.state.ugc_client.aclose()
+    await app.state.profiles_client.aclose()
 
 
 app = FastAPI(

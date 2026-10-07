@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from redis.exceptions import RedisError
 
-from models.like import Like
 from services.like_service import (
     add_or_update_like,
     get_film_like_stats,
@@ -54,7 +53,7 @@ def mock_like_collection():
     mock_cursor.to_list = AsyncMock()
     collection.aggregate.return_value = mock_cursor
     
-    with patch("models.like.Like.get_motor_collection", return_value=collection) as mock:
+    with patch("models.like.Like.get_motor_collection", return_value=collection):
         yield collection, mock_cursor
 
 
@@ -142,7 +141,18 @@ async def test_get_film_like_stats_redis_read_fails_fallback_to_mongo(
     
     collection, mock_cursor = mock_like_collection
     mock_cursor.to_list.return_value = [
-        {"summary": [{"total_ratings": 1, "rating_sum": 10, "total_likes": 1, "total_dislikes": 0, "average_rating": 10.0}], "distribution": []}
+        {
+            "summary": [
+                {
+                    "total_ratings": 1,
+                    "rating_sum": 10,
+                    "total_likes": 1,
+                    "total_dislikes": 0,
+                    "average_rating": 10.0,
+                }
+            ],
+            "distribution": [],
+        }
     ]
 
     result = await get_film_like_stats(film_id)

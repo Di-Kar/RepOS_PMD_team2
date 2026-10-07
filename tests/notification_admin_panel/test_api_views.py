@@ -1,10 +1,8 @@
-import uuid
 from django.test import TestCase
-from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from notifications.models import Campaign, MessageTemplate
+from notifications.models import Campaign
 from .factories import create_user, create_template, random_uuids
 
 

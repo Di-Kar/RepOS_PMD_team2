@@ -283,7 +283,6 @@ async def _process_with_retry(
                 _resume_quietly(consumer, tp)
                 paused = False
                 attempt = 0
-                continue
     finally:
         if paused:
             _resume_quietly(consumer, tp)

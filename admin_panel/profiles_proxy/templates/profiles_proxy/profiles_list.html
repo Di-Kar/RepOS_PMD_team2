@@ -1,0 +1,53 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Главная</a> &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="get">
+  <input type="text" name="search" value="{{ search }}" placeholder="ФИО или телефон">
+  <input type="submit" value="Найти">
+</form>
+
+{% if error %}
+  <p class="errornote">{{ error }}</p>
+{% else %}
+  <p>Найдено: {{ total }}</p>
+
+  {% if items %}
+  <table>
+    <thead>
+      <tr>
+        <th>Имя</th>
+        <th>Фамилия</th>
+        <th>Телефон</th>
+        <th>User ID</th>
+        <th>Создан</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item.first_name }}</td>
+        <td>{{ item.last_name }}</td>
+        <td>{{ item.phone }}</td>
+        <td>{{ item.user_id }}</td>
+        <td>{{ item.created_at|slice:":16" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="paginator">
+    {% if page > 1 %}<a href="?search={{ search|urlencode }}&page={{ page|add:'-1' }}">&larr; Назад</a>{% endif %}
+    Страница {{ page }} из {{ pages }}
+    {% if page < pages %}<a href="?search={{ search|urlencode }}&page={{ page|add:'1' }}">Вперёд &rarr;</a>{% endif %}
+  </p>
+  {% else %}
+  <p>Ничего не найдено.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

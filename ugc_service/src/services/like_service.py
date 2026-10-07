@@ -83,7 +83,7 @@ async def get_film_like_stats(film_id: UUID) -> dict:
             return json.loads(cached)
     except RedisError as e:
         logger.warning("redis_read_failed", extra={"film_id": str(film_id), "error": str(e)})
-    except Exception as e:
+    except Exception:
         logger.exception("redis_unexpected_error", extra={"film_id": str(film_id)})
 
     # --- 2. Cache miss: тяжёлая агрегация в Mongo ---

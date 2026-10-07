@@ -67,6 +67,8 @@ services:
         condition: service_healthy
       auth_service:
         condition: service_healthy
+      user_profiles:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - frontend
@@ -168,6 +170,10 @@ services:
     environment:
       - REDIS_HOST=async_api_redis
       - SENTRY_DSN=${SENTRY_DSN_ASYNC_API}
+      # shared/ugc_schemas.py — контракт ответа ugc для карточки фильма (issue #114)
+      - PYTHONPATH=/opt/app/src:/opt/app/shared
+    volumes:
+      - ./shared:/opt/app/shared:ro
     ports:
       - "8000:8000"
     healthcheck:
@@ -241,6 +247,10 @@ services:
           python -m src.cli create-superuser "$$DJANGO_SUPERUSER_EMAIL" --password "$$DJANGO_SUPERUSER_PASSWORD" --full-name 'Bootstrap Admin' \
             || echo "WARNING: bootstrap superuser creation failed, continuing anyway"
         fi
+        # Роль для страницы профилей в admin_panel (issue #112). Идемпотентно:
+        # повторный запуск на уже созданной роли завершается с кодом 0.
+        python -m src.cli create-role profiles_viewer --permission profiles:view --description 'Просмотр профилей в admin_panel' \
+          || echo "WARNING: profiles_viewer role creation failed, continuing anyway"
         exit 0
     env_file:
       - ./.env

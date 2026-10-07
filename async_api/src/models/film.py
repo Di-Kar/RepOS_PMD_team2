@@ -2,6 +2,7 @@ from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
+from ugc_schemas import ReviewWithAuthorSchema
 
 
 class FilmShort(BaseModel):
@@ -20,6 +21,15 @@ class FilmGenre(BaseModel):
     name: str
 
 
+class FilmUserRating(BaseModel):
+    """Пользовательский рейтинг из ugc_service (в отличие от imdb_rating)."""
+
+    average_rating: float = 0.0
+    total_ratings: int = 0
+    total_likes: int = 0
+    total_dislikes: int = 0
+
+
 class FilmDetail(BaseModel):
     uuid: UUID
     title: str
@@ -29,6 +39,10 @@ class FilmDetail(BaseModel):
     actors: list[FilmPerson] = Field(default_factory=list)
     writers: list[FilmPerson] = Field(default_factory=list)
     directors: list[FilmPerson] = Field(default_factory=list)
+    # None, если ugc_service недоступен (см. ugc_available)
+    user_rating: Optional[FilmUserRating] = None
+    reviews: list[ReviewWithAuthorSchema] = Field(default_factory=list)
+    ugc_available: bool = False
 
 
 class Genre(BaseModel):

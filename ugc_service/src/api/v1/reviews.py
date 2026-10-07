@@ -33,10 +33,12 @@ class ReviewResponse(BaseModel):
     user_id: UUID
     film_id: UUID
     title: str
+    text: str
     rating: int
     published_at: str
     likes_count: int
     dislikes_count: int
+    is_spoiler: bool
 
 
 class ReviewDetailResponse(BaseModel):
@@ -51,6 +53,7 @@ class ReviewDetailResponse(BaseModel):
     published_at: str
     likes_count: int
     dislikes_count: int
+    is_spoiler: bool
 
 
 class ReviewUpdateResponse(BaseModel):
@@ -58,6 +61,7 @@ class ReviewUpdateResponse(BaseModel):
 
     id: str
     title: str
+    is_spoiler: bool
     updated_at: str
 
 
@@ -81,7 +85,7 @@ class ReviewVoteResponse(BaseModel):
     description='Создать рецензию на фильм. Защищено rate limiter (NFR12).',
     response_model=ReviewResponse,
 )
-@limiter.limit(settings.reviews_rate_limit)  # ← ЗАЩИТА ОТ СПАМА
+@limiter.limit(lambda: settings.reviews_rate_limit)  # ← ЗАЩИТА ОТ СПАМА; callable читает настройку на каждый запрос
 async def create_review(
     body: ReviewCreateRequest,
     request: Request,  # ← ОБЯЗАТЕЛЬНО для работы slowapi
@@ -100,18 +104,21 @@ async def create_review(
             body.title,
             body.text,
             body.rating,
+            body.is_spoiler,
         )
         return ReviewResponse(
             id=str(review.id),
             user_id=review.user_id,
             film_id=review.film_id,
             title=review.title,
+            text=review.text,
             rating=review.rating,
+            is_spoiler=review.is_spoiler,
             published_at=review.published_at.isoformat(),
             likes_count=review.likes_count,
             dislikes_count=review.dislikes_count,
         )
-    except Exception as e:
+    except Exception:
         # logger.exception автоматически запишет тип ошибки и стек-трейс в логи
         logger.exception('Ошибка создания рецензии')
         raise HTTPException(
@@ -158,7 +165,9 @@ async def get_reviews(
             user_id=r.user_id,
             film_id=r.film_id,
             title=r.title,
+            text=r.text,
             rating=r.rating,
+            is_spoiler=r.is_spoiler,
             published_at=r.published_at.isoformat(),
             likes_count=r.likes_count,
             dislikes_count=r.dislikes_count,
@@ -195,6 +204,7 @@ async def get_review(
         title=review.title,
         text=review.text,
         rating=review.rating,
+        is_spoiler=review.is_spoiler,
         published_at=review.published_at.isoformat(),
         likes_count=review.likes_count,
         dislikes_count=review.dislikes_count,
@@ -226,9 +236,15 @@ async def update_review(
     title = body.title if body else None
     text = body.text if body else None
     rating = body.rating if body else None
+    is_spoiler = body.is_spoiler if body else None
 
     review = await review_service.update_review(
-        review_id, UUID(user.user_id), title=title, text=text, rating=rating
+        review_id,
+        UUID(user.user_id),
+        title=title,
+        text=text,
+        rating=rating,
+        is_spoiler=is_spoiler,
     )
     if not review:
         raise HTTPException(
@@ -239,6 +255,7 @@ async def update_review(
     return ReviewUpdateResponse(
         id=str(review.id),
         title=review.title,
+        is_spoiler=review.is_spoiler,
         updated_at=review.published_at.isoformat(),
     )
 

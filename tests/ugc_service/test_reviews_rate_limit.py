@@ -1,30 +1,41 @@
 """Тесты rate limiting для создания рецензий."""
 
+import importlib.util
 import pytest
 import uuid
 from datetime import datetime
+from pathlib import Path
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from main import app
 from api.dependencies import UserContext
+
+# `main` есть и в analytics_etl/src (PYTHONPATH тестового контейнера), поэтому
+# app грузим из ugc_service/src/main.py по пути, а не по имени модуля.
+_UGC_MAIN = Path(__file__).resolve().parents[2] / "ugc_service" / "src" / "main.py"
+_spec = importlib.util.spec_from_file_location("ugc_main", _UGC_MAIN)
+_ugc_main = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_ugc_main)
+app = _ugc_main.app
 
 USER_A_ID = str(uuid.uuid4())
 USER_B_ID = str(uuid.uuid4())
 TEST_USER_ID = str(uuid.uuid4())
 
 
-def create_mock_review(user_id, film_id, title, rating):
+def create_mock_review(user_id, film_id, title, text, rating):
     """Создаёт MagicMock, имитирующий объект Review, чтобы не инициализировать Beanie."""
     mock_review = MagicMock()
     mock_review.id = uuid.uuid4()
     mock_review.user_id = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
     mock_review.film_id = uuid.UUID(film_id) if isinstance(film_id, str) else film_id
     mock_review.title = title
+    mock_review.text = text
     mock_review.rating = rating
     mock_review.published_at = datetime.utcnow()
     mock_review.likes_count = 0
     mock_review.dislikes_count = 0
+    mock_review.is_spoiler = False
     return mock_review
 
 
@@ -33,7 +44,7 @@ def mock_review_service():
     """Мокаем сервис рецензий, чтобы тесты не зависели от MongoDB/Beanie."""
     with patch("api.v1.reviews.review_service.create_review", new_callable=AsyncMock) as mock_create:
         mock_create.side_effect = lambda user_id, film_id, title, text, rating: create_mock_review(
-            user_id, film_id, title, rating
+            user_id, film_id, title, text, rating
         )
         yield mock_create
 
@@ -105,13 +116,25 @@ async def test_rate_limit_is_per_user(strict_limit, mock_review_service):
         with patch("api.dependencies.AuthServiceClient.get_current_user") as mock_a:
             mock_a.return_value = UserContext(user_id=USER_A_ID, name="User A")
             for i in range(2):
-                await ac.post("/api/v1/reviews", json={"film_id": film_id, "title": "A", "text": f"a{i}", "rating": 5}, headers={"Authorization": "Bearer token_A"})
+                await ac.post(
+                    "/api/v1/reviews",
+                    json={"film_id": film_id, "title": "A", "text": f"a{i}", "rating": 5},
+                    headers={"Authorization": "Bearer token_A"},
+                )
             
-            r_a = await ac.post("/api/v1/reviews", json={"film_id": film_id, "title": "A", "text": "a_spam", "rating": 5}, headers={"Authorization": "Bearer token_A"})
+            r_a = await ac.post(
+                "/api/v1/reviews",
+                json={"film_id": film_id, "title": "A", "text": "a_spam", "rating": 5},
+                headers={"Authorization": "Bearer token_A"},
+            )
             assert r_a.status_code == 429, "User A должен получить 429"
 
         # User B ещё может писать
         with patch("api.dependencies.AuthServiceClient.get_current_user") as mock_b:
             mock_b.return_value = UserContext(user_id=USER_B_ID, name="User B")
-            r_b = await ac.post("/api/v1/reviews", json={"film_id": film_id, "title": "B", "text": "b_ok", "rating": 9}, headers={"Authorization": "Bearer token_B"})
+            r_b = await ac.post(
+                "/api/v1/reviews",
+                json={"film_id": film_id, "title": "B", "text": "b_ok", "rating": 9},
+                headers={"Authorization": "Bearer token_B"},
+            )
             assert r_b.status_code == 201, f"User B должен получить 201, получено: {r_b.status_code} - {r_b.text}"

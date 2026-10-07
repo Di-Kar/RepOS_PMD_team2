@@ -421,7 +421,8 @@ class NotificationHistory(models.Model):
         ordering = ["-sent_at"]
 
     def __str__(self):
-        # ИСПРАВЛЕНО: используем self.notification.notification_id, так как прямого поля notification_id в этой модели нет
+        # ИСПРАВЛЕНО: используем self.notification.notification_id,
+        # так как прямого поля notification_id в этой модели нет
         return f"{self.notification.notification_id} @ {self.sent_at} -> {self.status}"
 
 

@@ -45,7 +45,7 @@
 |-------|----------|----------|
 | POST | `/api/v1/bookmarks?film_id={id}` | Добавить фильм в закладки |
 | DELETE | `/api/v1/bookmarks/{film_id}` | Удалить фильм из закладок |
-| GET | `/api/v1/bookmarks?page=1&page_size=20` | Список закладок пользователя |
+| GET | `/api/v1/bookmarks?page_number=1&page_size=20` | Список закладок пользователя |
 
 ### Лайки (`/api/v1/likes`)
 
@@ -59,10 +59,10 @@
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| POST | `/api/v1/reviews?film_id={id}&title=...&text=...&rating=8` | Создать рецензию |
-| GET | `/api/v1/reviews?film_id={id}&sort=likes_count&page=1&page_size=20` | Список рецензий (сортировка: likes_count, published_at, rating) |
+| POST | `/api/v1/reviews?film_id={id}&title=...&text=...&rating=8&is_spoiler=false` | Создать рецензию. `is_spoiler` — флаг спойлера (по умолчанию `false`, текст скрывается на фронте) |
+| GET | `/api/v1/reviews?film_id={id}&sort=likes_count&page_number=1&page_size=20` | Список рецензий (сортировка: likes_count, published_at, rating) |
 | GET | `/api/v1/reviews/{review_id}` | Детали рецензии |
-| PUT | `/api/v1/reviews/{review_id}?title=...&text=...&rating=...` | Обновить рецензию (только автор) |
+| PUT | `/api/v1/reviews/{review_id}?title=...&text=...&rating=...&is_spoiler=...` | Обновить рецензию (только автор). `is_spoiler` не передан — флаг не меняется |
 | DELETE | `/api/v1/reviews/{review_id}` | Удалить рецензию (только автор) |
 | POST | `/api/v1/reviews/{review_id}/vote?is_like=true` | Голос за/против рецензии |
 
@@ -88,15 +88,23 @@
 
 ## Интеграция с async_api
 
-async_api вызывает ugc_service для отображения данных в карточке фильма:
+async_api (S11_T7, issue #114) вызывает ugc_service на карточке фильма:
 
 ```
-async_api → GET http://ugc_service:8000/api/v1/likes/{film_id}
-async_api → GET http://ugc_service:8000/api/v1/bookmarks?film_id={id}
-async_api → GET http://ugc_service:8000/api/v1/reviews?film_id={id}&sort=likes_count&size=5
+async_api → GET http://ugc_service:8000/api/v1/likes/{film_id}                                  # рейтинг
+async_api → GET http://ugc_service:8000/api/v1/reviews?film_id={id}&sort=likes_count&page_size=5  # топ-5 рецензий
 ```
 
-Pydantic response-модели определены в `shared/ugc_schemas.py` — используются обоими сервисами.
+ФИО авторов рецензий async_api берёт из user_profiles (`GET /api/v1/profiles/{user_id}`, S2S-ключ
+`PROFILES_INTERNAL_API_KEY`). Имена кэшируются в Redis на 10 минут. Если профиля нет или user_profiles
+недоступен, автор отображается как «Аноним».
+
+Недоступность ugc_service не ломает карточку: блок `user_rating` = `null`, `reviews` = `[]`,
+`ugc_available` = `false`. Отдельный эндпоинт `GET /api/v1/films/{film_id}/reviews` при недоступности
+ugc отвечает `503`.
+
+Схема ответа рецензии в карточке (`ReviewWithAuthorSchema`) определена в `shared/ugc_schemas.py`:
+async_api монтирует `shared` и импортирует её, ugc_service возвращает совместимые поля.
 
 ## Запуск
 

@@ -16,6 +16,7 @@ async def create_review(
     title: str,
     text: str,
     rating: int,
+    is_spoiler: bool = False,
 ) -> Review:
     """Создать рецензию."""
     review = Review(
@@ -24,6 +25,7 @@ async def create_review(
         title=title,
         text=text,
         rating=rating,
+        is_spoiler=is_spoiler,
     )
     await review.insert()
     logger.info('Рецензия создана: user=%s film=%s', user_id, film_id)
@@ -83,6 +85,7 @@ async def update_review(
     title: str | None = None,
     text: str | None = None,
     rating: int | None = None,
+    is_spoiler: bool | None = None,
 ) -> Review | None:
     """Обновить рецензию (только автор)."""
     review = await Review.get(review_id)
@@ -95,6 +98,8 @@ async def update_review(
         review.text = text
     if rating is not None:
         review.rating = rating
+    if is_spoiler is not None:
+        review.is_spoiler = is_spoiler
 
     await review.save()
     logger.info('Рецензия обновлена: %s', review_id)

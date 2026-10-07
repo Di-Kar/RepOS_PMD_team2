@@ -185,7 +185,11 @@ T4, `auth_service` (резолв ФИО вместо собственного х
 `admin_panel` при показе карточки профиля администратору передаёт вместе с
 `X-Internal-Api-Key` дополнительный заголовок `X-Admin-Email: <email
 текущего администратора>` на `GET /profiles/{user_id}` и `GET
-/profiles/{user_id}/full`. Значение берётся из уже доступного
+/profiles/{user_id}/full`. Тот же заголовок передаётся и на листинг `GET
+/profiles?search=&page=&page_size=` (страница профилей в админке, S11_T5):
+просмотр списка ФИО/телефонов тоже должен попадать в аудит. Запись аудита
+для листинга реализуется в S11_T10 — до этого заголовок уже уходит, но
+user_profiles его не логирует. Значение берётся из уже доступного
 `request.user.email` в `admin_panel` (Django `User.username` там и есть
 email, см. `admin_panel/config/auth_backends.py`) — доработка модели не
 нужна. Как и `source_service` в

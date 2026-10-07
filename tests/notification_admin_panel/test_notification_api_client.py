@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.utils import timezone
 
-from notifications.notification_api_client import NotificationApiClient, NotificationApiResult
+from notifications.notification_api_client import NotificationApiClient
 
 
 class NotificationApiClientTest(TestCase):
