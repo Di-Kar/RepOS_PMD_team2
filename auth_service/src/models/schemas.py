@@ -41,7 +41,8 @@ class UserResponse(BaseSchema):
 
     id: uuid.UUID = Field(..., description="User ID")
     email: str = Field(..., description="Email (login)")
-    full_name: str = Field(default="", description="Full name")  # <-- ВЕРНУТО для совместимости с admin_panel и другими клиентами
+    # ВЕРНУТО для совместимости с admin_panel и другими клиентами
+    full_name: str = Field(default="", description="Full name")  
     roles: List[str] = Field(
         default_factory=list, description="Role names assigned to the user"
     )
