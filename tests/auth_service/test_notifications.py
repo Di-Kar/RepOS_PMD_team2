@@ -59,7 +59,7 @@ class TestNotifications:
         status, body = await post_json(
             session,
             f"{BASE_URL}/auth/register",
-            {"email": email, "password": PASSWORD, "full_name": "Notify Me"},
+            {"email": email, "password": PASSWORD},
         )
         assert status == 201, body
         user_id = body["id"]
