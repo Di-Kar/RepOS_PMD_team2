@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 async def get_user_profile(user_id: uuid.UUID) -> Optional[dict]:
     """Забирает профиль пользователя из user_profiles по internal API."""
     headers = (
-        {"X-Internal-Api-Key": settings.internal_api_key}
-        if settings.internal_api_key else {}
+        {"X-Internal-Api-Key": settings.profiles_internal_api_key}
+        if settings.profiles_internal_api_key else {}
     )
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
