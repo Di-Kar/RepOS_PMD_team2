@@ -1,10 +1,11 @@
 """Django authentication backend, делегирующий вход в /admin/ auth_service.
 
 Полный доступ к admin даёт роль AUTH_SERVICE_ADMIN_ROLE (или is_superuser)
-из ответа auth_service. Право на просмотр профилей (PROFILES_VIEW_PERMISSION,
-IDM) даёт вход без is_superuser, но только в раздел профилей. Локальный
-Django User — не источник истины, а зеркало для офлайн-фолбэка (см.
-AuthServiceUnavailable).
+из ответа auth_service. Права на просмотр профилей (PROFILES_VIEW_PERMISSION)
+и журнала аудита их просмотра (AUDIT_VIEW_PERMISSION), оба из IDM, дают вход
+без is_superuser, но только в соответствующий раздел — это две независимые
+роли (profiles_viewer и audit, issue #117). Локальный Django User — не
+источник истины, а зеркало для офлайн-фолбэка (см. AuthServiceUnavailable).
 """
 
 import logging
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 PROFILES_VIEW_PERMISSION = 'profiles:view'
+AUDIT_VIEW_PERMISSION = 'audit:view'
 
 
 def _is_admin(auth_user) -> bool:
@@ -34,6 +36,10 @@ def _is_admin(auth_user) -> bool:
 
 def _can_view_profiles(auth_user) -> bool:
     return PROFILES_VIEW_PERMISSION in auth_user.permissions
+
+
+def _can_view_audit(auth_user) -> bool:
+    return AUDIT_VIEW_PERMISSION in auth_user.permissions
 
 
 class AuthServiceBackend(ModelBackend):
@@ -62,9 +68,14 @@ class AuthServiceBackend(ModelBackend):
         if auth_user is None:
             return None  # auth_service явно отверг учётные данные
 
-        if not _is_admin(auth_user) and not _can_view_profiles(auth_user):
+        if (
+            not _is_admin(auth_user)
+            and not _can_view_profiles(auth_user)
+            and not _can_view_audit(auth_user)
+        ):
             logger.info(
-                "Пользователь %s аутентифицирован, но без прав администратора и профилей",
+                "Пользователь %s аутентифицирован, но без прав администратора, "
+                "профилей и аудита",
                 username,
             )
             self._revoke_local_access(auth_user.email)
@@ -76,8 +87,9 @@ class AuthServiceBackend(ModelBackend):
         """Создаёт/обновляет локальное зеркало для офлайн-фолбэка.
 
         Полный доступ (is_superuser) — только у администраторов. Вьювер профилей
-        получает is_staff без is_superuser и право view_profile: ModelBackend
-        проверяет user_permissions, а не роли, поэтому право пишем туда.
+        и аудитор получают is_staff без is_superuser и своё право (view_profile
+        / view_audit соответственно): ModelBackend проверяет user_permissions,
+        а не роли, поэтому права пишем туда.
         """
         # БЕЗОПАСНОЕ получение full_name после миграции S11_T4.
         # Если по какой-то причине поле отсутствует в ответе auth_service,
@@ -98,26 +110,28 @@ class AuthServiceBackend(ModelBackend):
         )
         user.set_password(password)
         user.save(update_fields=["password"])
-        self._sync_profiles_permission(user, can_view=_can_view_profiles(auth_user))
+        self._sync_permission(user, "view_profile", can_view=_can_view_profiles(auth_user))
+        self._sync_permission(user, "view_audit", can_view=_can_view_audit(auth_user))
         return user
 
     def _revoke_local_access(self, email: str) -> None:
         """Права сняты в IDM: зеркало не должно давать ни staff, ни superuser,
-        ни профилей. degraded-вход проверяет только is_staff и пароль, поэтому
-        без сброса is_staff снятый пользователь снова вошёл бы при падении
-        auth_service."""
+        ни профилей, ни аудита. degraded-вход проверяет только is_staff и
+        пароль, поэтому без сброса is_staff снятый пользователь снова вошёл
+        бы при падении auth_service."""
         local_user = User.objects.filter(username=email).first()
         if local_user is None:
             return
         local_user.is_staff = False
         local_user.is_superuser = False
         local_user.save(update_fields=["is_staff", "is_superuser"])
-        self._sync_profiles_permission(local_user, can_view=False)
+        self._sync_permission(local_user, "view_profile", can_view=False)
+        self._sync_permission(local_user, "view_audit", can_view=False)
 
     @staticmethod
-    def _sync_profiles_permission(user, can_view: bool) -> None:
+    def _sync_permission(user, codename: str, can_view: bool) -> None:
         perm = Permission.objects.get(
-            content_type__app_label="profiles_proxy", codename="view_profile"
+            content_type__app_label="profiles_proxy", codename=codename
         )
         if can_view:
             user.user_permissions.add(perm)

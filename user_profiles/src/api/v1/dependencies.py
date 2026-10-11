@@ -87,6 +87,16 @@ async def verify_internal_api_key(
         )
 
 
+async def get_admin_email(
+    x_admin_email: str | None = Header(default=None),
+) -> str | None:
+    """Самозаявленный заголовок аудита (контракт §3, S11_T10) — присутствие
+    означает "живой просмотр админом через admin_panel", в отличие от S2S-
+    вызовов без заголовка (например, auth_service резолвит ФИО), которые не
+    считаются просмотром администратора и не аудируются."""
+    return x_admin_email
+
+
 class PaginationParams:
     """Параметры пагинации листинга профилей (контракт §2: page/page_size)."""
 

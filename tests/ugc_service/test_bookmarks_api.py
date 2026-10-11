@@ -1,9 +1,9 @@
-"""Тесты API endpoint'ов закладок: валидация UUID."""
+"""Тесты API endpoint'ов закладок: валидация UUID, film_title и sort."""
 
 from unittest.mock import patch
 
 import pytest
-from api.v1.bookmarks import router
+from api.v1.bookmarks import EXAMPLE_FILM_ID, router
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
@@ -39,12 +39,37 @@ class TestAddBookmark:
         """Невалидный UUID film_id → 422."""
         response = client.post(
             '/api/v1/bookmarks',
-            params={'film_id': 'not-a-uuid'},
+            params={'film_id': 'not-a-uuid', 'film_title': 'Интерстеллар'},
         )
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         detail = response.json()['detail']
         assert isinstance(detail, list)
+
+    @patch('api.v1.bookmarks.bookmark_service')
+    def test_missing_film_title_returns_422(self, mock_service, client: TestClient):
+        """Без film_title (S11_T13, issue #120) → 422."""
+        response = client.post(
+            '/api/v1/bookmarks',
+            params={'film_id': str(EXAMPLE_FILM_ID)},
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+# ==================================================================== #
+#  GET '' — список закладок                                            #
+# ==================================================================== #
+
+
+class TestGetBookmarks:
+    """Тесты endpoint GET '' (список закладок): валидация sort."""
+
+    def test_invalid_sort_returns_422(self, client: TestClient):
+        """Невалидное значение sort (S11_T13, issue #120) → 422."""
+        response = client.get('/api/v1/bookmarks', params={'sort': 'drop_table'})
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 # ==================================================================== #

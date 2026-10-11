@@ -152,7 +152,7 @@ class TestBookmarksE2E:
 
         async with aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/bookmarks',
-            params={'film_id': str(film_id)},
+            params={'film_id': str(film_id), 'film_title': 'Интерстеллар'},
             headers=auth_headers,
         ) as resp:
             assert (
@@ -161,7 +161,21 @@ class TestBookmarksE2E:
             data = await resp.json()
             assert 'film_id' in data
             assert data['film_id'] == str(film_id)
+            assert data['film_title'] == 'Интерстеллар'
             assert 'added_at' in data
+
+    async def test_add_bookmark_without_film_title_returns_422(
+        self, aiohttp_session, clean_collections, auth_headers
+    ):
+        """film_title обязателен (S11_T13, issue #120)."""
+        film_id = uuid4()
+
+        async with aiohttp_session.post(
+            f'{UGC_BASE_URL}/api/v1/bookmarks',
+            params={'film_id': str(film_id)},
+            headers=auth_headers,
+        ) as resp:
+            assert resp.status == 422
 
     async def test_get_bookmarks(
         self, aiohttp_session, clean_collections, auth_headers
@@ -171,7 +185,7 @@ class TestBookmarksE2E:
 
         await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/bookmarks',
-            params={'film_id': str(film_id)},
+            params={'film_id': str(film_id), 'film_title': 'Интерстеллар'},
             headers=auth_headers,
         )
 
@@ -186,6 +200,36 @@ class TestBookmarksE2E:
             assert isinstance(data, list)
             assert len(data) >= 1
             assert data[0]['film_id'] == str(film_id)
+            assert data[0]['film_title'] == 'Интерстеллар'
+
+    async def test_get_bookmarks_sort_by_title(
+        self, aiohttp_session, clean_collections, auth_headers
+    ):
+        """sort=title сортирует закладки по названию фильма (S11_T13, issue #120)."""
+        film_a, film_b = uuid4(), uuid4()
+
+        # Добавляем в обратном алфавитному порядку, чтобы сортировка была заметна.
+        await aiohttp_session.post(
+            f'{UGC_BASE_URL}/api/v1/bookmarks',
+            params={'film_id': str(film_a), 'film_title': 'Я titre'},
+            headers=auth_headers,
+        )
+        await aiohttp_session.post(
+            f'{UGC_BASE_URL}/api/v1/bookmarks',
+            params={'film_id': str(film_b), 'film_title': 'Авель'},
+            headers=auth_headers,
+        )
+
+        async with aiohttp_session.get(
+            f'{UGC_BASE_URL}/api/v1/bookmarks',
+            params={'sort': 'title'},
+            headers=auth_headers,
+        ) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+
+        titles = [item['film_title'] for item in data]
+        assert titles == sorted(titles)
 
     async def test_remove_bookmark(
         self, aiohttp_session, clean_collections, auth_headers
@@ -195,7 +239,7 @@ class TestBookmarksE2E:
 
         await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/bookmarks',
-            params={'film_id': str(film_id)},
+            params={'film_id': str(film_id), 'film_title': 'Интерстеллар'},
             headers=auth_headers,
         )
 
@@ -218,7 +262,7 @@ class TestBookmarksE2E:
 
         await aiohttp_session.post(
             f'{UGC_BASE_URL}/api/v1/bookmarks',
-            params={'film_id': str(film_id)},
+            params={'film_id': str(film_id), 'film_title': 'Интерстеллар'},
             headers=auth_headers,
         )
 
@@ -227,6 +271,7 @@ class TestBookmarksE2E:
             {'film_id': _encode_uuid(film_id)}
         )
         assert bookmark is not None
+        assert bookmark['film_title'] == 'Интерстеллар'
         assert 'user_id' in bookmark
 
 

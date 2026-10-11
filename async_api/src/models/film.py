@@ -43,6 +43,11 @@ class FilmDetail(BaseModel):
     user_rating: Optional[FilmUserRating] = None
     reviews: list[ReviewWithAuthorSchema] = Field(default_factory=list)
     ugc_available: bool = False
+    # Личные данные текущего пользователя (S11_T9, issue #116) — всегда
+    # None/False для анонимного запроса, не путать с user_rating (это
+    # агрегированная статистика сообщества, а не чья-то личная оценка).
+    my_rating: Optional[int] = None
+    user_has_reviewed: bool = False
 
 
 class Genre(BaseModel):

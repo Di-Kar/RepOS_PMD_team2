@@ -23,6 +23,12 @@ class Bookmark(Document):
     user_id: UUID
     film_id: UUID
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Денормализовано из async_api на момент добавления закладки — у
+    # ugc_service нет собственного клиента к каталогу фильмов, а так
+    # сортировка по названию (S11_T13, issue #120) не создаёт рантайм-
+    # зависимости от async_api. Дефолт '' — для закладок, созданных до
+    # этой миграции.
+    film_title: str = Field(default='')
 
     class Settings:
         name = 'bookmarks'
@@ -34,6 +40,8 @@ class Bookmark(Document):
             # на большом количестве закладок у пользователя упирается в
             # лимит blocking sort (32MB) без возможности использовать индекс.
             [('user_id', 1), ('created_at', -1)],
+            # (user_id, film_title): то же самое для sort=title (S11_T13).
+            [('user_id', 1), ('film_title', 1)],
         ]
 
     class Config:

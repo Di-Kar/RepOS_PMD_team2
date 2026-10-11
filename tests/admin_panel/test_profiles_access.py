@@ -265,10 +265,23 @@ class ProfilesListViewTests(TestCase):
         mock_get.side_effect = requests.ConnectionError("down")
         self.client.force_login(self.viewer)
 
-        response = self.client.get(self.url)
+        response = self.client.get(self.url, {"search": "Иван"})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["error"], "Сервис профилей недоступен")
+
+    def test_no_search_shows_prompt_without_calling_user_profiles(self):
+        """До явного поиска список не запрашивается и не отображается —
+        иначе страница сразу при открытии показывала бы ФИО/телефоны всех
+        пользователей."""
+        self.client.force_login(self.viewer)
+        with patch("profiles_proxy.views.requests.get") as mock_get:
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        mock_get.assert_not_called()
+        self.assertFalse(response.context["searched"])
+        self.assertContains(response, "Введите ФИО или телефон")
 
     def test_index_shows_link_only_with_permission(self):
         self.client.force_login(self.viewer)

@@ -57,6 +57,7 @@ async def lifespan(app: FastAPI):
     app.state.ugc_client = UgcClient(
         base_url=config.UGC_SERVICE_URL,
         timeout=config.settings.ugc_request_timeout,
+        internal_api_key=config.settings.ugc_internal_api_key,
     )
     app.state.profiles_client = ProfilesClient(
         base_url=config.USER_PROFILES_URL,

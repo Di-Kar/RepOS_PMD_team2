@@ -18,6 +18,7 @@ class BookmarkResponse(BaseModel):
     """Ответ с информацией о закладке."""
 
     film_id: UUID
+    film_title: str
     added_at: str
 
 
@@ -34,6 +35,13 @@ async def add_bookmark(
         example=str(EXAMPLE_FILM_ID),
         description='UUID фильма',
     ),
+    film_title: str = Query(
+        ...,
+        min_length=1,
+        max_length=300,
+        example='Интерстеллар',
+        description='Название фильма (для сортировки списка закладок по названию)',
+    ),
     user=Depends(get_optional_user),
 ):
     if user is None:
@@ -43,9 +51,12 @@ async def add_bookmark(
         )
 
     try:
-        bookmark = await bookmark_service.add_bookmark(UUID(user.user_id), film_id)
+        bookmark = await bookmark_service.add_bookmark(
+            UUID(user.user_id), film_id, film_title
+        )
         return BookmarkResponse(
             film_id=bookmark.film_id,
+            film_title=bookmark.film_title,
             added_at=bookmark.created_at.isoformat(),
         )
     except Exception as e:
@@ -88,6 +99,12 @@ async def remove_bookmark(
     response_model=list[BookmarkResponse],
 )
 async def get_bookmarks(
+    sort: str = Query(
+        'added_at',
+        pattern='^(added_at|title)$',
+        examples=['added_at'],
+        description='Поле сортировки',
+    ),
     pagination: PaginationParams = Depends(PaginationParams),
     user=Depends(get_optional_user),
 ):
@@ -100,6 +117,7 @@ async def get_bookmarks(
     skip = (pagination.page_number - 1) * pagination.page_size
     bookmarks = await bookmark_service.get_user_bookmarks(
         UUID(user.user_id),
+        sort_by=sort,
         skip=skip,
         limit=pagination.page_size,
     )
@@ -107,6 +125,7 @@ async def get_bookmarks(
     return [
         BookmarkResponse(
             film_id=b.film_id,
+            film_title=b.film_title,
             added_at=b.created_at.isoformat(),
         )
         for b in bookmarks

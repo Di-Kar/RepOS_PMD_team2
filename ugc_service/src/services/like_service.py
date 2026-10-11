@@ -194,3 +194,9 @@ async def get_user_likes(
         .limit(limit)
         .to_list()
     )
+
+
+async def get_user_film_rating(user_id: UUID, film_id: UUID) -> int | None:
+    """Оценка пользователя для конкретного фильма, None — если не ставил (S11_T9)."""
+    like = await Like.get(like_id(user_id, film_id))
+    return like.rating if like else None

@@ -93,12 +93,18 @@ async def film_details(
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail='film not found')
 
     # UGC-данные запрашиваются после кэша фильма: рейтинг не должен застывать в Redis
-    user_rating, reviews, ugc_available = await ugc_service.get_card_data(film_id)
+    user_rating, reviews, ugc_available, my_rating, user_has_reviewed = (
+        await ugc_service.get_card_data(
+            film_id, user.user_id if user else None
+        )
+    )
 
     return FilmDetail(
         user_rating=user_rating,
         reviews=reviews,
         ugc_available=ugc_available,
+        my_rating=my_rating,
+        user_has_reviewed=user_has_reviewed,
         uuid=film.id,
         title=film.title,
         imdb_rating=film.rating,

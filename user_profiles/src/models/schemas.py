@@ -73,6 +73,23 @@ class ProfileListResponse(BaseModel):
     total: int = Field(..., description="Общее количество совпадений")
 
 
+class ProfileViewAuditItem(BaseModel):
+    """Запись аудита просмотра профиля администратором (контракт §3)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    admin_email: str = Field(..., description="Email администратора, смотревшего профиль")
+    target_user_id: uuid.UUID = Field(..., description="user_id просмотренного профиля")
+    viewed_at: datetime = Field(..., description="Момент просмотра")
+
+
+class ProfileViewAuditListResponse(BaseModel):
+    """Страница записей аудита (internal API, S11_T10)."""
+
+    items: list[ProfileViewAuditItem] = Field(..., description="Записи на странице")
+    total: int = Field(..., description="Общее количество записей")
+
+
 class UgcBookmarkItem(BaseModel):
     """Закладка пользователя (зеркалит BookmarkResponse ugc_service)."""
 

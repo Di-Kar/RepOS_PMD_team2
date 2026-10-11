@@ -23,11 +23,14 @@ class TestBookmarkService:
 
             user_id = uuid4()
             film_id = uuid4()
-            result = await add_bookmark(user_id, film_id)
+            result = await add_bookmark(user_id, film_id, 'Интерстеллар')
 
             assert result is mock_instance
             MockBookmark.assert_called_once_with(
-                id=f'{user_id}:{film_id}', user_id=user_id, film_id=film_id
+                id=f'{user_id}:{film_id}',
+                user_id=user_id,
+                film_id=film_id,
+                film_title='Интерстеллар',
             )
             mock_instance.insert.assert_called_once()
 
@@ -83,6 +86,46 @@ class TestBookmarkService:
 
             assert len(result) == 1
             assert result[0].film_id == mock_bookmark.film_id
+            # Дефолт sort_by='added_at' сохраняет прежнее поведение (S11_T13)
+            mock_query.sort.assert_called_once_with(('created_at', -1))
+
+    async def test_get_user_bookmarks_sort_by_title(self, mock_beanie):
+        """sort_by='title' сортирует по film_title, а не по дате (S11_T13)."""
+        mock_query = MagicMock()
+        mock_query.sort = MagicMock(return_value=mock_query)
+        mock_query.skip = MagicMock(return_value=mock_query)
+        mock_query.limit = MagicMock(return_value=mock_query)
+        mock_query.to_list = AsyncMock(return_value=[])
+
+        with patch('services.bookmark_service.Bookmark') as MockBookmark:
+            MockBookmark.find = MagicMock(return_value=mock_query)
+
+            from services.bookmark_service import get_user_bookmarks
+
+            user_id = uuid4()
+            await get_user_bookmarks(user_id, sort_by='title')
+
+            mock_query.sort.assert_called_once_with(('film_title', 1))
+
+    async def test_get_user_bookmarks_unknown_sort_falls_back_to_added_at(
+        self, mock_beanie
+    ):
+        """Неизвестное значение sort_by не роняет сервис, падает на дефолт."""
+        mock_query = MagicMock()
+        mock_query.sort = MagicMock(return_value=mock_query)
+        mock_query.skip = MagicMock(return_value=mock_query)
+        mock_query.limit = MagicMock(return_value=mock_query)
+        mock_query.to_list = AsyncMock(return_value=[])
+
+        with patch('services.bookmark_service.Bookmark') as MockBookmark:
+            MockBookmark.find = MagicMock(return_value=mock_query)
+
+            from services.bookmark_service import get_user_bookmarks
+
+            user_id = uuid4()
+            await get_user_bookmarks(user_id, sort_by='nonsense')
+
+            mock_query.sort.assert_called_once_with(('created_at', -1))
 
 
 class TestLikeService:
@@ -162,6 +205,31 @@ class TestLikeService:
             assert result['total_ratings'] == 2
             assert result['total_likes'] == 1
             assert result['total_dislikes'] == 1
+
+    async def test_get_user_film_rating_found(self, mock_beanie):
+        """Пользователь уже оценил фильм — возвращаем его rating."""
+        mock_instance = MagicMock()
+        mock_instance.rating = 7
+
+        with patch('services.like_service.Like') as MockLike:
+            MockLike.get = AsyncMock(return_value=mock_instance)
+
+            from services.like_service import get_user_film_rating
+
+            result = await get_user_film_rating(uuid4(), uuid4())
+
+            assert result == 7
+
+    async def test_get_user_film_rating_not_found(self, mock_beanie):
+        """Пользователь не оценивал фильм — None."""
+        with patch('services.like_service.Like') as MockLike:
+            MockLike.get = AsyncMock(return_value=None)
+
+            from services.like_service import get_user_film_rating
+
+            result = await get_user_film_rating(uuid4(), uuid4())
+
+            assert result is None
 
 
 class TestReviewService:
@@ -260,5 +328,27 @@ class TestReviewService:
             review_id = uuid4()
             other_user = uuid4()
             result = await delete_review(review_id, other_user)
+
+            assert result is False
+
+    async def test_user_has_reviewed_true(self, mock_beanie):
+        """У пользователя есть рецензия на фильм."""
+        with patch('services.review_service.Review') as MockReview:
+            MockReview.find_one = AsyncMock(return_value=MagicMock())
+
+            from services.review_service import user_has_reviewed
+
+            result = await user_has_reviewed(uuid4(), uuid4())
+
+            assert result is True
+
+    async def test_user_has_reviewed_false(self, mock_beanie):
+        """У пользователя нет рецензии на фильм."""
+        with patch('services.review_service.Review') as MockReview:
+            MockReview.find_one = AsyncMock(return_value=None)
+
+            from services.review_service import user_has_reviewed
+
+            result = await user_has_reviewed(uuid4(), uuid4())
 
             assert result is False

@@ -41,6 +41,50 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 FastAPIInstrumentor.instrument_app(app)
 
+# Кастомизируем OpenAPI schema, чтобы в Swagger (/docs) появилась кнопка
+# Authorize — по образцу ugc_service/src/main.py. Это чисто документационная
+# метаинформация: сама авторизация всё так же проверяется зависимостями
+# (get_current_user_id для /me, verify_internal_api_key для internal), схема
+# лишь позволяет один раз ввести токен/ключ и подставлять его в запросы
+# из Swagger UI.
+_original_openapi = app.openapi
+
+
+def _custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = _original_openapi()
+
+    openapi_schema["components"] = openapi_schema.get("components", {})
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": (
+                "JWT-токен auth_service для self-service /me-эндпоинтов. "
+                "Получите токен через POST /api/v1/auth/login в auth_service "
+                "и вставьте его сюда (без префикса 'Bearer ')."
+            ),
+        },
+        "InternalApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-Internal-Api-Key",
+            "description": (
+                "PROFILES_INTERNAL_API_KEY для internal-эндпоинтов "
+                "(потребители — admin_panel, auth_service)."
+            ),
+        },
+    }
+    openapi_schema["security"] = [{"BearerAuth": []}, {"InternalApiKeyAuth": []}]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = _custom_openapi  # type: ignore[method-assign]
+
 # Self-service (/me, JWT) регистрируется до internal (/{user_id}, X-Internal-
 # Api-Key): оба роутера делят префикс /api/v1/profiles, и хотя конвертер
 # uuid.UUID и так не даст internal-роуту перехватить литеральный путь /me,

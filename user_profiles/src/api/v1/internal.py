@@ -1,22 +1,33 @@
 """Internal (service-to-service) роуты (docs/user_profiles_contract.md §2) —
 без JWT конечного пользователя. Авторизация — X-Internal-Api-Key, см.
 src/api/v1/dependencies.py:verify_internal_api_key. Потребители:
-admin_panel и, после S11_T4, auth_service (резолв ФИО)."""
+admin_panel и, после S11_T4, auth_service (резолв ФИО).
+
+Аудит просмотра (контракт §3, S11_T10): опциональный заголовок
+X-Admin-Email (см. get_admin_email) — когда присутствует, каждый отданный
+профиль логируется в profile_view_audit."""
 
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.v1.dependencies import PaginationParams, verify_internal_api_key
+from src.api.v1.dependencies import (
+    PaginationParams,
+    get_admin_email,
+    verify_internal_api_key,
+)
 from src.core.exceptions import ProfileNotFoundError
 from src.db.postgres import get_session
 from src.models.schemas import (
     ProfileFullResponse,
     ProfileListResponse,
     ProfileResponse,
+    ProfileViewAuditItem,
+    ProfileViewAuditListResponse,
 )
 from src.services import ugc_client
+from src.services.audit_service import AuditService
 from src.services.profile_service import ProfileService
 
 router = APIRouter(
@@ -30,19 +41,46 @@ router = APIRouter(
 async def list_profiles(
     pagination: PaginationParams = Depends(),
     search: str | None = Query(default=None, description="Поиск по ФИО и телефону"),
+    admin_email: str | None = Depends(get_admin_email),
     session: AsyncSession = Depends(get_session),
 ) -> ProfileListResponse:
     items, total = await ProfileService(session).search(
         search, pagination.page, pagination.page_size
     )
+    if admin_email:
+        # Аудит (контракт §3): по одной строке на каждый профиль, фактически
+        # попавший в выданную страницу, а не одна строка на сам факт поиска —
+        # иначе не отвечает на "чей профиль смотрели".
+        audit = AuditService(session)
+        for item in items:
+            await audit.record_view(admin_email, item.user_id)
     return ProfileListResponse(
         items=[ProfileResponse.model_validate(item) for item in items], total=total
+    )
+
+
+@router.get("/audit", response_model=ProfileViewAuditListResponse)
+async def list_audit_views(
+    pagination: PaginationParams = Depends(),
+    session: AsyncSession = Depends(get_session),
+) -> ProfileViewAuditListResponse:
+    """Страница записей аудита просмотра профилей (контракт §3, S11_T10) —
+    для раздела «Аудит просмотра профилей» в admin_panel (роль audit).
+    Объявлен раньше /{user_id}, иначе литеральный путь /audit попал бы в
+    этот более общий шаблон и упал на валидации user_id как UUID."""
+    items, total = await AuditService(session).list_views(
+        pagination.page, pagination.page_size
+    )
+    return ProfileViewAuditListResponse(
+        items=[ProfileViewAuditItem.model_validate(item) for item in items],
+        total=total,
     )
 
 
 @router.get("/{user_id}", response_model=ProfileResponse)
 async def get_profile_internal(
     user_id: uuid.UUID,
+    admin_email: str | None = Depends(get_admin_email),
     session: AsyncSession = Depends(get_session),
 ) -> ProfileResponse:
     try:
@@ -52,12 +90,15 @@ async def get_profile_internal(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "profile_not_found"},
         )
+    if admin_email:
+        await AuditService(session).record_view(admin_email, user_id)
     return ProfileResponse.model_validate(profile)
 
 
 @router.get("/{user_id}/full", response_model=ProfileFullResponse)
 async def get_profile_full(
     user_id: uuid.UUID,
+    admin_email: str | None = Depends(get_admin_email),
     session: AsyncSession = Depends(get_session),
 ) -> ProfileFullResponse:
     """Агрегирующая витрина: профиль + закладки/оценки/рецензии из
@@ -71,6 +112,8 @@ async def get_profile_full(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "profile_not_found"},
         )
+    if admin_email:
+        await AuditService(session).record_view(admin_email, user_id)
 
     summary = await ugc_client.get_user_ugc_summary(user_id)
     if summary is None:

@@ -1,7 +1,8 @@
-"""Internal (S2S) роуты ugc_service (S11_T6, issue #113) — агрегирующая
-витрина профиля в user_profiles дёргает эту ручку вместо self-service
-эндпоинтов bookmarks/likes/reviews, которые отдают данные только владельцу
-Bearer-токена и не позволяют запросить произвольный user_id. Авторизация —
+"""Internal (S2S) роуты ugc_service — self-service эндпоинты bookmarks/
+likes/reviews отдают данные только владельцу Bearer-токена и не позволяют
+запросить произвольный user_id. Потребители: user_profiles (S11_T6, issue
+#113, агрегирующая витрина профиля) и async_api (S11_T9, issue #116,
+индикатор «уже оценил/написал рецензию» на карточке фильма). Авторизация —
 X-Internal-Api-Key, см. api/dependencies.py:verify_internal_api_key."""
 
 import asyncio
@@ -41,6 +42,15 @@ class UserUgcSummaryResponse(BaseModel):
     reviews: list[ReviewResponse]
 
 
+class UserFilmRatingResponse(BaseModel):
+    """Личная оценка/рецензия пользователя на конкретный фильм (S11_T9,
+    issue #116) — для индикатора «уже оценил / написал рецензию» на
+    карточке фильма (async_api)."""
+
+    rating: int | None
+    has_reviewed: bool
+
+
 @router.get(
     '/users/{user_id}/ugc-summary',
     summary='Сводка UGC-данных пользователя',
@@ -75,7 +85,11 @@ async def get_user_ugc_summary(
 
     return UserUgcSummaryResponse(
         bookmarks=[
-            BookmarkResponse(film_id=b.film_id, added_at=b.created_at.isoformat())
+            BookmarkResponse(
+                film_id=b.film_id,
+                film_title=b.film_title,
+                added_at=b.created_at.isoformat(),
+            )
             for b in bookmarks
         ],
         ratings=[
@@ -102,3 +116,21 @@ async def get_user_ugc_summary(
             for r in reviews
         ],
     )
+
+
+@router.get(
+    '/users/{user_id}/films/{film_id}/my-rating',
+    summary='Личная оценка/рецензия пользователя на фильм',
+    description='Для индикатора «уже оценил / написал рецензию» на карточке '
+    'фильма (async_api, S11_T9).',
+    response_model=UserFilmRatingResponse,
+)
+async def get_user_film_my_rating(
+    user_id: UUID,
+    film_id: UUID,
+) -> UserFilmRatingResponse:
+    rating, has_reviewed = await asyncio.gather(
+        like_service.get_user_film_rating(user_id, film_id),
+        review_service.user_has_reviewed(user_id, film_id),
+    )
+    return UserFilmRatingResponse(rating=rating, has_reviewed=has_reviewed)

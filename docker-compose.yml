@@ -251,6 +251,17 @@ services:
         # повторный запуск на уже созданной роли завершается с кодом 0.
         python -m src.cli create-role profiles_viewer --permission profiles:view --description 'Просмотр профилей в admin_panel' \
           || echo "WARNING: profiles_viewer role creation failed, continuing anyway"
+        # Роль для страницы аудита просмотра профилей в admin_panel (issue
+        # #117). Отдельная от profiles_viewer: просмотр профилей и просмотр
+        # журнала их просмотра — независимые права.
+        python -m src.cli create-role audit --permission audit:view --description 'Просмотр аудита просмотра профилей в admin_panel' \
+          || echo "WARNING: audit role creation failed, continuing anyway"
+        # Бутстрап-администратору сразу выдаём роль аудитора, чтобы раздел
+        # был виден без ручных действий в чистом окружении.
+        if [ -n "$$DJANGO_SUPERUSER_EMAIL" ]; then
+          python -m src.cli assign-role "$$DJANGO_SUPERUSER_EMAIL" audit \
+            || echo "WARNING: assigning audit role to bootstrap admin failed, continuing anyway"
+        fi
         exit 0
     env_file:
       - ./.env
