@@ -23,7 +23,7 @@ USER_B_ID = str(uuid.uuid4())
 TEST_USER_ID = str(uuid.uuid4())
 
 
-def create_mock_review(user_id, film_id, title, text, rating):
+def create_mock_review(user_id, film_id, title, text, rating, is_spoiler=False):
     """Создаёт MagicMock, имитирующий объект Review, чтобы не инициализировать Beanie."""
     mock_review = MagicMock()
     mock_review.id = uuid.uuid4()
@@ -35,7 +35,7 @@ def create_mock_review(user_id, film_id, title, text, rating):
     mock_review.published_at = datetime.utcnow()
     mock_review.likes_count = 0
     mock_review.dislikes_count = 0
-    mock_review.is_spoiler = False
+    mock_review.is_spoiler = is_spoiler
     return mock_review
 
 
@@ -43,8 +43,10 @@ def create_mock_review(user_id, film_id, title, text, rating):
 def mock_review_service():
     """Мокаем сервис рецензий, чтобы тесты не зависели от MongoDB/Beanie."""
     with patch("api.v1.reviews.review_service.create_review", new_callable=AsyncMock) as mock_create:
-        mock_create.side_effect = lambda user_id, film_id, title, text, rating: create_mock_review(
-            user_id, film_id, title, text, rating
+        mock_create.side_effect = (
+            lambda user_id, film_id, title, text, rating, is_spoiler=False: create_mock_review(
+                user_id, film_id, title, text, rating, is_spoiler
+            )
         )
         yield mock_create
 
