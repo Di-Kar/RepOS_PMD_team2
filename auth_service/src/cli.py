@@ -5,18 +5,29 @@
 
 Создание роли IDM с правами:
     python -m src.cli create-role profiles_viewer --permission profiles:view
+
+Назначение уже существующей роли пользователю:
+    python -m src.cli assign-role admin@example.com profiles_viewer
 """
 
 import asyncio
 from typing import List, Optional
 
 import typer
+from redis.asyncio import Redis
 from sqlalchemy import select
 
-from src.core.exceptions import RoleAlreadyExistsError
+from src.core.exceptions import (
+    RoleAlreadyAssignedError,
+    RoleAlreadyExistsError,
+    RoleNotFoundError,
+    UserNotFoundError,
+)
 from src.core.security import hash_password
 from src.db.postgres import AsyncSessionLocal, engine
-from src.models.entity import User
+from src.db.redis_db import get_redis_pool
+from src.models.entity import Role, User
+from src.services.permission_service import PermissionService
 from src.services.role_service import RoleService
 
 cli = typer.Typer(help="Команды управления auth_service")
@@ -92,6 +103,48 @@ def create_role(
 ) -> None:
     """Создаёт роль IDM с перечисленными правами (идемпотентно по имени)."""
     message = asyncio.run(_create_role(name, description, permission))
+    typer.secho(message, fg=typer.colors.GREEN)
+
+
+async def _assign_role(email: str, role_name: str) -> str:
+    async with AsyncSessionLocal() as session:
+        user_result = await session.execute(select(User).where(User.login == email))
+        user = user_result.scalar_one_or_none()
+        if user is None:
+            return f"Пользователь {email} не найден"
+
+        role_result = await session.execute(select(Role).where(Role.name == role_name))
+        role = role_result.scalar_one_or_none()
+        if role is None:
+            return f"Роль {role_name} не найдена"
+
+        pool = await get_redis_pool()
+        redis = Redis(connection_pool=pool)
+        try:
+            await PermissionService(session, redis).assign_role(user.id, role.id)
+        except RoleAlreadyAssignedError:
+            # Повторный запуск бутстрапа не должен падать: роль уже назначена.
+            message = f"Роль {role_name} уже назначена пользователю {email}"
+        except (UserNotFoundError, RoleNotFoundError):
+            # Не должно случиться — оба уже проверены выше в этой же сессии,
+            # но PermissionService перепроверяет сам и может найти рассинхрон.
+            message = f"Пользователь {email} или роль {role_name} не найдены"
+        else:
+            message = f"Роль {role_name} назначена пользователю {email}"
+        finally:
+            await redis.aclose()
+    await engine.dispose()
+    return message
+
+
+@cli.command("assign-role")
+def assign_role(
+    email: str = typer.Argument(..., help="Email (логин) пользователя"),
+    role_name: str = typer.Argument(..., help="Имя роли, например audit"),
+) -> None:
+    """Назначает пользователю роль по имени (идемпотентно: повторное
+    назначение уже имеющейся роли не считается ошибкой)."""
+    message = asyncio.run(_assign_role(email, role_name))
     typer.secho(message, fg=typer.colors.GREEN)
 
 

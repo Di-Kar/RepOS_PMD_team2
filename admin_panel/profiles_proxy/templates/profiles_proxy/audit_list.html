@@ -1,0 +1,44 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Главная</a> &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if error %}
+  <p class="errornote">{{ error }}</p>
+{% else %}
+  <p>Найдено: {{ total }}</p>
+
+  {% if items %}
+  <table>
+    <thead>
+      <tr>
+        <th>Администратор</th>
+        <th>User ID просмотренного профиля</th>
+        <th>Когда</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item.admin_email }}</td>
+        <td>{{ item.target_user_id }}</td>
+        <td>{{ item.viewed_at|slice:":16" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="paginator">
+    {% if page > 1 %}<a href="?page={{ page|add:'-1' }}">&larr; Назад</a>{% endif %}
+    Страница {{ page }} из {{ pages }}
+    {% if page < pages %}<a href="?page={{ page|add:'1' }}">Вперёд &rarr;</a>{% endif %}
+  </p>
+  {% else %}
+  <p>Записей аудита нет.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

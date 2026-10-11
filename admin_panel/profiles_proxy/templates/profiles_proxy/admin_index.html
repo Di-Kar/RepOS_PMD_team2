@@ -1,13 +1,20 @@
 {% extends "admin/index.html" %}
 
 {% block content %}
-{% if perms.profiles_proxy.view_profile %}
+{% if perms.profiles_proxy.view_profile or perms.profiles_proxy.view_audit %}
 <div class="module">
   <table>
     <caption>Пользователи</caption>
+    {% if perms.profiles_proxy.view_profile %}
     <tr>
       <th scope="row"><a href="{% url 'profiles_list' %}">Профили пользователей</a></th>
     </tr>
+    {% endif %}
+    {% if perms.profiles_proxy.view_audit %}
+    <tr>
+      <th scope="row"><a href="{% url 'audit_list' %}">Аудит просмотра профилей</a></th>
+    </tr>
+    {% endif %}
   </table>
 </div>
 {% endif %}

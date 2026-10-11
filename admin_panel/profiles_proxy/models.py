@@ -13,3 +13,17 @@ class ProfileAccess(models.Model):
         managed = False
         default_permissions = ()
         permissions = [("view_profile", "Can view user profiles")]
+
+
+class AuditAccess(models.Model):
+    """Право на просмотр журнала аудита просмотра профилей (issue #117).
+
+    Отдельная модель-пустышка (по образцу ProfileAccess) — просмотр самих
+    профилей и просмотр журнала их просмотра это независимые права: роль
+    audit не даёт доступа к profiles_list, а profiles_viewer — к audit_list.
+    """
+
+    class Meta:
+        managed = False
+        default_permissions = ()
+        permissions = [("view_audit", "Can view profile view audit log")]
