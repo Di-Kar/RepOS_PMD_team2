@@ -28,6 +28,7 @@ def client(app: FastAPI) -> TestClient:
 def _mock_bookmark():
     bookmark = MagicMock()
     bookmark.film_id = FILM_ID
+    bookmark.film_title = 'Интерстеллар'
     bookmark.created_at = MagicMock()
     bookmark.created_at.isoformat.return_value = '2026-09-01T10:00:00'
     return bookmark
@@ -80,7 +81,11 @@ class TestGetUserUgcSummary:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data['bookmarks'] == [
-            {'film_id': FILM_ID, 'added_at': '2026-09-01T10:00:00'}
+            {
+                'film_id': FILM_ID,
+                'film_title': 'Интерстеллар',
+                'added_at': '2026-09-01T10:00:00',
+            }
         ]
         assert data['ratings'] == [
             {'film_id': FILM_ID, 'rating': 8, 'updated_at': '2026-09-01T10:00:00'}

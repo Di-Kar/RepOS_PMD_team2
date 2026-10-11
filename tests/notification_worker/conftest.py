@@ -42,6 +42,19 @@ AUTH_API_HOST = os.getenv('AUTH_API_HOST', 'auth_service' if is_docker() else '1
 AUTH_API_PORT = int(os.getenv('AUTH_API_PORT', '8000' if is_docker() else '8001'))
 AUTH_BASE_URL = f"http://{AUTH_API_HOST}:{AUTH_API_PORT}/api/v1/auth"
 
+# --- user_profiles (ФИО тестового пользователя, S11_T4, issue #111) ----------
+
+USER_PROFILES_API_HOST = os.getenv(
+    'USER_PROFILES_API_HOST', 'user_profiles' if is_docker() else '127.0.0.1'
+)
+# Внутри docker-сети сервис слушает 8000, наружу проброшен как 8007.
+USER_PROFILES_API_PORT = int(
+    os.getenv('USER_PROFILES_API_PORT', '8000' if is_docker() else '8007')
+)
+USER_PROFILES_BASE_URL = (
+    f"http://{USER_PROFILES_API_HOST}:{USER_PROFILES_API_PORT}/api/v1/profiles"
+)
+
 AUTH_POSTGRES_HOST = os.getenv('AUTH_POSTGRES_HOST', 'auth_postgres')
 AUTH_POSTGRES_PORT = int(os.getenv('AUTH_POSTGRES_PORT', '5432'))
 AUTH_POSTGRES_USER = os.getenv('AUTH_POSTGRES_USER', 'auth_user')
@@ -133,19 +146,42 @@ async def _post_with_retry_on_429(session, url, json_body, headers=None) -> tupl
 @pytest_asyncio.fixture(name='register_user')
 def register_user(session: aiohttp.ClientSession):
     """Фабрика: `user = await register_user(full_name="Иван Иванов")` ->
-    {"id", "email", "full_name"} — реальный пользователь в auth_service,
-    так рендер-стадия воркера действительно обогащает профиль по сети, а не
-    по заглушке."""
+    {"id", "email", "full_name"} — реальный пользователь в auth_service.
+
+    ФИО с S11_T4 (issue #111) живёт в user_profiles, а не в auth_service —
+    auth_service/register больше не принимает full_name, поэтому фабрика
+    дополнительно логинится и создаёт профиль в user_profiles, чтобы
+    рендер-стадия воркера действительно обогащала профиль по сети (через
+    auth_service → user_profiles), а не по заглушке."""
 
     async def _register(full_name: str = "Тест Тестов") -> dict:
         email = f"worker-e2e-{uuid.uuid4().hex}@example.com"
+        password = "WorkerE2ePass123!"
         status, body = await _post_with_retry_on_429(
             session,
             f"{AUTH_BASE_URL}/register",
-            {"email": email, "password": "WorkerE2ePass123!", "full_name": full_name},
+            {"email": email, "password": password},
         )
         assert status == 201, f"registration failed: {status} {body}"
-        return body
+
+        status, tokens = await _post_with_retry_on_429(
+            session,
+            f"{AUTH_BASE_URL}/login",
+            {"email": email, "password": password},
+        )
+        assert status == 200, f"login failed: {status} {tokens}"
+
+        first_name, _, last_name = full_name.partition(" ")
+        phone = f"+7999{uuid.uuid4().int % 10_000_000:07d}"
+        status, profile = await _post_with_retry_on_429(
+            session,
+            f"{USER_PROFILES_BASE_URL}/me",
+            {"first_name": first_name, "last_name": last_name or "-", "phone": phone},
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+        assert status == 201, f"profile creation failed: {status} {profile}"
+
+        return {"id": body["id"], "email": email, "full_name": full_name}
 
     return _register
 

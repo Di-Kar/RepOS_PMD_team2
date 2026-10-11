@@ -85,7 +85,11 @@ async def get_user_ugc_summary(
 
     return UserUgcSummaryResponse(
         bookmarks=[
-            BookmarkResponse(film_id=b.film_id, added_at=b.created_at.isoformat())
+            BookmarkResponse(
+                film_id=b.film_id,
+                film_title=b.film_title,
+                added_at=b.created_at.isoformat(),
+            )
             for b in bookmarks
         ],
         ratings=[
