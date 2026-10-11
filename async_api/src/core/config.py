@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     )
     # Тот же ключ, что у user_profiles (PROFILES_INTERNAL_API_KEY); пусто = проверка отключена
     profiles_internal_api_key: str = Field(default='', alias='PROFILES_INTERNAL_API_KEY')
+    # Тот же ключ, что у ugc_service (UGC_INTERNAL_API_KEY) — для GET
+    # /internal/users/{user_id}/films/{film_id}/my-rating (S11_T9); пусто = проверка отключена
+    ugc_internal_api_key: str = Field(default='', alias='UGC_INTERNAL_API_KEY')
 
     # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
     sentry_dsn: str = Field(default='', alias='SENTRY_DSN')

@@ -79,6 +79,12 @@ async def get_review_by_id(review_id: ObjectId) -> Review | None:
     return await Review.get(review_id)
 
 
+async def user_has_reviewed(user_id: UUID, film_id: UUID) -> bool:
+    """Писал ли пользователь рецензию на фильм (S11_T9)."""
+    review = await Review.find_one(Review.user_id == user_id, Review.film_id == film_id)
+    return review is not None
+
+
 async def update_review(
     review_id: ObjectId,
     user_id: UUID,

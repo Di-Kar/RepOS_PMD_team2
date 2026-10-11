@@ -33,16 +33,28 @@ class UgcCardService:
         self._redis = redis
 
     async def get_card_data(
-        self, film_id: UUID
-    ) -> tuple[Optional[FilmUserRating], list[ReviewWithAuthorSchema], bool]:
-        """Данные для блока карточки: (рейтинг, топ рецензий, доступность ugc)."""
-        stats, reviews = await asyncio.gather(
+        self, film_id: UUID, user_id: Optional[str] = None
+    ) -> tuple[Optional[FilmUserRating], list[ReviewWithAuthorSchema], bool, Optional[int], bool]:
+        """Данные для блока карточки: (рейтинг, топ рецензий, доступность ugc,
+        моя оценка, писал ли я рецензию). Личные поля запрашиваются только
+        для авторизованного пользователя (S11_T9, issue #116)."""
+        stats, reviews, my_rating = await asyncio.gather(
             self._ugc.get_film_stats(film_id),
             self.get_reviews(film_id, 'likes_count', 1, CARD_REVIEWS_LIMIT),
+            self._get_my_rating(film_id, user_id),
         )
         rating = FilmUserRating(**stats) if stats is not None else None
         available = stats is not None and reviews is not None
-        return rating, reviews or [], available
+        my_film_rating = my_rating.get('rating') if my_rating else None
+        user_has_reviewed = bool(my_rating.get('has_reviewed')) if my_rating else False
+        return rating, reviews or [], available, my_film_rating, user_has_reviewed
+
+    async def _get_my_rating(
+        self, film_id: UUID, user_id: Optional[str]
+    ) -> Optional[dict]:
+        if user_id is None:
+            return None
+        return await self._ugc.get_my_rating(film_id, user_id)
 
     async def get_reviews(
         self, film_id: UUID, sort: str, page_number: int, page_size: int

@@ -163,6 +163,31 @@ class TestLikeService:
             assert result['total_likes'] == 1
             assert result['total_dislikes'] == 1
 
+    async def test_get_user_film_rating_found(self, mock_beanie):
+        """Пользователь уже оценил фильм — возвращаем его rating."""
+        mock_instance = MagicMock()
+        mock_instance.rating = 7
+
+        with patch('services.like_service.Like') as MockLike:
+            MockLike.get = AsyncMock(return_value=mock_instance)
+
+            from services.like_service import get_user_film_rating
+
+            result = await get_user_film_rating(uuid4(), uuid4())
+
+            assert result == 7
+
+    async def test_get_user_film_rating_not_found(self, mock_beanie):
+        """Пользователь не оценивал фильм — None."""
+        with patch('services.like_service.Like') as MockLike:
+            MockLike.get = AsyncMock(return_value=None)
+
+            from services.like_service import get_user_film_rating
+
+            result = await get_user_film_rating(uuid4(), uuid4())
+
+            assert result is None
+
 
 class TestReviewService:
     """Тесты review_service."""
@@ -260,5 +285,27 @@ class TestReviewService:
             review_id = uuid4()
             other_user = uuid4()
             result = await delete_review(review_id, other_user)
+
+            assert result is False
+
+    async def test_user_has_reviewed_true(self, mock_beanie):
+        """У пользователя есть рецензия на фильм."""
+        with patch('services.review_service.Review') as MockReview:
+            MockReview.find_one = AsyncMock(return_value=MagicMock())
+
+            from services.review_service import user_has_reviewed
+
+            result = await user_has_reviewed(uuid4(), uuid4())
+
+            assert result is True
+
+    async def test_user_has_reviewed_false(self, mock_beanie):
+        """У пользователя нет рецензии на фильм."""
+        with patch('services.review_service.Review') as MockReview:
+            MockReview.find_one = AsyncMock(return_value=None)
+
+            from services.review_service import user_has_reviewed
+
+            result = await user_has_reviewed(uuid4(), uuid4())
 
             assert result is False

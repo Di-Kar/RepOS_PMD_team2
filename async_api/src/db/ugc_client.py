@@ -19,10 +19,14 @@ class UgcClient:
         self,
         base_url: str,
         timeout: float,
+        internal_api_key: str = '',
         transport: Optional[httpx.AsyncBaseTransport] = None,
     ) -> None:
         self._client = httpx.AsyncClient(
-            base_url=base_url, timeout=timeout, transport=transport
+            base_url=base_url,
+            timeout=timeout,
+            headers={'X-Internal-Api-Key': internal_api_key},
+            transport=transport,
         )
         self._breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30.0)
 
@@ -63,6 +67,11 @@ class UgcClient:
                 'page_size': page_size,
             },
         )
+
+    async def get_my_rating(self, film_id: UUID, user_id: str) -> Optional[dict]:
+        """GET /api/v1/internal/users/{user_id}/films/{film_id}/my-rating:
+        {rating, has_reviewed} текущего пользователя (S11_T9, issue #116)."""
+        return await self._get(f'/internal/users/{user_id}/films/{film_id}/my-rating')
 
     async def aclose(self) -> None:
         await self._client.aclose()

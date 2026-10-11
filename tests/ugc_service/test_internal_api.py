@@ -134,6 +134,45 @@ class TestGetUserUgcSummary:
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
+class TestGetUserFilmRating:
+    """Тесты endpoint GET /api/v1/internal/users/{user_id}/films/{film_id}/my-rating
+    (S11_T9, issue #116)."""
+
+    @patch('api.v1.internal.review_service')
+    @patch('api.v1.internal.like_service')
+    def test_rated_and_reviewed(self, mock_like_service, mock_review_service, client):
+        mock_like_service.get_user_film_rating = AsyncMock(return_value=7)
+        mock_review_service.user_has_reviewed = AsyncMock(return_value=True)
+
+        response = client.get(
+            f'/api/v1/internal/users/{USER_ID}/films/{FILM_ID}/my-rating'
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {'rating': 7, 'has_reviewed': True}
+
+    @patch('api.v1.internal.review_service')
+    @patch('api.v1.internal.like_service')
+    def test_not_rated_and_not_reviewed(
+        self, mock_like_service, mock_review_service, client
+    ):
+        mock_like_service.get_user_film_rating = AsyncMock(return_value=None)
+        mock_review_service.user_has_reviewed = AsyncMock(return_value=False)
+
+        response = client.get(
+            f'/api/v1/internal/users/{USER_ID}/films/{FILM_ID}/my-rating'
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {'rating': None, 'has_reviewed': False}
+
+    def test_invalid_film_id_returns_422(self, client: TestClient):
+        response = client.get(
+            f'/api/v1/internal/users/{USER_ID}/films/not-a-uuid/my-rating'
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
 class TestInternalApiKeyGuard:
     """verify_internal_api_key отклоняет запрос, когда UGC_INTERNAL_API_KEY
     задан — в отличие от остальных internal-роутов проекта, где эта ветка
