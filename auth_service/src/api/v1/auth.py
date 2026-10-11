@@ -26,6 +26,7 @@ from src.core.rate_limiter import limiter
 from src.db.postgres import get_session
 from src.db.redis_db import get_redis
 from src.models.entity import User
+
 from src.models.schemas import (
     ChangePasswordRequest,
     LoginHistoryItem,
@@ -37,25 +38,34 @@ from src.models.schemas import (
     UserLoginRequest,
     UserRegisterRequest,
     UserRegisterResponse,
-    UserResponse,
-    UserUpdateRequest,
+    UserResponse,    # UserUpdateRequest удалён
 )
-from src.services.auth_service import AuthService, join_full_name
+
+from src.services.auth_service import AuthService
 from src.services.notification_client import send_password_changed_notification
 from src.services.registration_notifications import send_welcome_with_confirmation
 from src.services.token_service import TokenService
+from src.services.user_profiles_client import get_user_profile  # Новый S2S клиент
 
 router = APIRouter(prefix="/api/v1/auth")
 
 
-def _user_response(user: User) -> dict:
-    return {"id": user.id, "email": user.login, "full_name": join_full_name(user)}
-
-
 async def _profile_response(user: User, session: AsyncSession) -> UserResponse:
+    """Формирует ответ профиля, динамически подтягивая ФИО из user_profiles."""
     roles = await AuthService(session).get_role_names(user.id)
+    
+    # S2S-запрос к user_profiles за ФИО
+    profile = await get_user_profile(user.id)
+    full_name = ""
+    if profile:
+        full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
+
     return UserResponse(
-        **_user_response(user), roles=roles, is_superuser=user.is_superuser
+        id=user.id,
+        email=user.login,
+        full_name=full_name,
+        roles=roles,
+        is_superuser=user.is_superuser,
     )
 
 
@@ -74,16 +84,22 @@ async def register(
 ) -> UserRegisterResponse:
     service = AuthService(session)
     try:
-        user = await service.register(
-            payload.email, payload.password, payload.full_name
-        )
+        # full_name больше не передаётся в auth_service
+        user = await service.register(payload.email, payload.password)
     except UserAlreadyExistsError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"error": "email_taken", "message": "Email already registered"},
         )
+    
     background_tasks.add_task(send_welcome_with_confirmation, user.id)
-    return UserRegisterResponse(**_user_response(user), created_at=user.created_at)
+    
+    # UserRegisterResponse больше не содержит full_name (согласно обновлённой схеме)
+    return UserRegisterResponse(
+        id=user.id,
+        email=user.login,
+        created_at=user.created_at,
+    )
 
 
 @router.post("/login", tags=["Authentication"], response_model=TokenPair)
@@ -194,19 +210,12 @@ async def get_profile(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> UserResponse:
+    """Возвращает профиль пользователя. full_name подтягивается из user_profiles."""
     return await _profile_response(user, session)
 
 
-@router.put("/profile", tags=["Profile"], response_model=UserResponse)
-@limiter.limit(settings.rate_limit_moderate)
-async def update_profile(
-    request: Request,
-    payload: UserUpdateRequest,
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> UserResponse:
-    user = await AuthService(session).update_full_name(user, payload.full_name)
-    return await _profile_response(user, session)
+# ЭНДПОИНТ PUT /profile УДАЛЁН ПОЛНОСТЬЮ.
+# Обновление ФИО теперь осуществляется только через user_profiles (PUT /api/v1/profiles/me)
 
 
 @router.post("/change-password", tags=["Profile"], response_model=MessageResponse)

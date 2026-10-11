@@ -141,6 +141,18 @@ class Settings(BaseSettings):
     # Пусто = Sentry отключён (DSN создаётся в проекте на sentry.io)
     sentry_dsn: str = Field(default='', alias='SENTRY_DSN')
 
+    user_profiles_api_url: str = Field(
+        default="http://user_profiles:8000/api/v1",
+        alias="AUTH_USER_PROFILES_API_URL",
+    )
+    # Ключ user_profiles для входящих S2S-запросов (verify_internal_api_key
+    # там же), а не свой AUTH_INTERNAL_API_KEY — у каждого сервиса свой ключ,
+    # вызывающий обязан слать ключ получателя (см. PROFILES_INTERNAL_API_KEY
+    # в admin_panel/profiles_proxy/views.py и user_profiles/ugc_client.py).
+    profiles_internal_api_key: str = Field(
+        default="", alias="PROFILES_INTERNAL_API_KEY"
+    )
+
     @property
     def postgres_dsn(self) -> str:
         """Construct async PostgreSQL database DSN."""

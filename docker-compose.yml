@@ -244,7 +244,7 @@ services:
         # Бутстрап — best-effort, не должен блокировать старт сервисов.
         set +e
         if [ -n "$$DJANGO_SUPERUSER_EMAIL" ]; then
-          python -m src.cli create-superuser "$$DJANGO_SUPERUSER_EMAIL" --password "$$DJANGO_SUPERUSER_PASSWORD" --full-name 'Bootstrap Admin' \
+          python -m src.cli create-superuser "$$DJANGO_SUPERUSER_EMAIL" --password "$$DJANGO_SUPERUSER_PASSWORD" \
             || echo "WARNING: bootstrap superuser creation failed, continuing anyway"
         fi
         # Роль для страницы профилей в admin_panel (issue #112). Идемпотентно:

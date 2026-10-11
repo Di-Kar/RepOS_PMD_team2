@@ -11,11 +11,10 @@ class TestRegister:
         status, body = await post_json(
             session,
             f"{BASE_URL}/auth/register",
-            {"email": email, "password": PASSWORD, "full_name": "John Doe"},
+            {"email": email, "password": PASSWORD},
         )
         assert status == 201, body
         assert body["email"] == email
-        assert body["full_name"] == "John Doe"
         assert "id" in body and "created_at" in body
 
     async def test_register_duplicate_email(self, session, shared_user):
@@ -130,16 +129,6 @@ class TestProfile:
             assert response.status == 200
             body = await response.json()
         assert body["email"] == shared_user["email"]
-
-    async def test_update_full_name(self, session, shared_tokens):
-        async with session.put(
-            f"{BASE_URL}/auth/profile",
-            json={"full_name": "Jane Smith"},
-            headers=bearer(shared_tokens),
-        ) as response:
-            assert response.status == 200
-            body = await response.json()
-        assert body["full_name"] == "Jane Smith"
 
     async def test_change_password(self, session, new_user, login):
         # Меняет пароль — нужен эксклюзивный аккаунт, shared_user не годится.

@@ -68,7 +68,7 @@ async def new_user(session):
     status, body = await post_json(
         session,
         f"{BASE_URL}/auth/register",
-        {"email": email, "password": PASSWORD, "full_name": "Smoke Tester"},
+        {"email": email, "password": PASSWORD},
     )
     assert status == 201, body
     return {"id": body["id"], "email": email, "password": PASSWORD}
@@ -102,7 +102,6 @@ async def shared_user():
             {
                 "email": SHARED_USER_EMAIL,
                 "password": SHARED_USER_PASSWORD,
-                "full_name": "Shared Smoke User",
             },
         )
         if status == 201:

@@ -76,7 +76,6 @@ async def google_callback(
             provider_user_id=userinfo["sub"],
             email=userinfo["email"],
             email_verified=bool(userinfo.get("email_verified")),
-            full_name=userinfo.get("name"),
             access_token=token.get("access_token"),
             refresh_token=token.get("refresh_token"),
             token_expires_at=expires_at,

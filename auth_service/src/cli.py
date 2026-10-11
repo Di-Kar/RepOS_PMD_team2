@@ -1,7 +1,7 @@
 """Консольные команды управления сервисом.
 
 Создание суперпользователя:
-    python -m src.cli create-superuser admin@example.com --password 'Secret123!' --full-name 'Super Admin'
+    python -m src.cli create-superuser admin@example.com --password 'Secret123!'
 
 Создание роли IDM с правами:
     python -m src.cli create-role profiles_viewer --permission profiles:view
@@ -17,7 +17,6 @@ from src.core.exceptions import RoleAlreadyExistsError
 from src.core.security import hash_password
 from src.db.postgres import AsyncSessionLocal, engine
 from src.models.entity import User
-from src.services.auth_service import split_full_name
 from src.services.role_service import RoleService
 
 cli = typer.Typer(help="Команды управления auth_service")
@@ -28,7 +27,7 @@ def _main() -> None:
     """Обязателен: без callback Typer с одной командой не требует её имени."""
 
 
-async def _create_superuser(email: str, password: str, full_name: Optional[str]) -> str:
+async def _create_superuser(email: str, password: str) -> str:
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.login == email))
         user = result.scalar_one_or_none()
@@ -40,13 +39,10 @@ async def _create_superuser(email: str, password: str, full_name: Optional[str])
             user.password = hash_password(password)
             message = f"Пользователь {email} повышен до суперпользователя"
         else:
-            first_name, last_name = split_full_name(full_name)
             session.add(
                 User(
                     login=email,
                     password=hash_password(password),
-                    first_name=first_name,
-                    last_name=last_name,
                     is_superuser=True,
                 )
             )
@@ -63,13 +59,13 @@ def create_superuser(
     password: str = typer.Option(
         ..., "--password", "-p", prompt=True, hide_input=True, help="Пароль"
     ),
-    full_name: Optional[str] = typer.Option(None, "--full-name", help="ФИО"),
+    # Параметр full_name удалён, так как auth_service больше не хранит ФИО
 ) -> None:
     """Создаёт суперпользователя (или повышает существующего пользователя)."""
     if len(password) < 8:
         typer.secho("Пароль должен быть не короче 8 символов", fg=typer.colors.RED)
         raise typer.Exit(code=1)
-    message = asyncio.run(_create_superuser(email, password, full_name))
+    message = asyncio.run(_create_superuser(email, password))
     typer.secho(message, fg=typer.colors.GREEN)
 
 
