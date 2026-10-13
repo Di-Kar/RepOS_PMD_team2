@@ -110,6 +110,46 @@ class TestAuditOnListProfiles:
         assert rows == []
 
 
+class TestAuditFailureDoesNotBreakProfileRead:
+    """Issue #130: сбой записи аудита (ошибка insert на стороне БД) не должен
+    ломать уже успешно прочитанный профиль — см. code review #129 п.1."""
+
+    OVERSIZED_ADMIN_EMAIL = "a" * 256 + "@example.com"
+
+    async def test_get_profile_succeeds_when_audit_insert_fails(
+        self, session, auth_user, db_conn
+    ):
+        created = await _create_profile(session, auth_user)
+
+        async with session.get(
+            f"{BASE_URL}/{auth_user['user_id']}",
+            headers={"X-Admin-Email": self.OVERSIZED_ADMIN_EMAIL},
+        ) as response:
+            assert response.status == 200, await response.text()
+            body = await response.json()
+
+        assert body == created
+        rows = await _audit_rows(db_conn, auth_user["user_id"])
+        assert rows == []
+
+    async def test_get_profile_full_succeeds_when_audit_insert_fails(
+        self, session, auth_user, db_conn
+    ):
+        created = await _create_profile(session, auth_user)
+
+        async with session.get(
+            f"{BASE_URL}/{auth_user['user_id']}/full",
+            headers={"X-Admin-Email": self.OVERSIZED_ADMIN_EMAIL},
+        ) as response:
+            assert response.status == 200, await response.text()
+            body = await response.json()
+
+        assert body["profile"] == created
+        assert body["ugc_available"] is True
+        rows = await _audit_rows(db_conn, auth_user["user_id"])
+        assert rows == []
+
+
 class TestListAuditViews:
     """GET /api/v1/profiles/audit — потребитель: раздел «Аудит просмотра
     профилей» в admin_panel (роль audit, issue #117)."""
