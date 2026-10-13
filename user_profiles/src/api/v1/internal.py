@@ -47,6 +47,10 @@ async def list_profiles(
     items, total = await ProfileService(session).search(
         search, pagination.page, pagination.page_size
     )
+    # Коммитим сразу: иначе на время аудита (своя сессия, см. AuditService)
+    # запрос держит два соединения пула одновременно (expire_on_commit=False
+    # делает items доступными и после commit).
+    await session.commit()
     if admin_email:
         # Аудит (контракт §3): по одной строке на каждый профиль, фактически
         # попавший в выданную страницу, а не одна строка на сам факт поиска —
@@ -90,6 +94,10 @@ async def get_profile_internal(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "profile_not_found"},
         )
+    # Коммитим сразу: иначе на время аудита (своя сессия, см. AuditService)
+    # запрос держит два соединения пула одновременно (expire_on_commit=False
+    # делает profile доступным и после commit).
+    await session.commit()
     if admin_email:
         await AuditService(session).record_view(admin_email, user_id)
     return ProfileResponse.model_validate(profile)
@@ -112,6 +120,10 @@ async def get_profile_full(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "profile_not_found"},
         )
+    # Коммитим сразу: иначе на время аудита и HTTP-вызова в ugc_service
+    # запрос держит соединение пула без необходимости (expire_on_commit=False
+    # делает profile доступным и после commit).
+    await session.commit()
     if admin_email:
         await AuditService(session).record_view(admin_email, user_id)
 
