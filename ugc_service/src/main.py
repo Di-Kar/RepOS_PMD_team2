@@ -127,7 +127,7 @@ def custom_openapi():
     return app.openapi_schema
 
 
-app.openapi = custom_openapi   # type: ignore # type: ignore[method-assign]
+app.openapi = custom_openapi   # type: ignore[method-assign]
 
 # Регистрируем роутеры
 app.include_router(auth_proxy_router)
