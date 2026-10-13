@@ -10,8 +10,9 @@ import uuid
 from typing import Sequence
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.db.postgres import AsyncSessionLocal
 from src.models.entity import ProfileViewAudit
 
 logger = logging.getLogger(__name__)
@@ -20,8 +21,13 @@ logger = logging.getLogger(__name__)
 class AuditService:
     """Запись и чтение фактов просмотра ФИО/телефона администратором."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        audit_session_factory: async_sessionmaker[AsyncSession] = AsyncSessionLocal,
+    ) -> None:
         self._session = session
+        self._audit_session_factory = audit_session_factory
 
     async def list_views(
         self, page: int, page_size: int
@@ -40,17 +46,42 @@ class AuditService:
         return items, total
 
     async def record_view(self, admin_email: str, target_user_id: uuid.UUID) -> None:
+        # Отдельная сессия: rollback() сессии запроса инвалидирует (expire) уже
+        # загруженный в ней profile, и последующий model_validate(profile) в
+        # обработчике падает MissingGreenlet (issue #130) — self._session эта
+        # запись вообще не трогает.
         try:
-            self._session.add(
-                ProfileViewAudit(admin_email=admin_email, target_user_id=target_user_id)
-            )
-            await self._session.commit()
+            async with self._audit_session_factory() as audit_session:
+                audit_session.add(
+                    ProfileViewAudit(admin_email=admin_email, target_user_id=target_user_id)
+                )
+                await audit_session.commit()
         except Exception:  # noqa: BLE001 — любой сбой аудита не должен ронять просмотр
-            await self._session.rollback()
             logger.warning(
                 "Не удалось записать аудит просмотра профиля admin_email=%s "
                 "target_user_id=%s",
                 admin_email,
                 target_user_id,
+                exc_info=True,
+            )
+
+    async def record_views(
+        self, admin_email: str, target_user_ids: Sequence[uuid.UUID]
+    ) -> None:
+        """Одна фиксация на всю страницу листинга (issue #134) — вместо
+        отдельного commit на каждый из до page_size профилей."""
+        try:
+            async with self._audit_session_factory() as audit_session:
+                audit_session.add_all(
+                    ProfileViewAudit(admin_email=admin_email, target_user_id=target_user_id)
+                    for target_user_id in target_user_ids
+                )
+                await audit_session.commit()
+        except Exception:  # noqa: BLE001 — любой сбой аудита не должен ронять просмотр
+            logger.warning(
+                "Не удалось записать аудит просмотра профилей admin_email=%s "
+                "target_user_ids=%s",
+                admin_email,
+                target_user_ids,
                 exc_info=True,
             )
