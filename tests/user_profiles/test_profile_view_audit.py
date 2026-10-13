@@ -109,6 +109,50 @@ class TestAuditOnListProfiles:
         rows = await _audit_rows(db_conn, auth_user["user_id"])
         assert rows == []
 
+    async def test_items_on_same_page_are_committed_together(
+        self, session, auth_user, new_auth_user, db_conn
+    ):
+        """issue #134: один commit на всю страницу — Postgres now() фиксирован
+        на старте транзакции, поэтому у обеих строк одинаковый viewed_at.
+        До фикса (раздельные commit на каждый профиль) значения почти
+        гарантированно различаются — сетевой round-trip между commit'ами
+        не укладывается в разрешение timestamp."""
+        shared_last_name = f"Пакет{uuid.uuid4().hex[:8]}"
+        await _create_profile(session, auth_user, last_name=shared_last_name)
+        await _create_profile(session, new_auth_user, last_name=shared_last_name)
+
+        async with session.get(
+            BASE_URL,
+            params={"search": shared_last_name},
+            headers={"X-Admin-Email": ADMIN_EMAIL},
+        ) as response:
+            assert response.status == 200, await response.text()
+
+        rows_a = await _audit_rows(db_conn, auth_user["user_id"])
+        rows_b = await _audit_rows(db_conn, new_auth_user["user_id"])
+        assert len(rows_a) == 1
+        assert len(rows_b) == 1
+        assert rows_a[0]["viewed_at"] == rows_b[0]["viewed_at"]
+
+    async def test_oversized_admin_email_does_not_break_listing(
+        self, session, auth_user, db_conn
+    ):
+        oversized_admin_email = "a" * 256 + "@example.com"
+        unique_last_name = f"ПакетСбой{uuid.uuid4().hex[:8]}"
+        created = await _create_profile(session, auth_user, last_name=unique_last_name)
+
+        async with session.get(
+            BASE_URL,
+            params={"search": unique_last_name},
+            headers={"X-Admin-Email": oversized_admin_email},
+        ) as response:
+            assert response.status == 200, await response.text()
+            body = await response.json()
+
+        assert any(item["user_id"] == created["user_id"] for item in body["items"])
+        rows = await _audit_rows(db_conn, auth_user["user_id"])
+        assert rows == []
+
 
 class TestAuditFailureDoesNotBreakProfileRead:
     """Issue #130: сбой записи аудита (ошибка insert на стороне БД) не должен

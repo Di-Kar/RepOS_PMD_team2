@@ -64,3 +64,24 @@ class AuditService:
                 target_user_id,
                 exc_info=True,
             )
+
+    async def record_views(
+        self, admin_email: str, target_user_ids: Sequence[uuid.UUID]
+    ) -> None:
+        """Одна фиксация на всю страницу листинга (issue #134) — вместо
+        отдельного commit на каждый из до page_size профилей."""
+        try:
+            async with self._audit_session_factory() as audit_session:
+                audit_session.add_all(
+                    ProfileViewAudit(admin_email=admin_email, target_user_id=target_user_id)
+                    for target_user_id in target_user_ids
+                )
+                await audit_session.commit()
+        except Exception:  # noqa: BLE001 — любой сбой аудита не должен ронять просмотр
+            logger.warning(
+                "Не удалось записать аудит просмотра профилей admin_email=%s "
+                "target_user_ids=%s",
+                admin_email,
+                target_user_ids,
+                exc_info=True,
+            )

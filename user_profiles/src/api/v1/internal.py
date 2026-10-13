@@ -51,13 +51,13 @@ async def list_profiles(
     # запрос держит два соединения пула одновременно (expire_on_commit=False
     # делает items доступными и после commit).
     await session.commit()
-    if admin_email:
+    if admin_email and items:
         # Аудит (контракт §3): по одной строке на каждый профиль, фактически
         # попавший в выданную страницу, а не одна строка на сам факт поиска —
-        # иначе не отвечает на "чей профиль смотрели".
+        # иначе не отвечает на "чей профиль смотрели". Один commit на всю
+        # страницу (issue #134), а не на каждый профиль отдельно.
         audit = AuditService(session)
-        for item in items:
-            await audit.record_view(admin_email, item.user_id)
+        await audit.record_views(admin_email, [item.user_id for item in items])
     return ProfileListResponse(
         items=[ProfileResponse.model_validate(item) for item in items], total=total
     )
