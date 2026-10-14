@@ -1,6 +1,6 @@
 """S2S-клиент к ugc_service для агрегирующей витрины профиля (S11_T6, GET
 /api/v1/profiles/{user_id}/full). При любой проблеме с ugc_service
-(недоступность, таймаут, не-200) возвращает None — вызывающий код
+(недоступность, таймаут, не-200, невалидное тело) возвращает None — вызывающий код
 деградирует к профилю без UGC-данных вместо 500, по аналогии с
 async_api/src/db/auth_client.py."""
 
@@ -8,20 +8,12 @@ import logging
 import uuid
 
 from httpx import AsyncClient, HTTPError
+from pydantic import ValidationError
 
 from src.core.config import settings
+from src.models.schemas import UgcSummary
 
 logger = logging.getLogger(__name__)
-
-
-class UgcSummary:
-    """Сырые данные из ugc_service — ProfileFullResponse строит из них
-    типизированные Pydantic-поля."""
-
-    def __init__(self, bookmarks: list[dict], ratings: list[dict], reviews: list[dict]) -> None:
-        self.bookmarks = bookmarks
-        self.ratings = ratings
-        self.reviews = reviews
 
 
 async def get_user_ugc_summary(user_id: uuid.UUID) -> UgcSummary | None:
@@ -36,17 +28,12 @@ async def get_user_ugc_summary(user_id: uuid.UUID) -> UgcSummary | None:
                 "ugc_service вернул %s для user_id=%s", response.status_code, user_id
             )
             return None
-        data = response.json()
-        return UgcSummary(
-            bookmarks=data.get("bookmarks", []),
-            ratings=data.get("ratings", []),
-            reviews=data.get("reviews", []),
-        )
-    except (HTTPError, ValueError, AttributeError) as exc:
-        # ValueError — response.json() на не-JSON/битом теле; AttributeError —
-        # тело валидный JSON, но не объект (например null/[]/true), и .get()
-        # на нём падает. Оба случая — тот же "ugc_service недоступен/отдал
-        # мусор", что и сетевая ошибка (в т.ч. при ответе 200 от неисправного
-        # прокси перед ugc_service).
-        logger.warning("ugc_service недоступен: %s", exc)
+        return UgcSummary.model_validate(response.json())
+    except (HTTPError, ValueError, ValidationError) as exc:
+        # ValueError — response.json() на не-JSON/битом теле; ValidationError —
+        # тело не соответствует схеме UgcSummary (не объект, null вместо
+        # списка, элемент без обязательных полей). Все случаи — тот же
+        # "ugc_service недоступен/отдал мусор", что и сетевая ошибка (в т.ч.
+        # при ответе 200 от неисправного прокси перед ugc_service).
+        logger.warning("ugc_service недоступен или вернул некорректный ответ: %s", exc)
         return None
