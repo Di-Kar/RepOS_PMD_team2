@@ -11,6 +11,7 @@ from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 ENV_FILE = BASE_DIR / ".env"
@@ -73,11 +74,20 @@ class Settings(BaseSettings):
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
 
     @property
-    def postgres_dsn(self) -> str:
-        """Async DSN для SQLAlchemy/приложения."""
-        return (
-            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+    def postgres_url(self) -> URL:
+        """URL для SQLAlchemy/приложения. URL.create принимает логин и пароль
+        отдельными полями, поэтому спецсимволы (@, :, /, %, #) в пароле не
+        ломают разбор строки подключения и не требуют ручного экранирования.
+        Объект URL нужно передавать в движок как есть, не превращая в строку:
+        render_as_string в SQLAlchemy 2.0 не кодирует % в пароле, и пароль
+        вида "%40x" после обратного разбора превратился бы в "@x"."""
+        return URL.create(
+            drivername="postgresql+asyncpg",
+            username=self.postgres_user,
+            password=self.postgres_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
         )
 
 

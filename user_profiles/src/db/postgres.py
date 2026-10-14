@@ -10,7 +10,7 @@ from sqlalchemy.orm import declarative_base
 from src.core.config import settings
 
 engine = create_async_engine(
-    settings.postgres_dsn,
+    settings.postgres_url,
     echo=settings.debug,
     pool_size=10,
     max_overflow=20,
