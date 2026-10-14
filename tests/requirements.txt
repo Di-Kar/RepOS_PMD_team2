@@ -18,6 +18,10 @@ asyncpg==0.29.0
 slowapi==0.1.9
 sentry-sdk==2.44.0
 
+# user_profiles (tests/user_profiles/test_db_config.py: сборка URL БД);
+# версия как в user_profiles/requirements.txt
+sqlalchemy==2.0.23
+
 #Notification_admin_panel
 dj-database-url==2.1.*
 djangorestframework==3.14.*

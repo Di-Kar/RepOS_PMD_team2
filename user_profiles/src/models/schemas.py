@@ -118,6 +118,16 @@ class UgcReviewItem(BaseModel):
     dislikes_count: int
 
 
+class UgcSummary(BaseModel):
+    """Тело ответа ugc_service/.../ugc-summary. Клиент валидирует им ответ
+    целиком: null вместо списка или элемент без обязательных полей — это
+    "ugc_service отдал мусор", а не повод ронять ProfileFullResponse с 500."""
+
+    bookmarks: list[UgcBookmarkItem] = Field(default_factory=list)
+    ratings: list[UgcRatingItem] = Field(default_factory=list)
+    reviews: list[UgcReviewItem] = Field(default_factory=list)
+
+
 class ProfileFullResponse(BaseModel):
     """Агрегирующая витрина профиля (docs/user_profiles_contract.md §2,
     GET /api/v1/profiles/{user_id}/full)."""

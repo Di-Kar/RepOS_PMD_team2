@@ -49,6 +49,13 @@ class UserResponse(BaseSchema):
     is_superuser: bool = Field(default=False, description="Superuser flag")
 
 
+class TokenIdentityResponse(BaseSchema):
+    """Результат проверки access-токена (GET /token/verify) — только
+    идентификатор, без ФИО и ролей, чтобы проверка не ходила в user_profiles."""
+
+    id: uuid.UUID = Field(..., description="User ID")
+
+
 class InternalUserProfileResponse(BaseSchema):
     """Профиль пользователя для service-to-service вызовов по user_id, без
     JWT конечного пользователя (notification_worker, S10_T3, issue #96).

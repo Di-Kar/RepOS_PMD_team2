@@ -33,6 +33,7 @@ from src.models.schemas import (
     LoginHistoryResponse,
     MessageResponse,
     RefreshRequest,
+    TokenIdentityResponse,
     TokenPair,
     TokenPayload,
     UserLoginRequest,
@@ -212,6 +213,18 @@ async def get_profile(
 ) -> UserResponse:
     """Возвращает профиль пользователя. full_name подтягивается из user_profiles."""
     return await _profile_response(user, session)
+
+
+@router.get("/token/verify", tags=["Tokens"], response_model=TokenIdentityResponse)
+@limiter.limit(settings.rate_limit_relaxed)
+async def verify_token(
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> TokenIdentityResponse:
+    """Проверяет access-токен и возвращает id пользователя. В отличие от
+    /profile не читает роли и не обращается к user_profiles за ФИО — для
+    сервисов, которым нужна только аутентификация (user_profiles /me)."""
+    return TokenIdentityResponse(id=user.id)
 
 
 # ЭНДПОИНТ PUT /profile УДАЛЁН ПОЛНОСТЬЮ.
