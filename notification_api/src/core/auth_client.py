@@ -20,7 +20,9 @@ async def resolve_user_id(token: str) -> str | None:
     try:
         async with httpx.AsyncClient(timeout=settings.auth_service_timeout) as client:
             response = await client.get(
-                f"{settings.auth_service_url}/profile",
+                # /token/verify, а не /profile: нужен только id, без запроса
+                # ФИО в user_profiles (иначе его задержка валит проверку токена).
+                f"{settings.auth_service_url}/token/verify",
                 headers={"Authorization": f"Bearer {token}"},
             )
     except httpx.HTTPError as exc:

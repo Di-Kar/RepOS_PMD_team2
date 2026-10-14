@@ -18,11 +18,23 @@ def _unauthorized(message: str) -> HTTPException:
     )
 
 
+def _auth_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={
+            "error": "auth_unavailable",
+            "message": "Token verification is temporarily unavailable",
+        },
+    )
+
+
 async def get_current_user_id(request: Request) -> uuid.UUID:
     """Авторизация self-service эндпоинтов (/me): по образцу
     ugc_service/src/api/dependencies.py:AuthServiceClient.get_current_user,
-    но без анонимного фолбэка — любая проблема (нет заголовка, невалидный
-    токен, auth_service недоступен) сразу 401."""
+    но без анонимного фолбэка. Токен проверяется лёгким auth_service/token/verify
+    (без загрузки ФИО из user_profiles, чтобы не было обратного вызова).
+    Нет заголовка / невалидный токен — 401; auth_service недоступен
+    (сеть, таймаут, 5xx) — 503, а не ложное 401 при действительном токене."""
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise _unauthorized("Authorization header with Bearer token is required")
@@ -31,11 +43,14 @@ async def get_current_user_id(request: Request) -> uuid.UUID:
     try:
         async with AsyncClient(timeout=settings.auth_service_timeout) as client:
             response = await client.get(
-                f"{settings.auth_service_url}/profile",
+                f"{settings.auth_service_url}/token/verify",
                 headers={"Authorization": f"Bearer {token}"},
             )
     except HTTPError as exc:
-        raise _unauthorized("auth_service unavailable") from exc
+        raise _auth_unavailable() from exc
+
+    if response.status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
+        raise _auth_unavailable()
 
     if response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
         # auth_service/profile рейт-лимитирован (RATE_LIMIT_RELAXED) — это не

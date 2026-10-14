@@ -130,6 +130,27 @@ class TestProfile:
             body = await response.json()
         assert body["email"] == shared_user["email"]
 
+    async def test_token_verify_requires_token(self, session):
+        async with session.get(f"{BASE_URL}/auth/token/verify") as response:
+            assert response.status == 401
+
+    async def test_token_verify_rejects_garbage_token(self, session):
+        async with session.get(
+            f"{BASE_URL}/auth/token/verify",
+            headers={"Authorization": "Bearer garbage"},
+        ) as response:
+            assert response.status == 401
+
+    async def test_token_verify_returns_only_id(
+        self, session, shared_user, shared_tokens
+    ):
+        async with session.get(
+            f"{BASE_URL}/auth/token/verify", headers=bearer(shared_tokens)
+        ) as response:
+            assert response.status == 200
+            body = await response.json()
+        assert body == {"id": shared_user["id"]}
+
     async def test_change_password(self, session, new_user, login):
         # Меняет пароль — нужен эксклюзивный аккаунт, shared_user не годится.
         my_tokens = await login(new_user)
