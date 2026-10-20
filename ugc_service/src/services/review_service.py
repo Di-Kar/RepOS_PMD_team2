@@ -10,6 +10,14 @@ from pymongo.errors import DuplicateKeyError
 logger = logging.getLogger(__name__)
 
 
+class ReviewAlreadyExists(Exception):
+    """Пользователь уже оставил рецензию на этот фильм.
+
+    Создание новой — не способ её изменить: для этого есть
+    PUT /reviews/{review_id}.
+    """
+
+
 async def create_review(
     user_id: UUID,
     film_id: UUID,
@@ -27,7 +35,10 @@ async def create_review(
         rating=rating,
         is_spoiler=is_spoiler,
     )
-    await review.insert()
+    try:
+        await review.insert()
+    except DuplicateKeyError as exc:
+        raise ReviewAlreadyExists(user_id, film_id) from exc
     logger.info('Рецензия создана: user=%s film=%s', user_id, film_id)
     return review
 

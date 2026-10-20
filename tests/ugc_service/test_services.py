@@ -151,18 +151,26 @@ class TestLikeService:
 
     @patch('services.like_service.get_redis', new_callable=AsyncMock)
     async def test_add_or_update_like_existing(self, mock_get_redis, mock_beanie):
-        """Обновление существующего лайка."""
+        """Обновление существующего лайка.
+
+        Обновление идёт через Like.find_one(...).update(...), а не через
+        Like.get()+instance.save(): фильтр обязан включать user_id (шард-key
+        коллекции likes), иначе на реальном шардированном кластере падает
+        с ShardKeyNotFound (issue про 500 на повторный лайк).
+        """
         mock_get_redis.return_value.delete = AsyncMock()
         from pymongo.errors import DuplicateKeyError
 
         mock_instance = MagicMock()
-        mock_instance.save = AsyncMock()
 
         with patch('services.like_service.Like') as MockLike:
-            # insert() бросает DuplicateKeyError, поэтому find_one вызывается
+            # insert() бросает DuplicateKeyError, поэтому идём в find_one(...).update(...)
             mock_instance.insert = AsyncMock(side_effect=DuplicateKeyError('dup'))
             MockLike.return_value = mock_instance
-            MockLike.get = AsyncMock(return_value=mock_instance)
+
+            mock_find_query = MagicMock()
+            mock_find_query.update = AsyncMock()
+            MockLike.find_one = MagicMock(return_value=mock_find_query)
 
             from services.like_service import add_or_update_like
 
@@ -171,7 +179,8 @@ class TestLikeService:
             result = await add_or_update_like(user_id, film_id, 9)
 
             assert result is mock_instance
-            mock_instance.save.assert_called_once()
+            MockLike.find_one.assert_called_once()
+            mock_find_query.update.assert_awaited_once()
 
     async def test_get_film_like_stats(self, mock_beanie):
         """Получение статистики лайков."""

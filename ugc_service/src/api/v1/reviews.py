@@ -16,6 +16,8 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, sta
 from pydantic import BaseModel
 from services import review_service
 
+from services.review_service import ReviewAlreadyExists
+
 from .schemas import ReviewCreateRequest, ReviewUpdateRequest
 
 
@@ -118,11 +120,17 @@ async def create_review(
             likes_count=review.likes_count,
             dislikes_count=review.dislikes_count,
         )
+    except ReviewAlreadyExists:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Вы уже оставили рецензию на этот фильм. '
+            'Отредактируйте существующую рецензию вместо создания новой.',
+        )
     except Exception:
         # logger.exception автоматически запишет тип ошибки и стек-трейс в логи
         logger.exception('Ошибка создания рецензии')
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail='Внутренняя ошибка сервера'
         )
 

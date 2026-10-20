@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
+from beanie.operators import Set
 from redis.exceptions import RedisError
 from models.like import Like, like_id
 from pymongo.errors import DuplicateKeyError
@@ -39,13 +40,15 @@ async def add_or_update_like(
         logger.info('Лайк создан: user=%s film=%s rating=%d', user_id, film_id, rating)
     except DuplicateKeyError:
         # Оценка уже есть (в т.ч. гонка параллельных запросов) — обновляем.
-        existing = await Like.get(like_id(user_id, film_id))
-        if existing:
-            existing.rating = rating
-            existing.updated_at = datetime.utcnow()
-            await existing.save()
-            logger.info('Лайк обновлён: user=%s film=%s rating=%d', user_id, film_id, rating)
-            like = existing
+        # Фильтр обязательно включает user_id: коллекция likes шардирована
+        # по {user_id: "hashed"} (docker/setup_mongo_cluster.sh), а обновление
+        # только по _id не даёт mongos определить единственный шард и падает
+        # с ShardKeyNotFound (code 61) на кластере из нескольких шардов.
+        like.updated_at = datetime.utcnow()
+        await Like.find_one(Like.id == like.id, Like.user_id == user_id).update(
+            Set({Like.rating: like.rating, Like.updated_at: like.updated_at})
+        )
+        logger.info('Лайк обновлён: user=%s film=%s rating=%d', user_id, film_id, rating)
 
     # ✅ ИНВАЛИДАЦИЯ КЭША при записи (Write-Invalidate)
     await invalidate_film_stats_cache(film_id)

@@ -6,6 +6,7 @@ from uuid import UUID
 from beanie import Document
 from bson import ObjectId
 from pydantic import Field
+from pymongo import IndexModel
 
 
 def review_vote_id(user_id: UUID, review_id: ObjectId) -> str:
@@ -43,6 +44,15 @@ class Review(Document):
             # published_at — без составного индекса сортировка после поиска
             # по user_id идёт в памяти (лимит blocking sort 32MB).
             [('user_id', 1), ('published_at', -1)],
+            # Одна рецензия на фильм от пользователя — иначе индикатор
+            # has_reviewed (S11_T9) и редактирование по review_id теряют смысл.
+            # film_id первым: это шард-ключ коллекции (setup_mongo_cluster.sh),
+            # без него уникальность не была бы глобальной на кластере.
+            IndexModel(
+                [('film_id', 1), ('user_id', 1)],
+                unique=True,
+                name='uniq_film_user_review',
+            ),
         ]
 
     class Config:

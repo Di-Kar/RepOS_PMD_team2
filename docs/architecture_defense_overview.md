@@ -184,6 +184,99 @@ sequenceDiagram
 ClickHouse) — достаточно скопировать блок `sequenceDiagram` и поменять
 участников и шаги.
 
+## 3. Итоговый модуль S11 — `user_profiles` и его связи
+
+Та же нотация, что в разделе 1, но вырезан только финальный спринт
+(`user_profiles`) и модули, с которыми он реально связан по коду (а не
+вся платформа — см. [[project_diploma_defense_scope]] в памяти: базовая
+платформа у всех групп одинаковая, на защите в фокусе только S11).
+Связи сверены с кодом по состоянию на `main` (не из документации, а
+прямым чтением клиентов):
+
+```mermaid
+flowchart TD
+    viewer["Пользователь"]
+    admin["Администратор"]
+
+    subgraph profiles_s11["user_profiles"]
+        user_profiles["User Profiles (FastAPI)<br/>ФИО, телефон, аудит просмотров"]
+        profiles_pg[("Profiles DB<br/>PostgreSQL")]
+    end
+
+    subgraph auth["Авторизация"]
+        auth_service["Auth Service (FastAPI)<br/>JWT, IDM"]
+        auth_pg[("Auth DB<br/>PostgreSQL")]
+        auth_redis[("Auth Redis")]
+    end
+
+    subgraph ugc["UGC"]
+        ugc_service["UGC Service (FastAPI)<br/>избранное, рейтинг, рецензии"]
+        mongo[("MongoDB")]
+        ugc_redis[("UGC Redis")]
+    end
+
+    admin_panel["Admin Panel (Django)<br/>profiles_proxy: просмотр и аудит"]
+    async_api["Async API (FastAPI)<br/>карточка фильма"]
+    notification_api["Notification API<br/>worker: рендер письма"]
+
+    %% Клиенты
+    viewer -->|CRUD профиля, избранное| user_profiles
+    viewer -->|карточка фильма| async_api
+    admin --> admin_panel
+
+    %% Админка
+    admin_panel -->|просмотр профиля + <br/>аудит просмотра,<br/>роли profiles_viewer/audit| user_profiles
+    admin_panel -->|логин и роль администратора| auth_service
+
+    %% Ядро модуля
+    user_profiles --> profiles_pg
+    user_profiles -->|проверка JWT| auth_service
+    user_profiles -->|"сводка: рейтинг, рецензии, избранное"| ugc_service
+
+    %% Обратная зависимость (из-за T4: auth_service лишился ФИО)
+    auth_service -->|ФИО пользователя<br/>для /me и /internal| user_profiles
+    auth_service --> auth_pg
+    auth_service --> auth_redis
+
+    %% UGC как источник данных для S11
+    ugc_service --> mongo
+    ugc_service --> ugc_redis
+    ugc_service -->|проверка JWT| auth_service
+
+    %% Карточка фильма использует оба сервиса S11-контура
+    async_api -->|рейтинг и рецензии к фильму| ugc_service
+    async_api -->|ФИО автора рецензии| user_profiles
+    async_api -->|проверка JWT| auth_service
+
+    %% Побочный потребитель после T4
+    notification_api -->|ФИО для текста письма<br/>вместо auth_service| user_profiles
+```
+
+**Как читать:**
+
+- Центр схемы — `user_profiles` (своя БД, проверка токена через
+  `auth_service`, запрос сводки UGC из `ugc_service` для агрегирующей
+  витрины `/full`, T6).
+- `admin_panel` и `async_api` — два реальных "фасада", через которые
+  пользователи модуля видят его данные: админка (просмотр + обязательный
+  аудит, T5/T10) и карточка фильма (рейтинг/рецензии + ФИО автора
+  рецензии, T7).
+- Стрелка `auth_service --> user_profiles` (S2S за ФИО) — это **обратная
+  зависимость**, возникшая из-за T4 (`auth_service` отдал хранение
+  ФИО в `user_profiles` и теперь сам же ходит за ним обратно). Именно
+  она стала пунктом код-ревью `#131`/`S11_R2` — risk 401 по таймауту,
+  если `user_profiles` недоступен; закрыт деградацией (имя подставляется
+  пустым/«Аноним», а не 500).
+- `notification_api` показан отдельной стрелкой по той же причине — после
+  T4 воркер рендера письма перестал брать ФИО из `auth_service` и ходит
+  в `user_profiles` напрямую. Остальная внутренняя механика
+  уведомлений (Kafka, воркеры, MailHog) не относится к S11 и не
+  показана — см. полную схему в разделе 1.
+- `ugc_service` целиком переиспользован "как есть" (закладки/рейтинг/
+  рецензии не продублированы внутри `user_profiles`) — на схеме он
+  показан как отдельный блок с его собственными хранилищами (Mongo,
+  Redis), а не как часть `user_profiles`.
+
 ## Мини-шпаргалка по синтаксису mermaid
 
 - `flowchart TD` / `flowchart LR` — блок-схема сверху-вниз / слева-направо.
